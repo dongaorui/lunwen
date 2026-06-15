@@ -24,6 +24,12 @@ def _structure(row):
 def _missing(row, key):
     structure = _structure(row)
     missing = set(structure.get("missing") or [])
+    required = structure.get("required_structures")
+    if required is None:
+        expected = structure.get("expected") or {}
+        required = [name for name, value in expected.items() if value]
+    if required and key not in set(required):
+        return 0.0
     return 1.0 if key in missing else 0.0
 
 

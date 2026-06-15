@@ -129,7 +129,21 @@ ReplenishVerifier consists of six stages:
 5. **Structure checking.** Expected replenishment structures are checked against the parsed LP artifact.
 6. **Scoring and feedback.** The system produces selection scores, structure-completeness scores, missing-structure lists, and repair prompts.
 
-### 4.2 LP Parser
+### 4.2 Problem-type-specific Required Structure Schema
+
+The implementation centralizes expected structures in `EXPECTED_STRUCTURES_BY_TYPE`. Each problem type defines `required`, `optional`, and `forbidden` structure sets. The main `structure_score` is computed only over required structures; optional structures are reported in certificates but do not affect the score; forbidden structures are currently explicit metadata for future diagnostics. If a benchmark instance contains explicit `expected_structures`, its truthy keys override the default required set for that instance; otherwise the problem-type schema is used as fallback.
+
+This avoids penalizing structures that are not part of a problem type, such as treating a missing Big-M link as an error for a single-period newsvendor instance.
+
+| Problem type | Required structures | Optional examples |
+|---|---|---|
+| `single_period_newsvendor` | order, inventory, shortage, holding cost, shortage cost | inventory balance |
+| `single_item_multi_period` | inventory balance, order, inventory, holding cost | capacity, lead time |
+| `single_item_multi_period_shortage` | inventory balance, order, inventory, shortage, holding cost, shortage cost | lead time |
+| `multi_item_capacity` | inventory balance, order, inventory, capacity, holding cost | shortage, lead time |
+| `fixed_order_cost_big_m` | inventory balance, order, inventory, binary setup, Big-M, holding cost, fixed cost | capacity, lead time |
+
+### 4.3 LP Parser
 
 The parser is a lightweight section-level parser rather than a complete LP grammar. It targets PuLP-exported LP files and extracts:
 
@@ -144,7 +158,7 @@ This design is sufficient for the current prototype but remains dependent on the
 
 The current LPStructureGraph provides only incidence-based auxiliary evidence. It is not a complete graph-matching verifier and cannot fully establish algebraic equivalence. Stronger graph matching and coefficient-pattern verification are left for future work.
 
-### 4.3 Replenishment Structure Rules
+### 4.4 Replenishment Structure Rules
 
 Structure detection combines layered evidence:
 
@@ -156,7 +170,7 @@ Structure detection combines layered evidence:
 
 A structure name alone is treated only as weak evidence. ReplenishVerifier assigns high structural confidence only when the name signal is supported by expression-level or graph-level evidence. The rule-level certificate records `evidence_strength`, matched names, matched expressions, index-consistency warnings, magnitude checks, and repair hints. These are heuristic high-level structure checks. They do not prove coefficient correctness, indexing correctness, or boundary-condition correctness.
 
-### 4.4 Selection Score
+### 4.5 Selection Score
 
 ReplenishVerifier-Full uses the following ground-truth-free score:
 
@@ -164,15 +178,15 @@ ReplenishVerifier-Full uses the following ground-truth-free score:
 S_{full}(c)=0.25E(c)+0.25Z(c)+0.35SC(c)+0.15Sem(c),
 \]
 
-where \(E(c)\) indicates executability, \(Z(c)\) indicates `Optimal` solver status, \(SC(c)\) is the average rule-level score over required structures, and \(Sem(c)\) is a semantic-consistency signal derived from missing structures. This raw score does not use `reference_objective`.
+where \(E(c)\) indicates executability, \(Z(c)\) indicates `Optimal` solver status, \(SC(c)\) is the average rule-level score over the current problem type's required structures, and \(Sem(c)\) is a semantic-consistency signal derived from required-only missing structures. This raw score does not use `reference_objective`.
 
 The hard selection gate prevents syntactically well-formed but unsolved or infeasible candidates from being selected, while still preserving their structure certificates for diagnosis and repair. By default, only executable + `Optimal` candidates receive a non-zero formal `selection_score`; allowing merely feasible candidates requires an explicit flag.
 
 The implementation also supports `--use_objective_consensus`, which adds a small candidate-objective-consensus signal for ReplenishVerifier-Full. This signal clusters candidate objectives within the same problem and never uses the reference objective. It should be treated as an appendix ablation unless it becomes part of the final method.
 
-### 4.5 Repair Feedback
+### 4.6 Repair Feedback
 
-When required structures are missing, ReplenishVerifier produces structured feedback. For example, it can identify missing inventory-balance equations, missing capacity constraints, missing Big-M links, or missing fixed-ordering-cost terms. The current code includes an entry point for second-round LLM repair generation. However, repair should be reported as actual repair only after repaired candidates are generated and re-evaluated; otherwise it is repair-prompt generation.
+When required structures are missing, ReplenishVerifier produces structured feedback. For example, it can identify missing inventory-balance equations, missing capacity constraints, missing Big-M links, or missing fixed-ordering-cost terms when those structures are required for the instance. Repair prompts and error-type analysis consume the same required-only `missing` list, so optional or irrelevant absent structures are not reported as repair targets. The current code includes an entry point for second-round LLM repair generation. However, repair should be reported as actual repair only after repaired candidates are generated and re-evaluated; otherwise it is repair-prompt generation.
 
 ---
 

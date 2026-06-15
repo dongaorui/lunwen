@@ -3,56 +3,11 @@ from copy import deepcopy
 
 import pulp
 
-from replenishverifier.benchmark.schemas import empty_structures
+from replenishverifier.data.structure_schema import expected_from_schema
 
 
 def expected_for(problem_type):
-    s = empty_structures()
-    if problem_type == "single_period_newsvendor":
-        s.update({
-            "order_variable": True,
-            "inventory_variable": True,
-            "shortage_variable": True,
-            "holding_cost": True,
-            "shortage_cost": True,
-        })
-    elif problem_type == "single_item_multi_period":
-        s.update({
-            "inventory_balance": True,
-            "order_variable": True,
-            "inventory_variable": True,
-            "holding_cost": True,
-        })
-    elif problem_type == "single_item_multi_period_shortage":
-        s.update({
-            "inventory_balance": True,
-            "order_variable": True,
-            "inventory_variable": True,
-            "shortage_variable": True,
-            "holding_cost": True,
-            "shortage_cost": True,
-        })
-    elif problem_type == "multi_item_capacity":
-        s.update({
-            "inventory_balance": True,
-            "order_variable": True,
-            "inventory_variable": True,
-            "capacity_constraint": True,
-            "holding_cost": True,
-        })
-    elif problem_type == "fixed_order_cost_big_m":
-        s.update({
-            "inventory_balance": True,
-            "order_variable": True,
-            "inventory_variable": True,
-            "binary_order_variable": True,
-            "big_m_constraint": True,
-            "holding_cost": True,
-            "fixed_order_cost": True,
-        })
-    else:
-        raise ValueError(f"Unknown problem_type: {problem_type}")
-    return s
+    return expected_from_schema(problem_type)
 
 
 def sample_params(problem_type, rng=None):

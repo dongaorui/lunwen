@@ -107,7 +107,7 @@ Key modules:
 
 | Module | Purpose |
 |---|---|
-| `replenishverifier/data/structure_schema.py` | problem-type-specific required/optional structure schema |
+| `replenishverifier/data/structure_schema.py` | central `EXPECTED_STRUCTURES_BY_TYPE` schema with required/optional/forbidden structures |
 | `replenishverifier/verifier/lp_parser.py` | lightweight PuLP LP parser |
 | `replenishverifier/verifier/lp_graph.py` | weak LP graph evidence detectors |
 | `replenishverifier/verifier/structure_rules.py` | structure detection and per-rule certificates |
@@ -129,7 +129,7 @@ Structure certificates include one record per rule:
 }
 ```
 
-The main `structure_score` is computed only over required structures from the problem-type schema. Optional structures are reported but do not affect the main score.
+The main `structure_score` is computed only over required structures from the problem-type schema. Optional structures are reported but do not affect the main score. The central schema is `EXPECTED_STRUCTURES_BY_TYPE`; each entry defines `required`, `optional`, and `forbidden` sets. If a benchmark instance contains explicit `expected_structures`, its truthy keys override the default required set for that instance, while the default schema remains fallback metadata. Missing-structure feedback, repair prompts, and error-type analysis all consume the required-only `missing` list.
 
 ---
 

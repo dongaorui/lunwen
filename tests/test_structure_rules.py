@@ -1,3 +1,6 @@
+import pytest
+
+from replenishverifier.verifier.feedback import generate_feedback
 from replenishverifier.verifier.lp_parser import parse_lp_text
 from replenishverifier.verifier.structure_rules import (
     check_big_m_magnitude,
@@ -161,3 +164,93 @@ def test_big_m_magnitude_small_m_warns_without_failing_parser():
     check = check_big_m_magnitude("Q_0 - 2 Y_0 <= 0")
     assert check["candidate_M"] == 2.0
     assert check["warning"]
+
+
+def test_newsvendor_schema_does_not_require_big_m_or_capacity():
+    text = """
+Minimize
+OBJ: 2 Q_0 + 3 I_0 + 10 B_0
+Subject To
+demand_satisfaction_0: Q_0 + B_0 - I_0 = 50
+End
+"""
+    parsed = parse_lp_text(text)
+    result = check_structures(parsed, None, problem_type="single_period_newsvendor")
+
+    assert "big_m_constraint" not in result.required_structures
+    assert "capacity_constraint" not in result.required_structures
+    assert "big_m_constraint" not in result.missing
+    assert "capacity_constraint" not in result.missing
+    certs = {item["rule_name"]: item for item in result.certificates}
+    expected_score = sum(certs[key]["score"] for key in result.required_structures) / len(result.required_structures)
+    assert result.structure_score == pytest.approx(expected_score)
+
+
+def test_optional_structure_does_not_affect_missing_or_score_denominator():
+    text = """
+Minimize
+OBJ: 2 Q_0 + 3 I_0
+Subject To
+inventory_balance_0: I_0 - Q_0 + demand_0 = 0
+End
+"""
+    parsed = parse_lp_text(text)
+    result = check_structures(parsed, None, problem_type="single_item_multi_period")
+
+    assert "capacity_constraint" in result.optional_structures
+    assert "capacity_constraint" not in result.missing
+    assert result.optional_detected["capacity_constraint"] is False
+    certs = {item["rule_name"]: item for item in result.certificates}
+    expected_score = sum(certs[key]["score"] for key in result.required_structures) / len(result.required_structures)
+    assert result.structure_score == pytest.approx(expected_score)
+
+
+def test_structure_score_denominator_is_required_only():
+    text = """
+Minimize
+OBJ: Q_0
+Subject To
+nonneg_0: Q_0 >= 0
+End
+"""
+    parsed = parse_lp_text(text)
+    result = check_structures(parsed, None, problem_type="single_item_multi_period")
+    certs = {item["rule_name"]: item for item in result.certificates}
+    expected_score = sum(certs[key]["score"] for key in result.required_structures) / len(result.required_structures)
+
+    assert set(result.required_structures) == {"holding_cost", "inventory_balance", "inventory_variable", "order_variable"}
+    assert result.structure_score == pytest.approx(expected_score)
+    assert "capacity_constraint" not in result.missing
+
+
+def test_feedback_only_reports_missing_required_structures():
+    text = """
+Minimize
+OBJ: Q_0
+Subject To
+nonneg_0: Q_0 >= 0
+End
+"""
+    parsed = parse_lp_text(text)
+    result = check_structures(parsed, None, problem_type="single_period_newsvendor")
+    feedback = generate_feedback(result)
+
+    assert "[shortage_variable]" in feedback
+    assert "[big_m_constraint]" not in feedback
+    assert "[capacity_constraint]" not in feedback
+
+
+def test_explicit_expected_structures_take_precedence_in_check_structures():
+    text = """
+Minimize
+OBJ: Q_0
+Subject To
+nonneg_0: Q_0 >= 0
+End
+"""
+    parsed = parse_lp_text(text)
+    result = check_structures(parsed, {"big_m_constraint": True}, problem_type="single_period_newsvendor")
+
+    assert result.required_structures == ["big_m_constraint"]
+    assert "big_m_constraint" in result.missing
+    assert "order_variable" not in result.missing

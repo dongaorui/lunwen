@@ -88,6 +88,7 @@ class StructureCheckResult:
     weak_evidence: dict
     required_structures: list
     optional_structures: list
+    forbidden_structures: list
     low_score_required: list = field(default_factory=list)
 
     def to_dict(self):
@@ -575,8 +576,8 @@ def build_structure_certificate(parsed, expected, detected, required_structures,
 def check_structures(parsed, expected, problem_type=None):
     graph = LPStructureGraph(parsed)
     weak_evidence = graph.weak_evidence()
-    required_structures, optional_structures = split_expected_structures(expected, problem_type=problem_type)
-    certificates = build_rule_certificates(parsed, expected, required_structures, optional_structures, weak_evidence)
+    required_structures, optional_structures, forbidden_structures = split_expected_structures(expected, problem_type=problem_type)
+    certificates = build_rule_certificates(parsed, expected or {}, required_structures, optional_structures, weak_evidence)
     cert_by_rule = {cert["rule_name"]: cert for cert in certificates}
 
     detected = {key: cert_by_rule[key]["score"] >= PASS_SCORE_THRESHOLD for key in STRUCTURE_KEYS}
@@ -612,7 +613,7 @@ def check_structures(parsed, expected, problem_type=None):
     structure_score = sum(required_scores) / len(required_scores) if required_scores else 1.0
 
     return StructureCheckResult(
-        expected=dict(expected),
+        expected=dict(expected or {}),
         detected=detected,
         passed=passed,
         missing=missing,
@@ -624,5 +625,6 @@ def check_structures(parsed, expected, problem_type=None):
         weak_evidence=weak_evidence,
         required_structures=list(required_structures),
         optional_structures=list(optional_structures),
+        forbidden_structures=list(forbidden_structures),
         low_score_required=low_score_required,
     )

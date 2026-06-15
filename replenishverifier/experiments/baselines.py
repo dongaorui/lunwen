@@ -313,11 +313,22 @@ def generic_repair_feedback(execution_result, audit):
     return "\n".join(f"- {message}" for message in messages)
 
 
+def _required_missing_structures(structure):
+    missing = set((structure or {}).get("missing") or [])
+    required = (structure or {}).get("required_structures")
+    if required is None:
+        expected = (structure or {}).get("expected") or {}
+        required = [key for key, value in expected.items() if value]
+    if required:
+        missing &= set(required)
+    return sorted(missing)
+
+
 def classify_error_type(row):
     execution = row.get("execution") or {}
     structure = row.get("structure_verification") or {}
     audit = row.get("optargus_audit") or {}
-    missing = structure.get("missing") or []
+    missing = _required_missing_structures(structure)
 
     if not execution.get("executable"):
         status = execution.get("status")
