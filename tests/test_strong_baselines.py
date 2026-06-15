@@ -1,3 +1,4 @@
+from replenishverifier.experiments.audit_leakage import FORMAL_METHODS, _audit_rows
 from replenishverifier.experiments.baselines import (
     code_output_format_valid,
     compute_lp_stats,
@@ -9,6 +10,7 @@ from replenishverifier.experiments.baselines import (
     sirl_like_lp_stats_score,
 )
 from replenishverifier.experiments.extract_case_studies import extract_case_studies
+from replenishverifier.experiments.methods import select_for_method
 from replenishverifier.utils.io import write_jsonl
 from replenishverifier.verifier.lp_parser import parse_lp_text
 
@@ -57,6 +59,58 @@ def test_or_r1_like_voting_uses_candidate_consensus_without_reference_objective(
     assert consensus[3] == 0.0
     assert code_output_format_valid("import pulp\nmodel = pulp.LpProblem('x')\n") is True
     assert or_r1_like_voting_score(rows[0]["execution"], consensus[0], code_format_valid=True) > 0.8
+
+
+def _row(candidate_id, objective, structure_score=0.0, executable=True, status="Optimal", reference_objective=999.0):
+    return {
+        "problem_id": "p0",
+        "candidate_id": candidate_id,
+        "execution": {"executable": executable, "status": status, "objective": objective, "lp_path": f"{candidate_id}.lp" if executable else None},
+        "structure_score": structure_score,
+        "structure_verification": {"structure_score": structure_score, "missing": [] if structure_score >= 1.0 else ["inventory_balance"]},
+        "objective_consensus_score": 0.0,
+        "reference_objective": reference_objective,
+        "raw_solver_only_score": 1.0 if executable and status == "Optimal" else 0.0,
+        "solver_only_score": 1.0 if executable and status == "Optimal" else 0.0,
+        "score": structure_score,
+    }
+
+
+def test_reward_style_selector_uses_consensus_structure_and_no_reference_objective():
+    rows = [
+        _row("minority_good_structure", 10.0, structure_score=1.0, reference_objective=10.0),
+        _row("majority_mid_structure_a", 20.0, structure_score=0.5, reference_objective=999.0),
+        _row("majority_mid_structure_b", 20.000001, structure_score=0.5, reference_objective=999.0),
+    ]
+    for row, score in zip(rows, compute_objective_consensus_scores(rows)):
+        row["objective_consensus_score"] = score
+
+    selected_consensus = select_for_method("Consensus only", {"p0": rows}, {"p0": {"problem_type": "single_item_multi_period", "difficulty": "medium"}})
+    selected_structure = select_for_method("Structure only", {"p0": rows}, {"p0": {"problem_type": "single_item_multi_period", "difficulty": "medium"}})
+    selected_full = select_for_method("Solver + Structure + Consensus", {"p0": rows}, {"p0": {"problem_type": "single_item_multi_period", "difficulty": "medium"}})
+
+    assert selected_consensus[0]["candidate_id"] == "majority_mid_structure_a"
+    assert selected_structure[0]["candidate_id"] == "minority_good_structure"
+    assert selected_full[0]["candidate_id"]
+    assert selected_full[0]["uses_reference_objective_for_selection"] is False
+    assert "reference_objective" not in selected_full[0]["reward_components"]
+    assert "no reference objective" in selected_full[0]["selection_policy"]
+
+
+def test_reward_style_methods_are_in_no_leakage_audit():
+    assert "Consensus only" in FORMAL_METHODS
+    assert "Solver + Structure + Consensus" in FORMAL_METHODS
+    row = {
+        "method_name": "Consensus only",
+        "selected": True,
+        "uses_reference_objective_for_selection": False,
+        "selection_policy": "OR-R1-inspired objective consensus among candidates; no reference objective",
+        "score": 1.0,
+        "selection_score": 1.0,
+        "objective_correct": 0.0,
+    }
+
+    assert _audit_rows([row], "unit", require_selected=True) == []
 
 
 def test_optargus_like_audit_penalizes_placeholder_models():

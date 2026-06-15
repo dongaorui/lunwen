@@ -205,14 +205,20 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
 
     LOGGER.info("Running ablation study")
     ablation_methods = [
+        "Direct",
+        "Best-of-K",
+        "Solver only",
+        "Structure only",
+        "Consensus only",
+        "Solver + Structure",
+        "Solver + Consensus",
+        "Structure + Consensus",
+        "Solver + Structure + Consensus",
+        "ReplenishVerifier full",
         "Solver-Filter",
         "OR-R1-like Voting",
-        "SIRL-like LP-Stats",
-        "OptArgus-like Audit",
-        "OptiRepair-like Repair-Prompt",
         "Structure-Only",
         "ReplenishVerifier-Full",
-        "ReplenishVerifier-Repair",
     ]
     ablation_rows = []
     for method in ablation_methods:

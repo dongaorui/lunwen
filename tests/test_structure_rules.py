@@ -1,7 +1,9 @@
 import pytest
 
+from replenishverifier.benchmark.templates import build_model, sample_params
+from replenishverifier.solver.pulp_runner import solve_pulp_model
 from replenishverifier.verifier.feedback import generate_feedback
-from replenishverifier.verifier.lp_parser import parse_lp_text
+from replenishverifier.verifier.lp_parser import parse_lp_file, parse_lp_text
 from replenishverifier.verifier.structure_rules import (
     check_big_m_magnitude,
     check_inventory_balance_index_consistency,
@@ -20,6 +22,9 @@ OBJ: 2 Q_0 + 3 I_0 + 10 Y_0
 Subject To
 inventory_balance_0: I_0 - Q_0 + demand_0 = 0
 big_m_0: Q_0 - 100 Y_0 <= 0
+Bounds
+0 <= Q_0
+0 <= I_0
 Binaries
 Y_0
 End
@@ -34,9 +39,12 @@ End
         "binary_order_variable": True,
         "big_m_constraint": True,
         "lead_time": False,
+        "order_cost": True,
         "holding_cost": True,
         "shortage_cost": False,
         "fixed_order_cost": True,
+        "nonnegative_bounds": True,
+        "objective_minimize": True,
     }
     result = check_structures(parsed, expected)
     assert result.structure_score >= 0.75
@@ -46,6 +54,9 @@ End
     assert _cert(result, "big_m_constraint")["passed"] is True
     assert _cert(result, "big_m_constraint")["magnitude_check"]["candidate_M"] == 100.0
     assert _cert(result, "fixed_order_cost")["evidence"]
+    assert _cert(result, "order_cost")["passed"] is True
+    assert _cert(result, "nonnegative_bounds")["passed"] is True
+    assert _cert(result, "objective_minimize")["passed"] is True
     assert result.weak_evidence["big_m_like_constraints"]["found"] is True
     assert result.weak_evidence["fixed_cost_binary_terms"]["found"] is True
 
@@ -218,7 +229,15 @@ End
     certs = {item["rule_name"]: item for item in result.certificates}
     expected_score = sum(certs[key]["score"] for key in result.required_structures) / len(result.required_structures)
 
-    assert set(result.required_structures) == {"holding_cost", "inventory_balance", "inventory_variable", "order_variable"}
+    assert set(result.required_structures) == {
+        "holding_cost",
+        "inventory_balance",
+        "inventory_variable",
+        "nonnegative_bounds",
+        "objective_minimize",
+        "order_cost",
+        "order_variable",
+    }
     assert result.structure_score == pytest.approx(expected_score)
     assert "capacity_constraint" not in result.missing
 
@@ -254,3 +273,48 @@ End
     assert result.required_structures == ["big_m_constraint"]
     assert "big_m_constraint" in result.missing
     assert "order_variable" not in result.missing
+
+
+def test_new_structure_detectors_on_single_period_newsvendor():
+    text = """
+Minimize
+OBJ: 2 Q_0 + 3 I_0 + 10 B_0
+Subject To
+demand_satisfaction_0: Q_0 + B_0 - I_0 = 50
+Bounds
+0 <= Q_0
+0 <= I_0
+0 <= B_0
+End
+"""
+    parsed = parse_lp_text(text)
+    result = check_structures(parsed, None, problem_type="single_period_newsvendor")
+
+    assert _cert(result, "order_cost")["passed"] is True
+    assert _cert(result, "demand_satisfaction")["passed"] is True
+    assert _cert(result, "nonnegative_bounds")["passed"] is True
+    assert _cert(result, "objective_minimize")["passed"] is True
+    assert "demand_satisfaction" not in result.missing
+
+
+def test_reference_models_detect_new_required_structures(tmp_path):
+    problem_types = [
+        "single_period_newsvendor",
+        "single_item_multi_period",
+        "single_item_multi_period_shortage",
+        "multi_item_capacity",
+        "fixed_order_cost_big_m",
+    ]
+
+    for problem_type in problem_types:
+        model = build_model(problem_type, sample_params(problem_type))
+        solve_result = solve_pulp_model(model, lp_path=tmp_path / f"{problem_type}.lp", msg=False)
+        parsed = parse_lp_file(solve_result["lp_path"])
+        result = check_structures(parsed, None, problem_type=problem_type)
+
+        assert _cert(result, "order_cost")["passed"] is True
+        assert _cert(result, "nonnegative_bounds")["passed"] is True
+        assert _cert(result, "objective_minimize")["passed"] is True
+        if problem_type == "single_period_newsvendor":
+            assert _cert(result, "demand_satisfaction")["passed"] is True
+        assert not result.missing

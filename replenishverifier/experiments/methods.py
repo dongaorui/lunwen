@@ -23,6 +23,13 @@ METHODS = [
     "Direct",
     "Best-of-K",
     "Solver-Filter",
+    "Solver only",
+    "Structure only",
+    "Consensus only",
+    "Solver + Structure",
+    "Solver + Consensus",
+    "Structure + Consensus",
+    "Solver + Structure + Consensus",
     "OR-R1-like Voting",
     "SIRL-like LP-Stats",
     "OptArgus-like Audit",
@@ -206,7 +213,49 @@ def _first_or_empty(pid, reference):
     }
 
 
+REWARD_ABLATION_METHODS = {
+    "Solver only": ("solver",),
+    "Structure only": ("structure",),
+    "Consensus only": ("consensus",),
+    "Solver + Structure": ("solver", "structure"),
+    "Solver + Consensus": ("solver", "consensus"),
+    "Structure + Consensus": ("structure", "consensus"),
+    "Solver + Structure + Consensus": ("solver", "structure", "consensus"),
+    "ReplenishVerifier full": ("solver", "structure", "consensus"),
+}
+
+
+def reward_components(row):
+    execution = row.get("execution") or {}
+    solver_status = str(execution.get("status") or "")
+    rcode = 1.0 if execution.get("executable") else 0.0
+    rsolver = 1.0 if solver_status == "Optimal" else 0.0
+    rstructure = float(row.get("structure_score", ((row.get("structure_verification") or {}).get("structure_score", 0.0))) or 0.0)
+    rconsensus = float(row.get("objective_consensus_score", 0.0) or 0.0)
+    return {
+        "Rcode": rcode,
+        "Rsolver": rsolver,
+        "Rstructure": rstructure,
+        "Robjective_consensus": rconsensus,
+    }
+
+
+def reward_ablation_score(row, method_name):
+    components = reward_components(row)
+    parts = REWARD_ABLATION_METHODS[method_name]
+    score = 0.0
+    if "solver" in parts:
+        score += components["Rcode"] + components["Rsolver"]
+    if "structure" in parts:
+        score += components["Rstructure"]
+    if "consensus" in parts:
+        score += components["Robjective_consensus"]
+    return float(score)
+
+
 def _method_raw_score(row, method_name):
+    if method_name in REWARD_ABLATION_METHODS:
+        return reward_ablation_score(row, method_name)
     if method_name == "OR-R1-like Voting":
         return row.get("or_r1_like_voting_score", 0.0)
     if method_name == "SIRL-like LP-Stats":
@@ -281,6 +330,11 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
             best["selection_policy"] = "candidate order only, with Hard Selection Gate for formal score; no reference objective"
         elif method_name == "Best-of-K":
             best["selection_policy"] = "first executable/optimal candidate when available, with Hard Selection Gate for formal score; no reference objective"
+        elif method_name in REWARD_ABLATION_METHODS:
+            parts = ", ".join(REWARD_ABLATION_METHODS[method_name])
+            best["selection_policy"] = f"OR-R1-inspired reward ablation over {parts}; no reference objective"
+        if method_name in REWARD_ABLATION_METHODS:
+            best["reward_components"] = reward_components(best)
         best["uses_reference_objective_for_selection"] = False
         best["selected"] = True
         selected.append(best)

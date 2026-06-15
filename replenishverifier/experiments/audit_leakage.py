@@ -8,6 +8,14 @@ from replenishverifier.utils.io import read_jsonl
 
 FORMAL_METHODS = {
     "Solver-Filter",
+    "Solver only",
+    "Structure only",
+    "Consensus only",
+    "Solver + Structure",
+    "Solver + Consensus",
+    "Structure + Consensus",
+    "Solver + Structure + Consensus",
+    "ReplenishVerifier full",
     "OR-R1-like Voting",
     "SIRL-like LP-Stats",
     "OptArgus-like Audit",

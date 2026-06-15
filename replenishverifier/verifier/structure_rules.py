@@ -1,8 +1,7 @@
 import re
 from dataclasses import asdict, dataclass, field
 
-from replenishverifier.benchmark.schemas import STRUCTURE_KEYS
-from replenishverifier.data.structure_schema import split_expected_structures
+from replenishverifier.data.structure_schema import STRUCTURE_KEYS, split_expected_structures
 from replenishverifier.verifier.lp_graph import LPStructureGraph
 from replenishverifier.verifier.lp_parser import (
     expression_variables,
@@ -21,9 +20,13 @@ STRUCTURE_DESCRIPTIONS = {
     "binary_order_variable": "binary order trigger variable Y",
     "big_m_constraint": "Big-M linking constraint Q <= M * Y",
     "lead_time": "lead-time structure",
+    "order_cost": "order cost term",
     "holding_cost": "holding cost term",
     "shortage_cost": "shortage cost term",
     "fixed_order_cost": "fixed ordering cost term",
+    "demand_satisfaction": "single-period demand satisfaction constraint",
+    "nonnegative_bounds": "nonnegative lower bounds on core continuous variables",
+    "objective_minimize": "minimization objective direction",
 }
 
 
@@ -36,9 +39,13 @@ REPAIR_HINTS = {
     "binary_order_variable": "Add binary setup/order-trigger variables, e.g. Y[t] in {0,1}.",
     "big_m_constraint": "Add linking constraints such as Q[t] <= M * Y[t] with a numerically reasonable M derived from demand/capacity bounds when possible.",
     "lead_time": "Represent delayed arrivals in the inventory balance, e.g. Q[t-L].",
+    "order_cost": "Include unit_order_cost * Q[t] or equivalent order-variable terms in the objective.",
     "holding_cost": "Include holding_cost * I[t] terms in the objective.",
     "shortage_cost": "Include shortage_cost * B[t] terms in the objective.",
     "fixed_order_cost": "Include fixed_order_cost * Y[t] terms in the objective; declaring Y alone is not enough.",
+    "demand_satisfaction": "Add a single-period demand satisfaction equality such as Q + B - I = demand.",
+    "nonnegative_bounds": "Set nonnegative lower bounds for core continuous variables such as Q, I, and B where present.",
+    "objective_minimize": "Declare the LP as a minimization model.",
 }
 
 
@@ -179,6 +186,39 @@ def _constraint_evidence(parsed, terms, limit=5):
 
 def _objective_evidence(parsed, variables, limit=8):
     return [{"variable": v, "objective_excerpt": parsed.objective[:300]} for v in variables if _contains_var(parsed.objective, v)][:limit]
+
+
+def _bound_line_mentions_var(line, variable):
+    return _contains_var(line, variable)
+
+
+def _explicit_nonnegative_lower_bound(line, variable):
+    line = line.strip()
+    escaped = re.escape(variable)
+    return (
+        re.search(rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])\s*>=\s*0(?:\.0+)?\b", line) is not None
+        or re.search(rf"\b0(?:\.0+)?\s*<=\s*(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])", line) is not None
+    )
+
+
+def _explicit_negative_lower_bound(line, variable):
+    line = line.strip()
+    escaped = re.escape(variable)
+    return (
+        re.search(rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])\s*>=\s*-\d", line) is not None
+        or re.search(rf"-\d(?:\d|\.)*\s*<=\s*(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])", line) is not None
+    )
+
+
+def _variable_has_nonnegative_lower_bound(parsed, variable):
+    lines = [line for line in parsed.bounds if _bound_line_mentions_var(line, variable)]
+    if any("free" in line.lower() for line in lines):
+        return False, "free_bound"
+    if any(_explicit_negative_lower_bound(line, variable) for line in lines):
+        return False, "negative_lower_bound"
+    if any(_explicit_nonnegative_lower_bound(line, variable) for line in lines):
+        return True, "explicit_nonnegative_lower_bound"
+    return True, "lp_default_nonnegative_lower_bound"
 
 
 def _expr_has_relation(expr, relation):
@@ -517,6 +557,55 @@ def _build_cost_cert(rule_name, parsed, required, optional, role, prefix):
     return _make_cert(rule_name, required, optional, strength, objective_vars or vars_[:10], _objective_evidence(parsed, objective_vars))
 
 
+def _build_demand_satisfaction_cert(parsed, required, optional):
+    names = _semantic_constraint_names(parsed, ["demand_satisfaction", "demand", "satisfaction"])
+    best_strength = "name_only" if names else "none"
+    best_expr = None
+    for cname, expr in parsed.constraints.items():
+        vars_in_expr = _constraint_vars(parsed, cname)
+        has_order = any(_has_role([v], "order") for v in vars_in_expr)
+        has_inventory = any(_has_role([v], "inventory") for v in vars_in_expr)
+        has_shortage = any(_has_role([v], "shortage") for v in vars_in_expr)
+        named = cname in names
+        if _expr_has_relation(expr, "eq") and has_order and (has_inventory or has_shortage or _demand_like_terms(expr)):
+            strength = "strong" if named and (has_inventory or has_shortage) else "expression_supported"
+            if _rule_score(strength) > _rule_score(best_strength):
+                best_strength = strength
+                best_expr = {"constraint": cname, "expr": expr, "variables": vars_in_expr[:12]}
+    return _make_cert("demand_satisfaction", required, optional, best_strength, names, [best_expr] if best_expr else [])
+
+
+def _build_nonnegative_bounds_cert(parsed, required, optional):
+    core_vars = []
+    for role, prefix in [("order", "Q"), ("inventory", "I"), ("shortage", "B")]:
+        core_vars.extend(_matching_vars(parsed.variable_names, role=role, prefix=prefix))
+    core_vars = sorted(set(core_vars) - set(parsed.binary_variables))
+    if not core_vars:
+        return _make_cert("nonnegative_bounds", required, optional, "none", [], [])
+
+    evidence = []
+    bad = []
+    for variable in core_vars:
+        ok, source = _variable_has_nonnegative_lower_bound(parsed, variable)
+        item = {"variable": variable, "bound_source": source}
+        evidence.append(item)
+        if not ok:
+            bad.append(variable)
+
+    if bad:
+        strength = "name_only"
+    else:
+        explicit_count = sum(1 for item in evidence if item["bound_source"] == "explicit_nonnegative_lower_bound")
+        strength = "strong" if explicit_count else "expression_supported"
+    return _make_cert("nonnegative_bounds", required, optional, strength, core_vars[:10], evidence[:12])
+
+
+def _build_objective_minimize_cert(parsed, required, optional):
+    strength = "strong" if parsed.sense == "minimize" else "none"
+    matched = [{"sense": parsed.sense}] if parsed.sense else []
+    return _make_cert("objective_minimize", required, optional, strength, [parsed.sense] if parsed.sense else [], matched)
+
+
 def _build_lead_time_cert(parsed, required, optional):
     names = _semantic_constraint_names(parsed, CONSTRAINT_NAME_TERMS["lead_time"])
     exprs = _constraint_evidence(parsed, ["lead_time", "leadtime", "arrival"])
@@ -547,10 +636,18 @@ def build_rule_certificates(parsed, expected, required_structures, optional_stru
             cert = _build_simple_variable_cert(rule_name, parsed, required, optional, "inventory", "I")
         elif rule_name == "binary_order_variable":
             cert = _build_simple_variable_cert(rule_name, parsed, required, optional, "binary_order", "Y", binary=True)
+        elif rule_name == "order_cost":
+            cert = _build_cost_cert(rule_name, parsed, required, optional, "order", "Q")
         elif rule_name == "holding_cost":
             cert = _build_cost_cert(rule_name, parsed, required, optional, "inventory", "I")
         elif rule_name == "shortage_cost":
             cert = _build_cost_cert(rule_name, parsed, required, optional, "shortage", "B")
+        elif rule_name == "demand_satisfaction":
+            cert = _build_demand_satisfaction_cert(parsed, required, optional)
+        elif rule_name == "nonnegative_bounds":
+            cert = _build_nonnegative_bounds_cert(parsed, required, optional)
+        elif rule_name == "objective_minimize":
+            cert = _build_objective_minimize_cert(parsed, required, optional)
         elif rule_name == "lead_time":
             cert = _build_lead_time_cert(parsed, required, optional)
         else:

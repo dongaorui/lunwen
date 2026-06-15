@@ -75,49 +75,68 @@ def sample_params(problem_type, rng=None):
     raise ValueError(f"Unknown problem_type: {problem_type}")
 
 
-def natural_language(problem_type, params):
+def _variant(style, text, template_id):
+    return {"style": style, "text": text, "template_id": template_id}
+
+
+def natural_language_variants(problem_type, params):
     if problem_type == "single_period_newsvendor":
-        return (
-            "A retailer decides a single-period order quantity for one product. "
-            f"Demand is {params['demand']}. Unit ordering cost is {params['unit_order_cost']}, "
-            f"holding cost for leftover inventory is {params['holding_cost']}, and shortage penalty is "
-            f"{params['shortage_cost']}. Formulate and solve a linear optimization model."
-        )
+        return [
+            _variant("math", f"Single-period newsvendor: choose order Q, leftover inventory I, and shortage B for demand {params['demand']}. Minimize {params['unit_order_cost']}Q + {params['holding_cost']}I + {params['shortage_cost']}B subject to demand satisfaction.", "single_period_newsvendor_math"),
+            _variant("business", f"A retailer is buying one product for a one-day selling season. Demand is {params['demand']}; each unit ordered costs {params['unit_order_cost']}, leftovers cost {params['holding_cost']}, and unmet demand costs {params['shortage_cost']}. Build a linear optimization model for the order decision.", "single_period_newsvendor_business"),
+            _variant("verbose", f"Consider a single item with one ordering opportunity and uncertain demand represented by the realized demand value {params['demand']}. The formulation should account for the order quantity, any ending inventory, and any shortage. Ordering, holding, and shortage costs are {params['unit_order_cost']}, {params['holding_cost']}, and {params['shortage_cost']}, respectively. Formulate and solve the corresponding linear program.", "single_period_newsvendor_verbose"),
+            _variant("table", f"Problem data:\n- Type: single-period newsvendor\n- Demand: {params['demand']}\n- Unit order cost: {params['unit_order_cost']}\n- Holding cost: {params['holding_cost']}\n- Shortage penalty: {params['shortage_cost']}\nTask: formulate a linear minimization model with order, inventory, and shortage variables.", "single_period_newsvendor_table"),
+        ]
 
     if problem_type == "single_item_multi_period":
-        return (
-            f"A firm plans replenishment for one item over {params['periods']} periods. "
-            f"Initial inventory is {params['initial_inventory']}. Period demands are {params['demand']}. "
-            f"Unit ordering cost is {params['unit_order_cost']} and holding cost is {params['holding_cost']}. "
-            "Use inventory balance constraints to minimize total ordering and holding cost."
-        )
+        return [
+            _variant("math", f"Plan one-item replenishment over T={params['periods']} periods with initial inventory {params['initial_inventory']} and demands {params['demand']}. Minimize order cost {params['unit_order_cost']} and holding cost {params['holding_cost']} using inventory-balance constraints.", "single_item_multi_period_math"),
+            _variant("business", f"A store replenishes a single SKU across {params['periods']} periods. It starts with {params['initial_inventory']} units and faces period demands {params['demand']}. Ordering costs {params['unit_order_cost']} per unit and holding costs {params['holding_cost']} per unit. Build the cost-minimizing replenishment LP.", "single_item_multi_period_business"),
+            _variant("verbose", f"The planner must decide how much to order in each period for one item. Initial stock is {params['initial_inventory']}; demand by period is {params['demand']}. The model should carry inventory forward with standard balance equations and minimize the sum of ordering and inventory holding costs, with unit costs {params['unit_order_cost']} and {params['holding_cost']}.", "single_item_multi_period_verbose"),
+            _variant("table", f"Problem data:\n- Type: single-item multi-period replenishment\n- Periods: {params['periods']}\n- Initial inventory: {params['initial_inventory']}\n- Demands: {params['demand']}\n- Unit order cost: {params['unit_order_cost']}\n- Holding cost: {params['holding_cost']}\nTask: formulate and solve a linear inventory-balance model.", "single_item_multi_period_table"),
+        ]
 
     if problem_type == "single_item_multi_period_shortage":
-        return (
-            f"A firm plans replenishment for one item over {params['periods']} periods with backorders allowed. "
-            f"Initial inventory is {params['initial_inventory']}. Period demands are {params['demand']}. "
-            f"Unit ordering cost is {params['unit_order_cost']}, holding cost is {params['holding_cost']}, "
-            f"and shortage penalty is {params['shortage_cost']}. Formulate a linear model with inventory and shortage variables."
-        )
+        return [
+            _variant("math", f"For T={params['periods']} periods, choose order Q_t, inventory I_t, and backlog B_t. Initial inventory is {params['initial_inventory']}, demand is {params['demand']}, and unit order/holding/shortage costs are {params['unit_order_cost']}/{params['holding_cost']}/{params['shortage_cost']}. Minimize total cost with net-inventory balance.", "single_item_multi_period_shortage_math"),
+            _variant("business", f"A firm replenishes one product over {params['periods']} periods and allows backorders. Starting inventory is {params['initial_inventory']}; demands are {params['demand']}. Ordering costs {params['unit_order_cost']}, holding costs {params['holding_cost']}, and backlog penalties are {params['shortage_cost']}. Build a linear model.", "single_item_multi_period_shortage_business"),
+            _variant("verbose", f"The replenishment plan may leave demand temporarily unmet, so the LP should include shortage or backlog variables as well as inventory and order variables. Use the initial inventory {params['initial_inventory']} and demand sequence {params['demand']}; minimize ordering, holding, and shortage costs with coefficients {params['unit_order_cost']}, {params['holding_cost']}, and {params['shortage_cost']}.", "single_item_multi_period_shortage_verbose"),
+            _variant("table", f"Problem data:\n- Type: multi-period replenishment with shortages\n- Periods: {params['periods']}\n- Initial inventory: {params['initial_inventory']}\n- Demands: {params['demand']}\n- Unit order cost: {params['unit_order_cost']}\n- Holding cost: {params['holding_cost']}\n- Shortage penalty: {params['shortage_cost']}\nTask: formulate a linear backorder model.", "single_item_multi_period_shortage_table"),
+        ]
 
     if problem_type == "multi_item_capacity":
-        return (
-            f"A warehouse replenishes {params['items']} items over {params['periods']} periods. "
-            f"Initial inventories are {params['initial_inventory']}. Demand matrix by item and period is {params['demand']}. "
-            f"Item volumes are {params['volume']} and storage capacity per period is {params['storage_capacity']}. "
-            "Minimize ordering and holding costs subject to inventory balance and capacity constraints."
-        )
+        return [
+            _variant("math", f"Plan replenishment for {params['items']} items and {params['periods']} periods. Initial inventories are {params['initial_inventory']}, demands are {params['demand']}, item volumes are {params['volume']}, and storage capacity is {params['storage_capacity']} per period. Minimize order and holding costs subject to inventory balance and capacity.", "multi_item_capacity_math"),
+            _variant("business", f"A warehouse manages {params['items']} products over {params['periods']} periods with limited storage. It begins with inventories {params['initial_inventory']} and demand matrix {params['demand']}. Item volumes are {params['volume']} and capacity is {params['storage_capacity']}. Build the replenishment LP minimizing order and holding costs.", "multi_item_capacity_business"),
+            _variant("verbose", f"The planner must coordinate multiple items that share a finite warehouse capacity in every period. For each item and period, use the demand data {params['demand']} and starting inventories {params['initial_inventory']}. The model should include item-level inventory balances and aggregate volume limits using volumes {params['volume']} and capacity {params['storage_capacity']}, with order costs {params['unit_order_cost']} and holding costs {params['holding_cost']}.", "multi_item_capacity_verbose"),
+            _variant("table", f"Problem data:\n- Type: multi-item capacity-constrained replenishment\n- Items: {params['items']}\n- Periods: {params['periods']}\n- Initial inventories: {params['initial_inventory']}\n- Demand matrix: {params['demand']}\n- Volumes: {params['volume']}\n- Capacity: {params['storage_capacity']}\n- Unit order costs: {params['unit_order_cost']}\n- Holding costs: {params['holding_cost']}\nTask: formulate and solve the LP.", "multi_item_capacity_table"),
+        ]
 
     if problem_type == "fixed_order_cost_big_m":
-        return (
-            f"A firm plans replenishment over {params['periods']} periods with fixed ordering cost. "
-            f"Initial inventory is {params['initial_inventory']}. Demands are {params['demand']}. "
-            f"Unit ordering cost is {params['unit_order_cost']}, holding cost is {params['holding_cost']}, "
-            f"fixed ordering cost is {params['fixed_order_cost']}. Use binary order trigger variables and Big-M constraints "
-            f"with M = {params['big_m']}."
-        )
+        return [
+            _variant("math", f"Plan T={params['periods']} periods with fixed ordering costs. Initial inventory is {params['initial_inventory']} and demands are {params['demand']}. Use order Q_t, inventory I_t, binary order trigger Y_t, and Big-M links with M={params['big_m']}; minimize unit order cost {params['unit_order_cost']}, holding cost {params['holding_cost']}, and fixed cost {params['fixed_order_cost']}.", "fixed_order_cost_big_m_math"),
+            _variant("business", f"A firm pays a setup cost whenever it places an order during a {params['periods']}-period horizon. It starts with {params['initial_inventory']} units and faces demands {params['demand']}. Unit ordering, holding, and fixed order costs are {params['unit_order_cost']}, {params['holding_cost']}, and {params['fixed_order_cost']}. Build a Big-M mixed-integer replenishment model with M={params['big_m']}.", "fixed_order_cost_big_m_business"),
+            _variant("verbose", f"In this replenishment problem, ordering in a period incurs both a variable unit cost and a fixed activation cost. The formulation should include binary variables that indicate whether an order is placed and constraints linking order quantities to those binaries. Use initial inventory {params['initial_inventory']}, demands {params['demand']}, unit cost {params['unit_order_cost']}, holding cost {params['holding_cost']}, fixed cost {params['fixed_order_cost']}, and Big-M value {params['big_m']}.", "fixed_order_cost_big_m_verbose"),
+            _variant("table", f"Problem data:\n- Type: fixed-order-cost replenishment\n- Periods: {params['periods']}\n- Initial inventory: {params['initial_inventory']}\n- Demands: {params['demand']}\n- Unit order cost: {params['unit_order_cost']}\n- Holding cost: {params['holding_cost']}\n- Fixed order cost: {params['fixed_order_cost']}\n- Big-M: {params['big_m']}\nTask: formulate a mixed-integer linear model with binary order triggers.", "fixed_order_cost_big_m_table"),
+        ]
 
     raise ValueError(f"Unknown problem_type: {problem_type}")
+
+
+def choose_natural_language_variant(problem_type, params, rng=None, style=None):
+    variants = natural_language_variants(problem_type, params)
+    if style is not None:
+        for variant in variants:
+            if variant["style"] == style or variant["template_id"] == style:
+                return variant
+        raise ValueError(f"Unknown language style/template for {problem_type}: {style}")
+    if rng is None:
+        return variants[0]
+    return rng.choice(variants)
+
+
+def natural_language(problem_type, params, rng=None, style=None):
+    return choose_natural_language_variant(problem_type, params, rng=rng, style=style)["text"]
 
 
 def build_model(problem_type, params):

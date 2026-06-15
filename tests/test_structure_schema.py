@@ -31,10 +31,29 @@ def test_problem_type_schema_separates_required_optional_and_forbidden():
 
     assert "big_m_constraint" in required
     assert "fixed_order_cost" in required
+    assert "order_cost" in required
+    assert "nonnegative_bounds" in required
+    assert "objective_minimize" in required
     assert "capacity_constraint" in optional
     assert forbidden == []
     assert expected["big_m_constraint"] is True
     assert expected["capacity_constraint"] is False
+
+
+def test_expected_from_schema_includes_new_structure_keys_for_all_problem_types():
+    expected_by_type = {
+        "single_period_newsvendor": {"order_cost", "demand_satisfaction", "nonnegative_bounds", "objective_minimize"},
+        "single_item_multi_period": {"order_cost", "nonnegative_bounds", "objective_minimize"},
+        "single_item_multi_period_shortage": {"order_cost", "nonnegative_bounds", "objective_minimize"},
+        "multi_item_capacity": {"order_cost", "nonnegative_bounds", "objective_minimize"},
+        "fixed_order_cost_big_m": {"order_cost", "nonnegative_bounds", "objective_minimize"},
+    }
+
+    for problem_type, required_new_keys in expected_by_type.items():
+        expected = expected_from_schema(problem_type)
+        assert required_new_keys <= set(expected)
+        for key in required_new_keys:
+            assert expected[key] is True
 
 
 def test_explicit_expected_structures_override_default_schema():

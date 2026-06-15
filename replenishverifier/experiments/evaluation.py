@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from replenishverifier.benchmark.schemas import STRUCTURE_KEYS
+from replenishverifier.data.structure_schema import STRUCTURE_KEYS
 from replenishverifier.utils.io import write_jsonl
 
 

@@ -1,16 +1,12 @@
-STRUCTURE_KEYS = [
-    "inventory_balance",
-    "order_variable",
-    "inventory_variable",
-    "shortage_variable",
-    "capacity_constraint",
-    "binary_order_variable",
-    "big_m_constraint",
-    "lead_time",
-    "holding_cost",
-    "shortage_cost",
-    "fixed_order_cost",
-]
+"""Legacy benchmark constants.
+
+Structure schema definitions live in ``replenishverifier.data.structure_schema``.
+This module remains as a compatibility import location for benchmark problem-type
+metadata and the legacy ``STRUCTURE_KEYS`` symbol.
+"""
+
+from replenishverifier.data.structure_schema import STRUCTURE_KEYS
+
 
 PROBLEM_TYPES = [
     "single_period_newsvendor",
