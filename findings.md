@@ -214,3 +214,21 @@ The repository does not yet support these claims without future experiments:
 - CCF-A-level empirical strength.
 
 All result-bearing paper sections should remain `[TO FILL AFTER REAL LLM EXPERIMENT]` until real LLM generation, evaluation, leakage audit, and case-study extraction are complete.
+
+## 2026-06-17 — Generic repair prompt fairness tightened
+
+The repository already had most requested pre-experiment enhancement features when re-checked: prompt modes, split repair prompts, runtime overhead analyzer, renaming robustness utility, preference metadata, docs, and tests.
+
+A remaining fairness issue was found in the LLM repair prompt builder:
+
+- `build_generic_repair_prompt()` printed raw `sample.problem_type`, which can reveal replenishment-specific labels such as `fixed_order_cost_big_m`.
+- When `generic_repair_feedback` was absent, it fell back to structure-aware `feedback`, which can reveal labels such as `inventory_balance` or `big_m_constraint`.
+
+This was fixed by making the generic repair prompt use a neutral problem category and by allowing only `generic_repair_feedback` or a generic fallback message. Structure-aware repair prompts still intentionally preserve replenishment-specific feedback.
+
+The fair-control interpretation is now stricter:
+
+- `generic` repair = generic execution / solver / LP-artifact audit feedback only;
+- `structure_aware` repair = may use missing required structures, certificates, repair hints, and labels such as inventory balance, Big-M, fixed order cost, capacity, shortage, or binary order variables.
+
+No reference objective is used for repair prompt construction or preference construction; `reference_objective` remains evaluation-only.

@@ -155,7 +155,7 @@ The repository also includes `Structure-Grounded Consistency`, which combines ex
 
 ### 4.6 Feedback, Repair Prompts, and Preference Data
 
-Missing required structures are converted into natural-language feedback and repair prompts. ReplenishVerifier-specific repair prompts may mention inventory balance, capacity, shortage/backlog, fixed cost, binary setup, or Big-M links. Generic OptiRepair-like prompts intentionally avoid these replenishment-specific labels unless they appear in the natural-language problem.
+Missing required structures are converted into natural-language feedback and repair prompts. ReplenishVerifier-specific repair prompts may mention inventory balance, capacity, shortage/backlog, fixed cost, binary setup, or Big-M links. Generic OptiRepair-like prompts intentionally use only generic execution, solver, and LP-artifact audit feedback and do not include missing replenishment-structure labels.
 
 The preference-data builder can create chosen/rejected pairs using executable status, optimal status, structure completeness, and repair-feedback counts. These pairs are future training data for DPO, PRM, reranking, or similar approaches. They do not imply that any preference-learning experiment has already been completed.
 

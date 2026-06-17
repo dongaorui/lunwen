@@ -198,3 +198,43 @@ The user asked to implement pre-experiment code and documentation enhancements w
 ### Notes
 
 No real LLM generation, large benchmark run, fake result number, or training claim was added.
+
+## 2026-06-17 — Pre-experiment enhancement verification and generic repair tightening
+
+### User request
+
+The user asked to continue the pre-experiment code enhancement and documentation synchronization, with the same constraints: no Explore/multi-agent work, no git worktree, no real LLM generation, no large benchmark, no fake result numbers, and no training claims.
+
+### Actions completed
+
+1. Verified that the repository already contained the requested major pre-experiment features:
+   - generation prompt modes `structured`, `plain`, and `hidden_verifier`;
+   - `--prompt_type` in `run_generation.py`, defaulting to `hidden_verifier`;
+   - separate structure-aware `repair_prompts.*` and generic `generic_repair_prompts.*` outputs in `run_all_methods.py`;
+   - runtime timing fields and `analyze_runtime_overhead.py`;
+   - `rename_variables_for_robustness.py` with `random` and `descriptive_to_anonymous` modes;
+   - no-reference preference-pair metadata in `build_preference_data.py`;
+   - tests covering prompt modes, repair prompt fairness, runtime overhead, renaming robustness, and preference metadata.
+2. Found and fixed a real generic-repair fairness gap:
+   - `build_generic_repair_prompt()` previously printed raw `sample.problem_type`, which could expose labels such as `fixed_order_cost_big_m`.
+   - It also fell back to structure-aware `feedback` when `generic_repair_feedback` was missing, which could leak labels such as `inventory_balance` and `big_m_constraint`.
+3. Added regression tests in `tests/test_repair_prompt_fairness.py` for both leakage paths.
+4. Updated `papers/replenishverifier_draft_en.md`, `papers/replenishverifier_draft_zh.md`, and `docs/code_and_claim_risk_audit.md` to describe generic repair more strictly as generic execution/solver/audit feedback only, without fallback to structure-aware feedback.
+5. Created the execution plan at `docs/superpowers/plans/2026-06-17-pre-experiment-enhancement-verification.md` because the active workflow required a written plan; execution stayed inline because the user explicitly prohibited multi-agent work.
+
+### Verification
+
+- Targeted generic repair leakage test before fix: failed as expected on `fixed_order_cost` / `inventory_balance` leakage.
+- Targeted generic repair leakage tests after fix: passed.
+- Focused tests:
+  - `python -m pytest tests/test_prompt_modes.py tests/test_repair_prompt_fairness.py tests/test_repair_generation_dry_run.py -q`
+  - Result: `15 passed in 0.60s`
+  - `python -m pytest tests/test_runtime_overhead.py -q; if ($?) { python -m pytest tests/test_renaming_robustness.py -q }; if ($?) { python -m pytest tests/test_preference_metadata.py tests/test_strong_baselines.py -q }`
+  - Result: `2 passed`, `2 passed`, `9 passed`
+- Full suite before final planning-file updates:
+  - `python -m pytest`
+  - Result: `68 passed, 52 warnings in 2.13s`
+
+### Notes
+
+No real LLM generation, large benchmark run, fake result number, or SFT/DPO/PRM/RL/LoRA/TGRPO training claim was added. The warning count is from existing PuLP deprecation warnings.

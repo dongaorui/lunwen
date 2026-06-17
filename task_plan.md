@@ -94,6 +94,7 @@ Recommended next steps:
 | Describe baselines as lightweight `*-like` signal-isolation baselines | Docs warn against claiming full reproductions of SIRL, OptArgus, OptiRepair, OR-R1, or StepORLM. |
 | Add replenishment-specific semantic benchmark metadata without changing reference models | `semantic_frame`, `replenishment_entities`, and labeled `replenishment_modeling_steps` make the data support ReplenishVerifier's original LP-structure-grounded claim while preserving sampled parameters and objective semantics. |
 | Keep OR-R1-like Voting as a generic legacy baseline and add a separate structure-grounded selector | Avoids claiming a full OR-R1 reproduction while making ReplenishVerifier's own selection signal explicit and no-reference. |
+| Treat generic repair as a strict fair control | Generic LLM repair prompts must use only generic execution/solver/audit feedback, must not expose missing replenishment labels, and must not fall back to structure-aware feedback. |
 
 ## Errors Encountered
 

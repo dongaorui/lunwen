@@ -151,12 +151,12 @@ Hard requirements:
 
 def build_generic_repair_prompt(sample, repair_row, original_code=""):
     params = json.dumps(sample.get("parameters", {}), ensure_ascii=False, indent=2)
-    feedback = repair_row.get("generic_repair_feedback") or repair_row.get("feedback") or "- Inspect generic execution, objective, variable, constraint, and solver issues."
+    feedback = repair_row.get("generic_repair_feedback") or "- Inspect generic execution, objective, variable, constraint, and solver issues."
     return f'''You are repairing Python PuLP code for an optimization problem using only generic execution, solver, and LP-artifact feedback.
 Do not use task-specific verifier labels or missing-structure names.
 
 Problem ID: {sample.get('id')}
-Problem type: {sample.get('problem_type')}
+Problem category: optimization instance
 Difficulty: {sample.get('difficulty')}
 
 Natural language problem:

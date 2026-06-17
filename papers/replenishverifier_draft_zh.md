@@ -155,7 +155,7 @@ S(c)=0.25E(c)+0.25Z(c)+0.35SC(c)+0.15Sem(c),
 
 ### 4.6 Feedback, Repair Prompts, and Preference Data
 
-缺失 required structures 会被转换成自然语言反馈和 repair prompts。ReplenishVerifier-specific repair prompts 可以提到 inventory balance、capacity、shortage/backlog、fixed cost、binary setup 或 Big-M links。Generic OptiRepair-like prompts 则故意避免这些 replenishment-specific labels，除非它们已经出现在 natural-language problem 中。
+缺失 required structures 会被转换成自然语言反馈和 repair prompts。ReplenishVerifier-specific repair prompts 可以提到 inventory balance、capacity、shortage/backlog、fixed cost、binary setup 或 Big-M links。Generic OptiRepair-like prompts 只使用 generic execution、solver 和 LP-artifact audit feedback，不包含 missing replenishment-structure labels。
 
 Preference-data builder 可以使用 executable status、optimal status、structure completeness 和 repair-feedback counts 构造 chosen/rejected pairs。这些 pairs 是 DPO、PRM、reranking 或类似方法的 future training data，并不意味着 preference-learning experiment 已经完成。
 

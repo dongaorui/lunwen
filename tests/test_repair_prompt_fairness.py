@@ -76,7 +76,12 @@ def test_repair_prompt_row_schemas_are_compatible():
 
 
 def test_prompt_builder_generic_repair_prompt_does_not_leak_domain_labels():
-    sample = {"id": "p0", "natural_language": "Minimize total cost.", "parameters": {}}
+    sample = {
+        "id": "p0",
+        "problem_type": "fixed_order_cost_big_m",
+        "natural_language": "Minimize total cost.",
+        "parameters": {},
+    }
     repair_row = {
         "generic_repair_feedback": "- Add a clear objective and constraints.",
         "feedback": "Missing inventory_balance",
@@ -86,6 +91,23 @@ def test_prompt_builder_generic_repair_prompt_does_not_leak_domain_labels():
     for label in DOMAIN_LABELS:
         assert label not in prompt
     assert "Generic feedback" in prompt
+
+
+def test_prompt_builder_generic_repair_prompt_does_not_fallback_to_structure_feedback():
+    sample = {
+        "id": "p0",
+        "problem_type": "fixed_order_cost_big_m",
+        "natural_language": "Minimize total cost.",
+        "parameters": {},
+    }
+    repair_row = {
+        "feedback": "Missing inventory_balance",
+        "repair_prompt": "Missing big_m_constraint",
+    }
+    prompt = build_generic_repair_prompt(sample, repair_row, original_code="import pulp\n")
+    for label in DOMAIN_LABELS:
+        assert label not in prompt
+    assert "Inspect generic execution" in prompt
 
 
 def test_prompt_builder_structure_aware_repair_prompt_can_use_domain_feedback():

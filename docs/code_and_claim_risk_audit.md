@@ -72,7 +72,7 @@ References read-only:
 ## Pre-experiment protocol additions
 
 - Prompt leakage risk is controlled by making `hidden_verifier` and `plain` hide `expected_structures`; `structured` is guided/appendix-only because it exposes expected structures.
-- Generic repair is a fair control only when it excludes replenishment-specific missing labels and uses generic execution/solver/audit feedback.
+- Generic repair is a fair control only when it excludes replenishment-specific missing labels, avoids falling back to structure-aware feedback, and uses generic execution/solver/audit feedback.
 - Runtime overhead must be reported from real evaluated candidates using the runtime analyzer; missing values are `NA`, not estimated.
 - Naming robustness is currently a lightweight text-level perturbation, not an AST-safe transformation.
 - Preference data is a future learning signal and cannot be described as DPO/PRM/LoRA improvement until training and evaluation are actually run.
