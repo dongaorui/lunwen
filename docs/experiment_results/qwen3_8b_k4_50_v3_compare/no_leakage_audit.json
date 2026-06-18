@@ -1,0 +1,35 @@
+{
+  "exp_dir": "runs/qwen3_8b_k4_50_v3",
+  "checked_files": [
+    "runs/qwen3_8b_k4_50_v3/main_results.jsonl",
+    "runs/qwen3_8b_k4_50_v3/candidate_evaluations.jsonl"
+  ],
+  "formal_methods": [
+    "Consensus only",
+    "OR-R1-like Voting",
+    "OptArgus-like Audit",
+    "OptiRepair-like Repair-Prompt",
+    "ReplenishVerifier full",
+    "ReplenishVerifier-Full",
+    "ReplenishVerifier-Repair",
+    "SIRL-like LP-Stats",
+    "Solver + Consensus",
+    "Solver + Structure",
+    "Solver + Structure + Consensus",
+    "Solver only",
+    "Solver-Filter",
+    "Structure + Consensus",
+    "Structure only",
+    "Structure-Grounded Consistency",
+    "Structure-Only"
+  ],
+  "forbidden_policy_phrases": [
+    "closest to reference",
+    "reference objective distance",
+    "objective closeness to reference",
+    "minimize relative error",
+    "ground truth objective"
+  ],
+  "passed": true,
+  "issues": []
+}
