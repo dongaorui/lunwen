@@ -1,0 +1,21 @@
+# Can Deep Reinforcement Learning Improve Inventory Management? Performance on Lost Sales, Dual-Sourcing, and Multi-Echelon Problems
+
+URL: https://pubsonline.informs.org/doi/10.1287/msom.2021.1064
+类别: 经典库存 DRL / 领域背景
+
+## 为什么对 ReplenishVerifier 有帮助
+这篇 MSOM 论文可支撑库存管理中 DRL 的有效性与局限性，尤其是结构策略 insight 仍然重要。
+
+## 你论文中怎么用
+- Related Work 背景：inventory replenishment policies and DRL。
+- 帮助你区分：本文不是补货策略求解，而是 LLM 建模验证。
+- 可用于说明结构可解释性的重要性。
+
+## 风险 / 审稿人可能怎么问
+可能需要学校访问权限；在论文中只引用公开可访问摘要或正式文献信息。
+
+## 给 Claude Code 的可执行指令
+请在 Related Work 中把 inventory control papers 放在背景段，不要作为直接对比方法。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

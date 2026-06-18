@@ -140,6 +140,10 @@ def run_repair_generation(
             "generated_text": "",
             "generated_code": "",
             "dry_run": bool(dry_run),
+            "requires_re_evaluation": True,
+            "is_evaluated_repair_result": False,
+            "repair_result_note": "Generated repair candidates must be re-evaluated before reporting repair results.",
+            "static_validation_errors": repair_row.get("static_validation_errors", []),
             "error": None,
         }
         if dry_run:

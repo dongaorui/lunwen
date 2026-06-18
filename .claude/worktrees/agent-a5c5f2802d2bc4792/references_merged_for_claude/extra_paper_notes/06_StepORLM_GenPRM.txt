@@ -1,0 +1,21 @@
+# StepORLM: A Self-Evolving Framework with Generative Process Supervision for OR Language Models
+
+URL: https://arxiv.org/abs/2509.22558
+类别: 过程监督 / GenPRM / W-DPO
+
+## 为什么对 ReplenishVerifier 有帮助
+StepORLM 强调 outcome reward 的 credit assignment 问题，引入 generative process reward model，并用 solver outcome + GenPRM 双反馈改进模型。
+
+## 你论文中怎么用
+- Related Work 中说明你的 process labels 来自 LP artifact，不是自由文本 reasoning trace。
+- 可以把 structure score 转成 preference pairs，作为 StepORLM-style process supervision 的轻量替代。
+- 论文 Future Work 可写：训练 LP-structure-grounded GenPRM。
+
+## 风险 / 审稿人可能怎么问
+如果你声称 process supervision，但不做 repair/DPO/PRM，可能显得不完整。
+
+## 给 Claude Code 的可执行指令
+请在 paper 中加入：Our process supervision is derived from solver-exported LP structures; not a replacement for GenPRM, but a verifiable evidence source.
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

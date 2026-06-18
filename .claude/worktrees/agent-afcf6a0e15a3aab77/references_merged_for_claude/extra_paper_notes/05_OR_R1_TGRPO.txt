@@ -1,0 +1,21 @@
+# OR-R1 / SolveOR-R1: Test-Time RL for OR Optimization Modeling
+
+URL: https://arxiv.org/abs/2511.09092
+类别: TGRPO / voting / valid-code reward
+
+## 为什么对 ReplenishVerifier 有帮助
+OR-R1 做 SFT + TGRPO，使用 format、valid-code、majority-voting reward。它是你项目低资源 RL / candidate voting 的重要参考。
+
+## 你论文中怎么用
+- 作为 OR-R1-like Voting baseline：多候选执行、valid-code、majority/objective-consensus，不使用库存结构规则。
+- 说明你的增量是 structure-aware candidate selection 和 repair feedback。
+- 如果后续做 DPO/GRPO，可以用 OR-R1 的小样本 TGRPO 实验做动机。
+
+## 风险 / 审稿人可能怎么问
+如果你的方法只靠多候选和执行过滤，会与 OR-R1-like 很像；必须加入 structure signals。
+
+## 给 Claude Code 的可执行指令
+请添加 OR-R1-like Voting baseline（可选）：executable + optimal + objective consensus / majority，不使用 expected objective 或 replenishment structure。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

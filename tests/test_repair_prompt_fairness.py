@@ -27,6 +27,8 @@ def _evaluated_row():
         "execution": {"executable": True, "status": "Optimal", "objective": 1.0, "lp_path": "c0.lp"},
         "generic_repair_feedback": "- Add constraints that define the feasible region.",
         "feedback": "Missing or weak inventory balance constraints.",
+        "static_validation_errors": ["missing_constraints"],
+        "static_validation": {"static_validation_errors": ["missing_constraints"]},
         "structure_verification": {
             "missing": ["inventory_balance", "big_m_constraint"],
             "low_score_required": [
@@ -115,3 +117,19 @@ def test_prompt_builder_structure_aware_repair_prompt_can_use_domain_feedback():
     prompt = build_repair_prompt(sample, {"feedback": "Missing inventory_balance and big_m_constraint."}, original_code="import pulp\n")
     assert "inventory_balance" in prompt
     assert "big_m_constraint" in prompt
+
+
+def test_structure_aware_repair_prompt_includes_static_validation_errors():
+    row = build_structure_aware_repair_prompts([_evaluated_row()])[0]
+    assert row["static_validation_errors"] == ["missing_constraints"]
+    assert "Static validation errors" in row["repair_prompt"]
+    assert "missing_constraints" in row["repair_prompt"]
+
+
+def test_generic_repair_prompt_row_carries_static_validation_without_domain_labels():
+    row = build_generic_repair_prompts([_evaluated_row()])[0]
+    assert row["static_validation_errors"] == ["missing_constraints"]
+    text = row["repair_prompt"] + "\n" + row["feedback"]
+    assert "missing_constraints" not in text
+    for label in DOMAIN_LABELS:
+        assert label not in text

@@ -1,0 +1,21 @@
+# Solver-Informed RL: Grounding Large Language Models for Authentic Optimization Modeling
+
+URL: https://arxiv.org/abs/2505.11792
+类别: solver + LP artifact + verifiable reward
+
+## 为什么对 ReplenishVerifier 有帮助
+SIRL 使用 solver 和 associated .lp files 作为 verifiable feedback，包括 syntax、feasibility、solution quality。它和你的 LP artifact 思路非常接近。
+
+## 你论文中怎么用
+- Related Work 中必须承认 SIRL 已经使用 solver 与 LP artifact。
+- 实现 SIRL-like LP-Stats baseline：使用通用 LP 文件存在性、变量数、约束数、binary 数、objective 存在等，不使用 inventory-specific semantics。
+- 差异点：SIRL 是 general reward/RL 框架；ReplenishVerifier 是 replenishment-specific semantic structure verification。
+
+## 风险 / 审稿人可能怎么问
+不要写“第一次使用 LP 文件监督 LLM 建模”。
+
+## 给 Claude Code 的可执行指令
+请实现 SIRL-like LP-Stats baseline，禁止使用 expected_structures 或 inventory_balance/Big-M 等补货规则。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

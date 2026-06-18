@@ -1,0 +1,21 @@
+# MARLIM: Multi-Agent Reinforcement Learning for Inventory Management
+
+URL: https://arxiv.org/abs/2308.01649
+类别: 库存补货领域背景 / 随机需求和 lead time
+
+## 为什么对 ReplenishVerifier 有帮助
+MARLIM 针对 single-echelon multi-products supply chain，考虑 stochastic demands 和 lead-times。
+
+## 你论文中怎么用
+- Related Work 中说明 replenishment 有多产品、多 agent、多 lead time 的复杂场景。
+- 可作为未来 benchmark 扩展：多 SKU、随机需求、提前期。
+- 不是直接 baseline。
+
+## 风险 / 审稿人可能怎么问
+不要把模型生成任务和库存控制策略优化混在一起。
+
+## 给 Claude Code 的可执行指令
+请在 Problem Setting 中明确：本文不是学习 replenishment policy，而是验证 LLM-generated optimization formulation。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

@@ -1,0 +1,21 @@
+# A Survey of Optimization Modeling Meets LLMs
+
+URL: https://www.ijcai.org/proceedings/2025/1192.pdf
+类别: 综述 / 技术栈 / benchmark 质量
+
+## 为什么对 ReplenishVerifier 有帮助
+这篇综述适合帮助你写 Related Work 全局结构，并且指出 benchmark quality control 是重要问题。
+
+## 你论文中怎么用
+- Related Work 开头引用，说明 LLM-for-OR 已经形成 data synthesis、fine-tuning、inference frameworks、benchmarks、evaluation 等技术栈。
+- 引出你的定位：不是又一个 general framework，而是 domain-structured LP verifier。
+- 可支持你强调 benchmark quality 和 error analysis。
+
+## 风险 / 审稿人可能怎么问
+综述会暴露相关工作很多，所以 novelty 要更收窄。
+
+## 给 Claude Code 的可执行指令
+请基于 survey 的分类，调整 Related Work 标题，不要遗漏 benchmark/evaluation 线。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

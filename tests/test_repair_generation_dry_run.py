@@ -58,7 +58,7 @@ def test_repair_generation_dry_run_outputs_uniform_placeholder(tmp_path):
     candidates = tmp_path / "candidates.jsonl"
     out = tmp_path / "out.jsonl"
     write_jsonl(benchmark, [{"id": "p0", "problem_type": "single", "difficulty": "easy", "natural_language": "minimize", "parameters": {}}])
-    write_jsonl(repairs, [{"problem_id": "p0", "candidate_id": "c0", "feedback": "Add inventory balance."}])
+    write_jsonl(repairs, [{"problem_id": "p0", "candidate_id": "c0", "feedback": "Add inventory balance.", "static_validation_errors": ["missing_constraints"]}])
     write_jsonl(candidates, [{"problem_id": "p0", "candidate_id": "c0", "generated_code": "import pulp\n"}])
 
     rows = run_repair_generation(
@@ -74,6 +74,8 @@ def test_repair_generation_dry_run_outputs_uniform_placeholder(tmp_path):
     assert rows[0]["dry_run"] is True
     assert rows[0]["generated_code"]
     assert "dry_run_placeholder_constraint" in rows[0]["generated_code"]
+    assert rows[0]["requires_re_evaluation"] is True
+    assert rows[0]["is_evaluated_repair_result"] is False
     saved = read_jsonl(out)
     assert saved[0]["candidate_id"] == "repair_c0"
 

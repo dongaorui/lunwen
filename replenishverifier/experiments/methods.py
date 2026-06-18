@@ -12,6 +12,7 @@ from replenishverifier.experiments.baselines import (
     or_r1_like_voting_score,
     sirl_like_lp_stats_score,
 )
+from replenishverifier.pipeline.quality_signals import compute_static_validation
 from replenishverifier.pipeline.scoring import compute_score, hard_selection_gate
 from replenishverifier.solver.code_executor import execute_generated_code
 from replenishverifier.verifier.feedback import generate_feedback
@@ -50,6 +51,8 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
     start = time.perf_counter()
     pid = candidate.get("problem_id")
     cid = candidate.get("candidate_id", "candidate")
+    generated_code = candidate.get("generated_code", "")
+    static_validation = compute_static_validation(generated_code, problem_type=reference.get("problem_type"))
     parsed = None
     lp_parse_time = None
     structure_check_time = None
@@ -66,16 +69,16 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
             "error": "Execution skipped by method.",
         }
         structure_dict = None
-        feedback = "该方法不执行候选代码，因此没有结构反馈。"
+        feedback = "Execution skipped by method; no structure feedback available."
     else:
         execution = execute_generated_code(
-            candidate.get("generated_code", ""),
+            generated_code,
             run_dir=Path(work_dir) / pid / cid,
             candidate_id=cid,
             timeout=timeout,
         )
         structure_dict = None
-        feedback = "候选代码没有成功导出 LP，因此无法执行结构验证。"
+        feedback = "LP artifact is unavailable, so structure feedback is unavailable."
         if execution.get("lp_path"):
             try:
                 parse_start = time.perf_counter()
@@ -96,7 +99,7 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
                     "structure_score": 0.0,
                     "messages": [f"LP parse or structure check error: {exc}"],
                 }
-                feedback = f"LP 解析或结构验证失败：{exc}"
+                feedback = f"LP parse or structure check failed: {exc}"
 
     lp_stats = compute_lp_stats(parsed)
     optargus_audit = compute_optargus_audit(parsed, execution)
@@ -119,6 +122,7 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
         "candidate_id": cid,
         "candidate_method": candidate.get("method"),
         "generated_text": candidate.get("generated_text", ""),
+        "generated_code": generated_code,
         "prompt_type": candidate.get("prompt_type") or (candidate.get("generation_config") or {}).get("prompt_type"),
         "execution": execution,
         "structure_verification": structure_dict,
@@ -141,7 +145,9 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
         "difficulty": reference.get("difficulty"),
         "reference_objective": reference.get("reference_objective"),
         "reference_status": reference.get("reference_status"),
-        "code_output_format_valid": code_output_format_valid(candidate.get("generated_code", "")),
+        "code_output_format_valid": code_output_format_valid(generated_code),
+        "static_validation": static_validation,
+        **static_validation,
         "objective_consensus_score": 0.0,
         "or_r1_like_voting_score": 0.0,
     }
@@ -217,7 +223,7 @@ def _first_or_empty(pid, reference):
         "candidate_method": None,
         "execution": {"executable": False, "status": "Missing", "objective": None, "lp_path": None, "error": "No candidate for this problem."},
         "structure_verification": None,
-        "feedback": "没有候选答案。",
+        "feedback": "No candidate available.",
         "runtime_sec": 0.0,
         "problem_type": reference.get("problem_type"),
         "difficulty": reference.get("difficulty"),
@@ -248,6 +254,96 @@ REWARD_ABLATION_METHODS = {
     "ReplenishVerifier full": ("solver", "structure", "consensus"),
 }
 
+STRUCTURE_AWARE_METHODS = {
+    "Structure-Only",
+    "Structure only",
+    "Solver + Structure",
+    "Structure + Consensus",
+    "Solver + Structure + Consensus",
+    "Structure-Grounded Consistency",
+    "ReplenishVerifier-Full",
+    "ReplenishVerifier-Repair",
+    "ReplenishVerifier full",
+}
+
+
+def _row_problem_type(row):
+    return row.get("problem_type") or ((row.get("reference") or {}).get("problem_type"))
+
+
+def _required_missing_for_row(row):
+    structure = row.get("structure_verification") or {}
+    missing = set(structure.get("missing") or [])
+    required = structure.get("required_structures")
+    if required is None:
+        expected = structure.get("expected") or {}
+        required = [key for key, value in expected.items() if value]
+    if required:
+        missing &= set(required)
+    return missing
+
+
+def _critical_missing_structures(row):
+    missing = _required_missing_for_row(row)
+    problem_type = _row_problem_type(row)
+    critical = set()
+    if "inventory_balance" in missing:
+        critical.add("inventory_balance")
+    if problem_type == "multi_item_capacity" and "capacity_constraint" in missing:
+        critical.add("capacity_constraint")
+    if problem_type == "single_item_multi_period_shortage":
+        critical.update(missing & {"shortage_variable", "shortage_cost"})
+    if problem_type == "fixed_order_cost_big_m":
+        critical.update(missing & {"binary_order_variable", "big_m_constraint", "fixed_order_cost"})
+    return sorted(critical)
+
+
+def _critical_structure_penalty(row, method_name):
+    if method_name not in STRUCTURE_AWARE_METHODS:
+        return {"enabled": False, "passed": True, "missing": [], "multiplier": 1.0}
+    critical_missing = _critical_missing_structures(row)
+    return {
+        "enabled": True,
+        "passed": not critical_missing,
+        "missing": critical_missing,
+        "multiplier": 1.0 if not critical_missing else 0.01,
+    }
+
+
+def _rule_score(row, rule_name):
+    structure = row.get("structure_verification") or {}
+    for cert in structure.get("certificates") or []:
+        if cert.get("rule_name") == rule_name:
+            return float(cert.get("score", 0.0) or 0.0)
+    missing = set(structure.get("missing") or [])
+    required = structure.get("required_structures") or []
+    if rule_name in required:
+        return 0.0 if rule_name in missing else 1.0
+    return 0.0
+
+
+def _constraint_coverage(row):
+    structure = row.get("structure_verification") or {}
+    required = structure.get("required_structures") or []
+    missing = set(structure.get("missing") or [])
+    if not required:
+        return float(structure.get("structure_score", row.get("structure_score", 0.0)) or 0.0)
+    return float(len([key for key in required if key not in missing]) / max(len(required), 1))
+
+
+def _repair_feedback_count(row):
+    feedback = row.get("feedback") or ""
+    if not feedback:
+        return 0
+    return len([line for line in str(feedback).splitlines() if line.strip()])
+
+
+def _candidate_index(row):
+    if row.get("candidate_index") is not None:
+        return int(row.get("candidate_index") or 0)
+    cid = str(row.get("candidate_id", ""))
+    digits = "".join(ch for ch in cid if ch.isdigit())
+    return int(digits) if digits else 0
 
 def lp_artifact_structure_signal(row):
     structure = row.get("structure_verification") or {}
@@ -337,11 +433,28 @@ def _method_raw_score(row, method_name):
 
 
 def _method_gated_score(row, method_name, allow_feasible_selection=False):
-    return hard_selection_gate(row.get("execution") or {}, _method_raw_score(row, method_name), allow_feasible_selection=allow_feasible_selection)
+    raw_score = float(_method_raw_score(row, method_name) or 0.0)
+    penalty = _critical_structure_penalty(row, method_name)
+    raw_score *= float(penalty["multiplier"])
+    return hard_selection_gate(row.get("execution") or {}, raw_score, allow_feasible_selection=allow_feasible_selection)
+
+
+def _selection_tie_break_key(row, method_name, allow_feasible_selection=False):
+    return (
+        _method_gated_score(row, method_name, allow_feasible_selection=allow_feasible_selection),
+        float(row.get("structure_score", ((row.get("structure_verification") or {}).get("structure_score", 0.0))) or 0.0),
+        _rule_score(row, "inventory_balance"),
+        _constraint_coverage(row),
+        -_repair_feedback_count(row),
+        float(row.get("static_validation_score", ((row.get("static_validation") or {}).get("static_validation_score", 0.0))) or 0.0),
+        -_candidate_index(row),
+    )
 
 
 def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
     raw_score = float(_method_raw_score(best, method_name) or 0.0)
+    penalty = _critical_structure_penalty(best, method_name)
+    raw_score *= float(penalty["multiplier"])
     gated_score = _method_gated_score(best, method_name, allow_feasible_selection=allow_feasible_selection)
     best["raw_inference_score"] = raw_score
     best["score"] = gated_score
@@ -353,6 +466,8 @@ def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
         "rule": "Only executable + Optimal candidates can be selected." if not allow_feasible_selection else "Executable + Optimal candidates can be selected; Feasible is allowed by explicit flag.",
         "passed": gated_score > 0.0,
     }
+    if penalty["enabled"]:
+        best["critical_structure_penalty"] = penalty
     return best
 
 
@@ -367,9 +482,9 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
         elif method_name == "Best-of-K":
             viable = [row for row in rows if _method_gated_score(row, method_name, allow_feasible_selection=allow_feasible_selection) > 0.0]
             executable = [row for row in rows if row.get("execution", {}).get("executable")]
-            best = viable[0] if viable else (executable[0] if executable else rows[0])
+            best = max(viable, key=lambda row: _selection_tie_break_key(row, method_name, allow_feasible_selection=allow_feasible_selection)) if viable else (executable[0] if executable else rows[0])
         else:
-            best = max(rows, key=lambda row: _method_gated_score(row, method_name, allow_feasible_selection=allow_feasible_selection))
+            best = max(rows, key=lambda row: _selection_tie_break_key(row, method_name, allow_feasible_selection=allow_feasible_selection))
 
         best = dict(best)
         best["method_name"] = method_name
@@ -390,7 +505,7 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
         elif method_name == "Direct":
             best["selection_policy"] = "candidate order only, with Hard Selection Gate for formal score; no reference objective"
         elif method_name == "Best-of-K":
-            best["selection_policy"] = "first executable/optimal candidate when available, with Hard Selection Gate for formal score; no reference objective"
+            best["selection_policy"] = "best executable/optimal candidate by no-reference tie-breaker, with Hard Selection Gate for formal score; no reference objective"
         elif method_name == "Structure-Grounded Consistency":
             best["selection_policy"] = "Hard Selection Gate over replenishment structure-grounded consistency: executable code + optimal solver status + required LP structure coverage + LP artifact key structures + candidate objective consensus; no reference objective"
         elif method_name in REWARD_ABLATION_METHODS:
@@ -421,6 +536,10 @@ def _evidence_strength_by_rule(certificates):
     return {cert.get("rule_name"): cert.get("evidence_strength") for cert in (certificates or []) if cert.get("rule_name")}
 
 
+def _static_validation_errors(row):
+    return list(row.get("static_validation_errors") or ((row.get("static_validation") or {}).get("static_validation_errors") or []))
+
+
 def _base_repair_prompt_row(row, repair_type, missing_structures, feedback, repair_prompt):
     structure = row.get("structure_verification") or {}
     certificates = structure.get("certificates", [])
@@ -437,6 +556,7 @@ def _base_repair_prompt_row(row, repair_type, missing_structures, feedback, repa
         "evidence_strength_by_rule": _evidence_strength_by_rule(certificates) if repair_type == "structure_aware" else {},
         "execution": row.get("execution") or {},
         "generic_repair_feedback": row.get("generic_repair_feedback", ""),
+        "static_validation_errors": _static_validation_errors(row),
         "feedback": feedback,
         "repair_prompt": repair_prompt,
         "original_candidate_text": row.get("generated_text", ""),
@@ -464,6 +584,9 @@ def build_structure_aware_repair_prompts(rows):
             f"Missing structures: {', '.join(missing)}\n\n"
             f"Feedback:\n{feedback}\n"
         )
+        static_errors = _static_validation_errors(row)
+        if static_errors:
+            repair_prompt += "\nStatic validation errors:\n" + "\n".join(f"- {error}" for error in static_errors) + "\n"
         prompts.append(_base_repair_prompt_row(row, "structure_aware", missing, feedback, repair_prompt))
     return prompts
 

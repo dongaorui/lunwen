@@ -1,0 +1,21 @@
+# OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+URL: https://arxiv.org/abs/2502.11102
+类别: 数据合成 / back-translation / rejection sampling
+
+## 为什么对 ReplenishVerifier 有帮助
+OptMATH 从数学模型出发生成 problem data，再回译成自然语言，并用 forward modeling + rejection sampling 验证一致性。
+
+## 你论文中怎么用
+- ReplenishmentOR benchmark 生成方法可借鉴：从补货模板/数学模型出发，生成参数和自然语言，再用 reference solver 验证。
+- 可作为 benchmark quality control 的主要引用。
+- 差异点：OptMATH 是通用合成数据集；ReplenishmentOR 增加库存结构标签和 LP-level verifier。
+
+## 风险 / 审稿人可能怎么问
+如果数据集只是模板生成，必须说明质量控制和结构标签，否则容易被说 toy。
+
+## 给 Claude Code 的可执行指令
+请在 benchmark section 加入 data-quality protocol：reference code solves, LP exported, expected_structures validated.
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

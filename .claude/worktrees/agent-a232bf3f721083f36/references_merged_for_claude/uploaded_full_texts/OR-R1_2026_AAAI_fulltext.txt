@@ -1,0 +1,607 @@
+                                    The Fortieth AAAI Conference on Artificial Intelligence (AAAI-26)
+
+
+
+
+ OR-R1: Automating Modeling and Solving of Operations Research Optimization
+              Problem via Test-Time Reinforcement Learning
+                           Zezhen Ding1 , Zhen Tan2 , Jiheng Zhang1 * , Tianlong Chen3 *
+                                       1
+                                    The Hong Kong University of Science and Technology
+                                                   2
+                                                     Arizona State University
+                                        3
+                                          University of North Carolina at Chapel Hill
+                         zdingah@connect.ust.hk, ztan36@asu.edu, jiheng@ust.hk, tianlong@cs.unc.edu
+
+
+                           Abstract
+                                                                                                   Labeled Data
+  Optimization modeling and solving are fundamental to the
+  application of Operations Research (OR) in real-world deci-                                           SFT
+  sion making, yet the process of translating natural language
+  problem descriptions into formal models and solver code re-
+  mains highly expertise intensive. While recent advances in
+  large language models (LLMs) have opened new opportuni-
+  ties for automation, the generalization ability and data effi-
+  ciency of existing LLM-based methods are still limited, as-                       Query               Gen.      Exe.   Voting
+  most require vast amounts of annotated or synthetic data, re-              UnLabeled Data
+  sulting in high costs and scalability barriers. In this work,              (e.g. Test Data)
+  we present OR-R1, a data-efficient training framework for                                                    TGRPO
+  automated optimization modeling and solving. OR-R1 first
+  employs supervised fine-tuning (SFT) to help the model ac-
+  quire the essential reasoning patterns for problem formula-                            Figure 1: Overview of OR-R1.
+  tion and code generation from limited labeled data. In addi-
+  tion, it improves the capability and consistency through Test-
+  Time Group Relative Policy Optimization (TGRPO). This                  et al. 2025; He et al. 2024; Jiang et al. 2024b). A particu-
+  two-stage design enables OR-R1 to leverage both scarce la-             larly promising, yet challenging, application lies in automat-
+  beled and abundant unlabeled data for effective learning. Ex-          ing the modeling and solving of optimization problems (Ra-
+  periments show that OR-R1 achieves state-of-the-art perfor-            mamonjison et al. 2023). These problems are central to nu-
+  mance with an average solving accuracy of 67.7%, using only            merous scientific and industrial applications, including lo-
+  1/10 the synthetic data required by prior methods such as
+                                                                         gistics (Lee, Lee, and Zhang 2015; Harrison et al. 2019), re-
+  ORLM, exceeding ORLM’s solving accuracy by up to 4.2%.
+  Remarkably, OR-R1 outperforms ORLM by over 2.4% with                   source allocation (Bretthauer and Shetty 1995), and schedul-
+  just 100 synthetic samples. Furthermore, TGRPO contributes             ing (Brucker et al. 1999; Long et al. 2020), where even mi-
+  an additional 3.1% − 6.4% improvement in accuracy, signif-             nor improvements can yield significant real-world benefits.
+  icantly narrowing the gap between single-attempt (Pass@1)              Traditionally, formulating these problems into precise math-
+  and multi-attempt (Pass@8) performance from 13% to 7%.                 ematical models and subsequently generating executable
+  Extensive evaluations across diverse real-world benchmarks             solver code has demanded specialized human expertise, of-
+  demonstrate that OR-R1 provides a robust, scalable, and cost-          ten a time-consuming and error-prone process (Huang et al.
+  effective solution for automated OR optimization problem               2025; Jiang et al. 2024a). LLMs have emerged as a promis-
+  modeling and solving, lowering the expertise and data bar-             ing tool to automate this process, reducing the expertise bar-
+  riers for industrial OR applications.
+                                                                         rier for solving optimization problems.
+                                                                            Recent research has explored the integration of LLMs
+Code — https://github.com/SCUTE-ZZ/OR-R1                                 into the optimization pipeline, broadly falling into two
+                                                                         main categories: prompt-based approaches and learning-
+                                                                         based approaches. Prompt-based approaches typically lever-
+                       Introduction                                      age LLMs’ in-context learning capabilities through carefully
+The field of artificial intelligence has witnessed remark-               designed prompts, few-shot examples, or chain-of-thought
+able advancements, with Large Language Models (LLMs)                     methods to generate optimization models or code directly.
+emerging as powerful tools across diverse domains (Zhao                  Notable works in this category include the Chain-of-Experts
+                                                                         (Xiao et al. 2023), Optimus (AhmadiTeshnizi, Gao, and
+    * Corresponding author.                                              Udell 2024), MAMO (Huang et al. 2024b), ORQA (Mosta-
+Copyright © 2026, Association for the Advancement of Artificial          jabdaveh et al. 2025), OR-LLM-Agent (Zhang and Luo
+Intelligence (www.aaai.org). All rights reserved.                        2025), and OptimAI (Thind et al. 2025). These methods of-
+
+
+                                                                   228
+ten utilize general-purpose LLMs without extensive domain-                                    Related Work
+specific fine-tuning, relying on their pre-trained knowledge             Automated OR Problem Modeling and Solving. Large
+and sophisticated prompting strategies. In contrast, learning-           Language Models (LLMs) have demonstrated impressive
+based approaches involve fine-tuning or training LLMs on                 capabilities in formal reasoning and code generation, ad-
+domain-specific datasets to enhance their understanding and              vancing from solving math word problems (Cobbe et al.
+generation capabilities for optimization problems. Key con-              2021; Hendrycks et al. 2021; Ahn et al. 2024) to generat-
+tributions in this area include ORLM (Huang et al. 2025),                ing competition-level code (Li et al. 2022; Chaudhary 2023;
+LLMOPT (Jiang et al. 2024a), and OptiBench (Yang et al.                  Bairi et al. 2024). Meanwhile, methods such as few-shot
+2024b). These works aim to build more specialized and per-               learning (Brown et al. 2020), Chain-of-Thought prompting
+formant models through data-driven learning.                             (Wei et al. 2022), Tree-of-Thoughts (Yao et al. 2023), and
+   Learning-based approaches hold great promise for auto-                Graph-of-Thoughts (Besta et al. 2024) have significantly en-
+mated optimization; for instance, ORLM, using a Llama3-                  hanced the reasoning abilities of Large Language Models
+8B model, has even surpassed GPT-4o (Hurst et al. 2024) in               (LLMs). Building upon these foundational advancements
+some tests. Despite this, a major hurdle remains: the heavy              in general math and coding, a specialized and highly im-
+reliance on vast amounts of domain-specific data. While                  pactful application of LLMs has emerged in the domain
+synthetic data can be mass-produced, it often lacks the real-            of Operations Research (OR). Specifically, LLMs are now
+world rigor and diversity of human-made examples. Con-                   being used for automated optimization modeling. This in-
+versely, manual annotation of high-quality data is extremely             volves translating natural language descriptions of real-
+costly, leading to a shortage of large, useful datasets and lim-         world problems into precise mathematical optimization for-
+iting adoption. Our main goal is to significantly cut down               mulations (e.g., MILP, LP) or directly into executable solver
+on the amount of labeled data needed. Moreover, research,                code. Research in this area can be broadly categorized into
+including insights from ORLM, shows another key chal-                    prompt-based and learning-based approaches. Prompt-based
+lenge: LLMs can find optimal solutions, but their single-                methods leverage large pretrained LLMs with sophisticated
+attempt outputs often lack consistency. This means they’re               prompting strategies to generate models. Notable exam-
+more likely to get the right answer if they generate multiple            ples include the NL4Opt competition (Ramamonjison et al.
+times. This inconsistency highlights a clear need to improve             2023), which showcased LLMs’ potential in understand-
+the reliability of individual outputs.                                   ing problem descriptions, and frameworks such as Optimus
+   To address these critical issues, the large data demands              (AhmadiTeshnizi, Gao, and Udell 2024), MAMO (Huang
+and inconsistent outputs, we introduce OR-R1. This inno-                 et al. 2024b), ORQA (Mostajabdaveh et al. 2025), OR-
+vative learning-based framework is specifically designed to              LLM-Agent (Zhang and Luo 2025), OptMATH (Lu et al.
+boost LLM performance in Operations Research by requir-                  2025), and OptimAI (Thind et al. 2025), which explore var-
+ing far less data and delivering greater consistency. First,             ious prompting strategies, agent-based systems, and bench-
+OR-R1 uses Supervised Fine-Tuning (SFT) to teach the                     marks for OR problem solving. In contrast, learning-based
+core reasoning of the model for optimization modeling and                approaches involve fine-tuning LLMs on domain-specific
+code generation with limited labeled data. Then, it integrates           datasets to achieve deeper understanding and generation ca-
+Test-Time Group Relative Policy Optimization (TGRPO).                    pabilities. Key contributions include ORLM (Huang et al.
+TGRPO works by having the LLM predict labels for un-                     2025), LLMOPT (Jiang et al. 2024a), and OptiBench (Yang
+labeled data, using a voting system to create high-quality               et al. 2024b), which focuses on creating specialized mod-
+pseudo-labels. These pseudo-labels then serve as a reward                els or benchmarks for this task. However, these methods
+function for reinforcement learning. This two-part strategy              typically rely on large amounts of synthetic data or costly
+not only drastically cuts the need for expensive labeled train-          human-annotated data for training. Synthetic data often suf-
+ing data but also substantially improves the consistency of              fers from accuracy issues, as highlighted by ORLM, where
+the model’s predictions, making single-attempt generations               their synthetic data had an accuracy of only around 70%.
+much more reliable.                                                      In contrast, acquiring high-quality human-annotated data is
+   Our main contributions and findings are:                              expensive and time consuming.
+  • We introduce OR-R1, a novel framework that, for the                  RL for LLM Alignment and Reasoning. Reinforcement
+    first time, integrates SFT and TGRPO for automated op-               Learning (RL) has become a cornerstone for aligning LLMs
+    erations research problems modeling and solving.                     with human preferences and improving their reasoning ca-
+  • We design a multi-faceted reward system specifically                 pabilities. Initial works like RLHF (Ouyang et al. 2022;
+    tailored for optimization problem scenarios, comprising              Christiano et al. 2017) and Direct Preference Optimiza-
+    Format Reward for structural correctness, Valid-Code                 tion (DPO) (Rafailov et al. 2023) have shown the effec-
+    Reward for executability, Majority Voting Reward for                 tiveness of fine-tuning LLMs with human feedback. More
+    numerical accuracy, enabling robust model learning.                  advanced RL techniques, often based on Proximal Policy
+                                                                         Optimization (PPO) (Schulman et al. 2017), are used to
+  • OR-R1 surpasses previous state-of-the-art methods using
+                                                                         refine model behaviors for complex tasks. DeepSeekMath
+    only 1/10 synthetic data of ORLM, and attains an av-
+                                                                         (Shao et al. 2024), which introduced Group Relative Pol-
+    erage solving accuracy of 67.7% across diverse public
+                                                                         icy Optimization (GRPO), demonstrated how RL can push
+    benchmarks, while significantly narrowing the gap be-
+                                                                         the limits of mathematical reasoning by learning from com-
+    tween single-attempt and multi-attempt accuracy.
+                                                                         parisons between multiple generated solutions. Subsequent
+
+
+                                                                   229
+                                  KL
+   TGRPO                                                          Reference Model
+
+                                               o1                                     Rformat1 + Rcode1 + Rvoting1                  A1
+                                                           format reward                                               group
+     Query               Policy                o2                                     Rformat2 + Rcode2 + Rvoting2
+                                                                                                                     computation
+                                                                                                                                    A2
+                         Model                 ...       valid-code reward                          ...                             ...
+                                               o8                   y1                Rformat8 + Rcode8 + Rvoting8                  A8
+                                                                    y2
+                                                     execute        ...                    y       majority voting
+                                                      code                   voting
+                                                                                                      reward
+                                                                    y8
+
+                                  Figure 2: The figure illustrates the training process of TGRPO.
+
+
+work, DeepSeek-R1 (Guo et al. 2025), further explores in-                 training with TGRPO on unlabeled test set data. TGRPO
+centivizing reasoning capabilities via RL. Other research has             training is guided by a composite reward function specifi-
+focused on scaling RL systems for LLMs (Yu et al. 2025;                   cally designed for OR problem modeling and solving. This
+Sheng et al. 2024; Zhang et al. 2024), self-correction mech-              reward integrates several components derived from the gen-
+anisms (Kumar et al. 2024; Qu et al. 2024) or formal provers              erated outputs: (1) Format Reward, which measures adher-
+(Xin et al. 2024) to guide RL training.                                   ence to the required structural format; (2) Valid-Code Re-
+Test-Time Adaptation and Confidence in LLMs. Ensur-                       ward, which checks the syntactic correctness and executabil-
+ing the reliability and accuracy of LLM outputs, particularly             ity of the generated code; and (3) Majority Voting Reward,
+at inference time, is crucial. In complex problem-solving                 which reflects the consensus among multiple candidate solu-
+tasks, such as mathematical reasoning and code generation,                tions through majority voting. By combining these criteria,
+it’s commonly observed that approaches employing multi-                   the reward function incentivizes the model to generate well-
+ple votings over generated candidate solutions, followed by               structured, functional, and consistent solutions for OR tasks.
+selection of the most consistent or accurate, achieve signif-
+icantly better results than single-attempt methods (Pass@1)               Supervised Fine-tuning (SFT) Phase
+(Chen et al. 2023; Huang et al. 2024a). This phenomenon                   The objective of the SFT phase is to maximize the likeli-
+highlights that improving the consistency of generated out-               hood of generating the correct output given the input. This
+puts can lead to a substantial enhancement in Pass@1 perfor-              is achieved by minimizing the negative logarithmic likeli-
+mance. To address this, Test-Time Adaptation (TTA) meth-                  hood loss, a standard approach in supervised learning. The
+ods aim to adapt models to new data distributions or im-                  objective function for SFT is formally defined as:
+prove performance. Examples include TENT (Wang et al.                                                                             
+2020), which minimizes entropy during inference. Build-                                                 X|o|
+ing on this, Test-Time Reinforcement Learning (Zuo et al.                    LSFT (θ) = −E(x,o)∼DSFT        log P (ot |x, o<t ; θ) (1)
+2025; Prabhudesai et al. 2025; Yu et al. 2025; Sheng et al.                                                 t=1
+2024; Zhang et al. 2024; Kumar et al. 2024; Qu et al. 2024;
+Xin et al. 2024) extends TTA by applying reinforcement                      where
+learning principles to adapt models at test time. By employ-               • LSFT (θ) represents the loss function for the model pa-
+ing strategies like majority voting among candidate outputs                  rameters θ.
+and learning from consistency signals, these methods en-
+able models to adapt on-the-fly to distribution shifts or chal-            • E(x,o)∼DSFT denotes the expectation over the input-output
+lenging instances without extensive retraining. Despite these                pairs (x, o) sampled from the supervised data set DSFT ,
+advances, such RL and adaptation techniques have not yet                     where x is the input prompt and o = (o1 , o2 , . . . , o|o| ) is
+been systematically explored for solving operations research                 the target output sequence.
+(OR) problems. In this work, we conduct the first application              • P (ot |x, o<t ; θ) is the probability of generating the t-th
+of these methods to automated OR problem solving.                            token ot given the input prompt x, all preceding tokens
+                                                                             y<t , and the model parameters θ.
+                          Method
+Overview                                                                  Test-Time Group Relative Policy Optimization
+The overall workflow of the OR-R1 training procedure is                   (TGRPO)
+illustrated in Figure 1. Our method utilizes the Qwen3-                   The theoretical foundation of TGRPO is consistent with that
+8B model as the base. First, we perform supervised fine-                  of GRPO. The training process is illustrated in Figure 2.
+tuning (SFT) using a small, randomly selected subset of                   A key characteristic of TGRPO is its ability to forego a
+data from the 3000 IndustryOR dataset, an open-source re-                 separate critic model, instead estimating the baseline from
+source from ORLM. Second, the model undergoes further                     group scores, significantly reducing computational training
+
+
+                                                                  230
+resources. The objective of TGRPO is to maximize the ob-                   Valid-Code Reward. The Valid-Code Reward incen-
+jective of the policy, driving the model to produce higher-                tivizes the generation of executable or syntactically correct
+quality outputs based on reward signals. The objective func-               code, crucial for tasks involving code generation or problem-
+tion for TGRPO is formally defined as:                                     solving through programmatic means. This is a binary re-
+                                                                           ward:
+                                                        G
+                                                     h1 X                                  
+                                                                                            1, if code can correctly call ‘coptpy‘
+JT GRP O (θ) = Eq∼P (Q),{oi }G
+                             i=1 ∼πθ         (O|q)                           Rcode (oi ) =                                            (6)
+                                       old           G i=1                                  0, otherwise
+          πθ (oi |q)              πθ (oi |q)                             Majority Voting Reward. The Majority Voting Reward
+     min               Ai , clip               , 1 − ϵ, 1 + ϵ A
+                                                              (2)i
+         πθold (oi |q)           πθold (oi |q)                             is derived from the Test-Time Reinforcement Learning
+                           i                                              (TTRL) framework (Zuo et al. 2025), where a consensus
+     − βDKL (πθ ||πref )                                                   output is established through majority voting among multi-
+                                                                           ple candidate generations. This estimated consensus output
+                       πref (oi |q)       πref (oi |q)                     then serves as a proxy label to compute a rule-based reward.
+  DKL (πθ ||πref ) =                − log              − 1 (3)
+                        πθ (oi |q)         πθ (oi |q)                      The reward function is defined as:
+                                                                                                            
+                                                                                                             1, if yi = y
+                  Ri − mean({R1 , R2 , · · · , RG })                                     Rvoting (yi , y) =                         (7)
+           Ai =                                               (4)                                            0, otherwise
+                     std({R1 , R2 , · · · , RG })
+  where                                                                    where:
+ • JTGRPO (θ): Represents the objective function for the pol-               • yi denotes the optimal solution by executing the code.
+   icy model with parameters θ.                                             • y denotes the majority-voted prediction or the consensus
+ • Eq∼P (Q),{oi }G                  : Denotes the expectation over            output. For majority voting, only results that produce nor-
+                   i=1 ∼πθold (O|q)
+   questions q sampled from the distribution P (Q) and                        mal values from code execution are considered, ignoring
+   groups of outputs {oi }G                                                   cases with ‘No Best Solution’ or ‘None’ results.
+                                i=1 sampled from the old policy
+   πθold given q.                                                            The final composite reward R is the sum of these individ-
+ • G: The number of generated outputs in a group.                          ual reward components:
+ • πθ (oi |q): The probability of generating output oi given                        Ri = Rformat (oi ) + Rcode (oi ) + Rvoting (yi , y)   (8)
+   question q under the current policy πθ .
+ • πθold (oi |q): The probability of generating output oi given                                     Experiments
+   question q under the old policy πθold .
+                                                                           To analyze the performance of OR-R1, we conduct experi-
+ • πref : A fixed reference policy, often the SFT model or                 ments based on the open-source LLM Qwen3-8B and com-
+   an initial pre-trained model, used for the KL divergence                pare it with various learning-based methods on extensive
+   regularization.                                                         datasets. The experiments aim to answer three questions:
+ • Ri : The reward for the output oi .
+                                                                            • RQ1: How does OR-R1 perform compared to existing
+ • Ai : The advantage for output oi .
+                                                                              learning-based methods across diverse real-world opera-
+ • ϵ: A hyperparameter for the PPO-style clipping.                            tions research benchmarks?
+ • β: A hyperparameter controlling the strength of the KL                   • RQ2: What is the impact of the TGRPO algorithm on
+   divergence penalty.                                                        model performance?
+ • DKL (πθ ||πref ): The KL divergence between the current                  • RQ3: How do different reward formulations affect the
+   policy πθ and a reference policy πref .                                    performance of OR-R1?
+Reward Function                                                            Experimental Setup
+Our training framework incorporates a composite reward
+function, combining several distinct reward components to                  Datasets. To thoroughly evaluate the capabilities of OR-
+guide the model’s learning process:                                        R1, we utilize a diverse set of optimization-related bench-
+                                                                           marks that are collected from previously published sources.
+Format Reward. The Format Reward encourages the                            These datasets are chosen because they present unique chal-
+model to generate outputs that adhere to a predefined struc-               lenges and comprehensively cover various aspects of opti-
+tural or syntactical format. Specifically, we check for the                mization problem solving. The specific characteristics and
+presence of six key fields: ‘## Mathematical Model:’, ‘##                  sizes of each key test set are based on the operations and im-
+Decision Variables:’, ‘## Objective Function:’, ‘## Con-                   plementations referenced from the LLMOPT. These bench-
+straints:’, ‘## Python Code Solution Using ‘coptpy‘:’, and                 marks collectively provide a comprehensive evaluation of
+‘‘‘‘python’. The reward is calculated as the proportion of                 LLMs in optimization modeling and solving. NL4Opt (Ra-
+these fields successfully identified in the output:                        mamonjison et al. 2023) offers 230 linear programming
+                       Number of required fields found                     word problems, including an ‘objective’ domain for general-
+       Rformat (oi ) =                                   (5)               ization assessment. Mamo (Huang et al. 2024b) challenges
+                                       6
+
+                                                                     231
+ Model                    NL4OPT      MAMO        MAMO          IndustryOR      NLP4LP       ComplexOR    OptiBench         ICML         AVG
+                                      EasyLP     ComplexLP                                                                Competition
+                                                             Base Model Variants
+ Qwen3-8B SFT(3K)          86.0±2.0   87.0±1.0    39.9±3.0        33.0±1.0       82.9±0.5      40.7±6.4    61.4±1.2        85.8±2.0     64.6±1.2
+ Qwen2.5-7B SFT(3K)        83.0±1.9   85.6±0.7    37.3±1.2        32.7±0.6       80.0±0.7      40.7±3.2    57.0±1.6        79.2±1.8     61.9±1.2
+ Llama3-8B SFT(3K)         80.3±3.6   81.7±2.1    32.2±2.6        24.7±3.1       78.5±1.8      37.0±8.5    54.4±2.2        77.1±1.3     58.2±1.7
+ Qwen3-8B SFT(100)         81.8±1.7   84.4±3.3    31.9±3.1        29.3±4.2       78.2±0.9      35.2±3.2    56.2±2.0        79.4±2.8     59.5±1.7
+                                                             Learning Base Model
+ LLMOPT(Qwen2.5-14B)         80.3       89.5        44.1            29.0           73.4          35.3        53.8            75.3         60.1
+ ORLM(Llama3-8B)             86.9       81.6        39.3            32.0           82.0          50.0        56.5            79.3         63.5
+                                                              Proposed Method
+ OR-R1 SFT(100)-TGRPO      88.0±0.7   87.4±2.5    45.7±8.5        30.3±3.1       84.0±1.0      46.3±8.5    61.2±0.7        84.1±1.5     65.9±2.2
+ OR-R1 SFT(3K)-TGRPO       88.3±0.9   86.1±1.0   49.9±15.0        35.3±2.9       84.6±0.8      46.3±3.2    62.9±1.0        88.3±1.8     67.7±2.7
+
+Table 1: Main evaluation results on eight operations research benchmarks. Solution accuracy (%) is reported for each method,
+with the overall average (AVG) in the last column. Bold indicates the best result. Values with ‘±’ represent the mean and
+standard deviation over three independent training.
+
+
+LLMs with 652 Easy LP and 211 Complex LP instances                              for optimization modeling and solver code development.
+requiring deeper mathematical reasoning. NLP4LP (Ahma-                          It uses a semi-automated data synthesis framework called
+diTeshnizi, Gao, and Udell 2024) features 242 richly an-                        ORInstruct to generate high-quality training data from
+notated linear and mixed-integer linear programming prob-                       seed industry cases. The authors demonstrate results us-
+lems, mitigating data leakage. ComplexOR (Xiao et al.                           ing Llama3-8B (Dubey et al. 2024) as their base model.
+2023) presents 18 complex real-world operation research                       • LLMOPT (Jiang et al. 2024a): This framework em-
+problems with implicit constraints and domain-specific                          ploys multi-instruction tuning to improve problem for-
+knowledge requirements. IndustryOR (Huang et al. 2025)                          malization and solver code generation accuracy. It uses a
+assesses performance on 100 real-world operation research                       ‘five-element formulation’ to define optimization prob-
+problems. OptiBench (Yang et al. 2024b) includes 605 opti-                      lems and leverages data augmentation with expert /
+mization modeling word problems across linear, non-linear,                      GPT4-based data labeling (Achiam et al. 2023). The
+and tabular data types, evaluating iterative optimization. Fi-                  framework incorporates supervised fine-tuning, model
+nally, the ICML Competition (Yang et al. 2024a) track fo-                       alignment, and a self-correction mechanism, with their
+cuses on automated optimization problem solving, using 410                      primary results based on Qwen2.5-14B (Yang et al.
+evaluable data points from its public leaderboard.                              2025b).
+Training DataSets. The training of OR-R1 primarily in-                        • Base Model Variants: To ensure comprehensive com-
+volves two critical phases: Supervised Fine-Tuning (SFT)                        parison across different model architectures and sizes,
+and a TGRPO-based reinforcement learning stage.                                 we also include SFT-tuned versions of Qwen3-8B,
+                                                                                Qwen2.5-7B (Yang et al. 2025b) and Llama3-8B (Dubey
+ • SFT stage: We utilize ORInstruct, a public dataset from                      et al. 2024) in our baseline evaluation. This helps isolate
+   ORLM. It contains 3,000 synthetic samples, which cor-                        the impact of our methodology from the inherent capa-
+   responds to 1/10 of the full dataset used in ORLM.                           bilities of different base models.
+ • TGRPO stage: We used unlabeled test data for training.
+                                                                             Evaluation Metrics. Aligned with ORLM, we adopt So-
+Base Model. Our base model is Qwen3-8B (Yang et al.                          lution Accuracy as our primary evaluation metric. For each
+2025a). It’s chosen for its robust general-purpose language                  optimization problem, the evaluation follows an end-to-end
+understanding and generation capabilities, demonstrating                     process: the LLM generates a response in natural language,
+strong performance in both Math and Coding Tasks. Fur-                       which contains code blocks marked by ‘‘‘python ... ‘‘‘.
+thermore, its model size is comparable to that of previous                   A script automatically extracts and executes the generated
+related work, making it a suitable choice for our scenario.                  Python code to obtain the predicted optimal objective value
+                                                                             yi for problem i. Let yi∗ denote the ground truth optimal
+Baselines. We evaluate our method against several strong
+                                                                             value. We define Solution Accuracy as:
+baselines, including both general LLMs and specialized
+optimization-focused models. Our primary baseline is the                                                              N
+Qwen3-8B model fine-tuned on the ORInstruct(3K) dataset.                                                        1 X
+                                                                                          Solution Accuracy =         I(yi = yi∗ )
+Also, we compare with the following methods:                                                                    N i=1
+ • ORLM (Huang et al. 2025): This framework focuses                            where N is the total number of problems, and I(·) is the
+   on training open-source Large Language Models (LLMs)                      indicator function, which equals 1 if the condition holds and
+
+
+                                                                    232
+0 otherwise. In other words, a problem is considered cor-                   1.00
+rectly solved if and only if the predicted optimal value ex-
+actly matches the ground truth optimal value. This metric                   0.95
+directly reflects the model’s end-to-end capability for gener-
+ating and solving optimization problems.                                    0.90
+                                                                                           0.0      0.2      0.4       0.6      0.8      1.0
+Implementation Details. The training process consists of                                                  (a) Format Reward
+two stages: SFT and TGRPO. In the SFT stage, Qwen3-8B                       1.00
+is fine-tuned using the AdamW optimizer, a warmup-decay
+scheduler, and standard settings. In the TGRPO stage, the                   0.75
+SFT output is further optimized using AdamW with a co-
+sine scheduler and PEFT (LoRA). Both stages are trained on                  0.50
+4×A100 (40G) GPUs with BF16 precision. For all hyperpa-                                    0.0      0.2      0.4       0.6      0.8      1.0
+rameters and detailed settings, please refer to the Appendix.                                         (b) Valid-Code Reward
+                                                                            1.00
+Main Results
+Based on the experimental results (Table 1), our method                     0.75
+demonstrates significant advantages across different test
+sets. Specifically, OR-R1 SFT(3K)-TGRPO achieves an av-                     0.50
+                                                                                           0.0      0.2      0.4       0.6      0.8      1.0
+erage accuracy of 67.7%, substantially outperforming all                                           (c) Majority Voting Reward
+baseline models and achieving optimal performance on mul-
+tiple test sets including NL4OPT, MAMO ComplexLP, In-
+dustryOR, NLP4LP, OptiBench, and ICML Competition.                     Figure 3: Overview of training dynamics for OR-R1 core
+Notably, even with only 100 samples for SFT, OR-R1                     reward components of SFT(3K)-TGRPO.
+SFT(100)-TGRPO still achieves an average accuracy of
+65.9%, surpassing other baseline methods including ORLM
+and LLMOPT, which highlights the effectiveness of the                  attempt(Pass@8) and single attempt(Pass@1) performance.
+TGRPO method. By comparing different base models, we                   While Pass@8 achieves impressive accuracy, Pass@1 ini-
+find that Qwen3-8B, after SFT with 3K data, shows supe-                tially performs substantially lower. This discrepancy indi-
+rior performance compared to Qwen2.5-7B and Llama3-8B.                 cates that the model possesses the underlying capability but
+While this validates the importance of advanced base mod-              lacks consistency in single-attempt scenarios. TGRPO was
+els, our TGRPO method can further improve performance                  specifically designed to address this challenge by improving
+by 3.1%-6.4%, demonstrating its effectiveness in optimiz-              the model’s deterministic performance and enhancing out-
+ing operations research modeling and solving tasks.                    put consistency. As demonstrated in Fig. 4, TGRPO shows
+                                                                       promising results in achieving this goal. After training, we
+Training Dynamics of TGRPO                                             successfully reduced this gap to 7%. Pass@1 shows consis-
+Figure 3 illustrates the training dynamics of the three core           tent improvement throughout the training process, indicat-
+reward components (format, valid-code, and majority vot-               ing the effectiveness of our approach in enhancing single-
+ing) for SFT(3K)-TGRPO. Format Reward: The format
+reward remains consistently high (above 0.98) throughout
+training, indicating that the model quickly learns to gener-
+                                                                                          OR-R1 SFT(3K) Pass@8       OR-R1 SFT(100) Pass@8
+ate outputs in the correct format and maintains this ability                              OR-R1 SFT(3K) Pass@1       OR-R1 SFT(100) Pass@1
+stably. Valid-Code Reward: The valid-code reward shows
+                                                                                     80
+a clear upward trend in the early stages and gradually sta-
+                                                                       Accuracy(%)
+
+
+
+
+bilizes around 0.9. This suggests that the model becomes
+increasingly capable of producing syntactically valid code                           70
+as training progresses. Majority Voting Reward: The ma-
+jority voting reward starts lower (around 0.7) but steadily
+improves, stabilizing near 0.8. This reflects the model’s en-                        60
+hanced ability to generate solutions that are favored by ma-
+jority voting, i.e., more frequently correct or consensus an-                               0    2500 5000 7500 10000 12500 15000
+swers. Across all three plots, the shaded regions indicate
+                                                                                                                   Step
+significant variance in reward values during training, but
+the overall trajectories of the moving averages are positive
+and stable. This demonstrates that SFT(3K)-TGRPO effec-                Figure 4: Performance of Pass@1 and Pass@8 during
+tively optimizes all three reward components, leading to bet-          TGRPO Training. Pass@1 measures the accuracy when only
+ter structured, more valid, and more reliable model outputs.           the model’s top prediction is considered, while Pass@8 re-
+   Our motivation for developing TGRPO stems from the                  flects the probability that at least one out of the top 8 gener-
+observed significant gap (13%) between multiple sampling               ated solutions is correct.
+
+
+                                                                 233
+   Model                              NL4OPT      MAMO        MAMO         IndustryOR     NLP4LP      ComplexOR   OptiBench     ICML         AVG
+                                                  EasyLP     ComplexLP                                                        Competition
+                                                                    Base Model Variants
+   Qwen3-8B SFT(3K)                      86.9      87.2         42.3           34.0        83.4          44.4       62.1         87.6        66.0
+                                                     Ablation Studies (Base Model Qwen3-8B SFT(3K))
+   +RL(Rf ormat )                     86.5↓0.4    87.1↓0.1    46.9↑4.6       34.0↓0.0     83.5↑0.1     44.4↓0.0    62.6↑0.5     87.3↓0.3    66.5↑0.5
+   +RL(Rcode )                        86.5↓0.4    87.4↑0.2    52.6↑10.3      38.0↑4.0     84.3↑0.8     38.9↓5.5    63.8↑1.7     86.3↓1.3    67.2↑1.2
+   +RL(Rvoting )                      89.0↑2.1    87.0↓0.2    58.3↑16.0      33.0↓1.0     84.7↑1.3     38.9↓5.5    62.8↑0.7     90.5↑2.9    68.0↑2.0
+   +RL(Rf ormat + Rcode )             86.5↓0.4    86.8↓0.4    55.0↑12.7      35.0↑1.0     84.7↑1.3     44.4↓0.0    63.1↑1.0     86.6↓1.0    67.8↑1.8
+   +RL(Rf ormat + Rvoting )           87.8↑0.9    87.3↑0.1    51.7↑9.4       33.0↓1.0     86.0↑2.6     50.0↑5.6    64.0↑1.9     88.5↑0.9    68.5↑2.5
+   +RL(Rcode + Rvoting )              87.3↑0.4    87.1↓0.1    67.8↑25.5      41.0↑7.0     85.5↑2.1     38.9↓5.5    63.3↑1.2     87.6↓0.0    69.7↑3.7
+   +RL(Rf ormat + Rcode + Rvoting )   88.6↑1.7    87.0↓0.2    66.8↑24.5      37.0↑3.0     84.3↑0.9     50.0↑5.6    63.5↑1.4     88.8↑1.2    70.8↑4.8
+
+Table 2: Ablation study on the reward formulations of OR-R1, using Qwen3-8B SFT(3K) as the base model. We report solution
+accuracy (%) on eight operations research benchmarks and the overall average (AVG). Each row shows the effect of adding
+different reward components either individually or in combination. Performance gains or drops relative to the SFT-only baseline
+are marked in red (better) and blue (worse).
+
+
+generation reliability. It should be noted that the perfor-                      Ablation Studies
+mance curve maintains an upward trajectory even at the end                       Table 2 summarizes the impact of different reward com-
+of our training iterations. Due to computational resource                        ponents in OR-R1 using Qwen3-8B SFT(3K) as the base
+constraints, we had to limit the training duration. How-                         model. Adding individual rewards, such as format, code, or
+ever, the steady positive trend suggests potential for im-                       voting, each brings some improvement over the baseline of
+provements with extended training, as the model has not yet                      SFT only, with the voting reward showing the largest gain
+reached a performance plateau.                                                   of a single component. Combining rewards further boosts
+                                                                                 performance: the best results are achieved when all three
+Data Scale Effect on TGRPO                                                       components are used together, yielding an average accuracy
+Figure 5 illustrates how model accuracy changes with dif-                        of 70.8% (+4.8% over baseline). These findings show that
+ferent data scales for TGRPO training. As the number of                          the rewards are complementary and that a comprehensive
+TGRPO training samples (N) increases from 10 to 50, ac-                          reward design is key to maximizing model performance.
+curacy steadily improves from 66.0% to 69.1%. However,
+further increasing the data scale to include all available sam-                                             Conclusion
+ples does not lead to higher accuracy. This suggests that
+TGRPO achieves significant performance gains with a rel-                         This study introduces OR-R1, a data-efficient training
+atively small amount of data, and increasing the data size                       framework for solving Operations Research (OR) optimiza-
+further brings diminishing returns. In summary, TGRPO not                        tion problems. By integrating Test-Time Group Relative Pol-
+only eliminates the need for additional labeled data, but                        icy Optimization (TGRPO), OR-R1 achieves state-of-the-
+also achieves strong training performance with only a small                      art performance, with an average accuracy of 67.7% across
+amount of in-domain data, showing its high data efficiency.                      multiple benchmarks, surpassing established methods like
+                                                                                 ORLM and LLMOPT. Remarkably, OR-R1 reaches compet-
+                                                                                 itive performance using only 100 labeled samples in the SFT
+              72                                                                 stage, demonstrating its ability to drastically reduce data re-
+                                                                                 quirements while maintaining high accuracy. By leveraging
+                                                                                 tailored rewards, OR-R1 improves single-attempt reliability
+Accuracy(%)
+
+
+
+
+              70                                    69.5     69.5
+                                           69.1                                  (Pass@1) and narrows the gap to multi-attempt performance
+                                  68.6
+                                                                                 (Pass@8) from 13% to 7%, ensuring consistent and robust
+              68           67.8
+                                                                                 outputs. This framework offers a scalable and cost-effective
+                                                                                 solution for training domain-specific large language models,
+                    66.0
+              66                                                                 which could benefit automated optimization applications in
+                                                                                 real-world industrial scenarios.
+                   SFT(3K) +(10) +(20) +(50) +(100) +(ALL)
+                                                                                                       Acknowledgments
+Figure 5: The impact of different data scales on TGRPO                           We thank the reviewers for their helpful comments and feed-
+performance. In “+(N)”, N denotes the number of samples                          back that improved the final version of this article. Z. Ding
+randomly selected from each test set for TGRPO training.                         and J. Zhang was supported by the Hong Kong RGC Theme-
+Notably, all models here were trained for 160 steps.                             based Research Scheme T32-615-24-R/ER.
+
+
+                                                                           234
+                       References                                      Incentivizing reasoning capability in llms via reinforcement
+Achiam, J.; Adler, S.; Agarwal, S.; Ahmad, L.; Akkaya, I.;             learning. arXiv preprint arXiv:2501.12948.
+Aleman, F. L.; Almeida, D.; Altenschmidt, J.; Altman, S.;              Harrison, A.; Van Hoek, R.; Skipworth, H.; and Aitken, J.
+Anadkat, S.; et al. 2023. Gpt-4 technical report. arXiv                2019. Logistics management and strategy. Pearson UK.
+preprint arXiv:2303.08774.                                             He, C.; Luo, R.; Bai, Y.; Hu, S.; Thai, Z. L.; Shen, J.; Hu,
+AhmadiTeshnizi, A.; Gao, W.; and Udell, M. 2024.                       J.; Han, X.; Huang, Y.; Zhang, Y.; et al. 2024. Olympiad-
+Optimus: Scalable optimization modeling with (mi) lp                   bench: A challenging benchmark for promoting agi with
+solvers and large language models.            arXiv preprint           olympiad-level bilingual multimodal scientific problems.
+arXiv:2402.10172.                                                      arXiv preprint arXiv:2402.14008.
+Ahn, J.; Verma, R.; Lou, R.; Liu, D.; Zhang, R.; and Yin, W.           Hendrycks, D.; Burns, C.; Kadavath, S.; Arora, A.; Basart,
+2024. Large Language Models for Mathematical Reasoning:                S.; Tang, E.; Song, D.; and Steinhardt, J. 2021. Measuring
+Progresses and Challenges. arXiv:2402.00157.                           mathematical problem solving with the math dataset. arXiv
+Bairi, R.; Sonwane, A.; Kanade, A.; C, V. D.; Iyer, A.;                preprint arXiv:2103.03874.
+Parthasarathy, S.; Rajamani, S.; Ashok, B.; and Shet, S.               Huang, B.; Lu, S.; Chen, W.; Wan, X.; and Duan, N. 2024a.
+2024. Codeplan: Repository-level coding using llms and                 Enhancing Large Language Models in Coding Through
+planning. Proceedings of the ACM on Software Engineer-                 Multi-Perspective Self-Consistency. arXiv:2309.17272.
+ing, 1(FSE): 675–698.                                                  Huang, C.; Tang, Z.; Hu, S.; Jiang, R.; Zheng, X.; Ge, D.;
+Besta, M.; Blach, N.; Kubicek, A.; Gerstenberger, R.;                  Wang, B.; and Wang, Z. 2025. Orlm: A customizable frame-
+Podstawski, M.; Gianinazzi, L.; Gajda, J.; Lehmann, T.;                work in training large models for automated optimization
+Niewiadomski, H.; Nyczyk, P.; et al. 2024. Graph of                    modeling. Operations Research.
+thoughts: Solving elaborate problems with large language
+                                                                       Huang, X.; Shen, Q.; Hu, Y.; Gao, A.; and Wang, B. 2024b.
+models. In Proceedings of the AAAI Conference on Artifi-
+                                                                       Mamo: a mathematical modeling benchmark with solvers.
+cial Intelligence, volume 38, 17682–17690.
+                                                                       arXiv preprint arXiv:2405.13144.
+Bretthauer, K. M.; and Shetty, B. 1995. The nonlinear re-
+source allocation problem. Operations research, 43(4): 670–            Hurst, A.; Lerer, A.; Goucher, A. P.; Perelman, A.; Ramesh,
+683.                                                                   A.; Clark, A.; Ostrow, A.; Welihinda, A.; Hayes, A.; Rad-
+                                                                       ford, A.; et al. 2024. Gpt-4o system card. arXiv preprint
+Brown, T.; Mann, B.; Ryder, N.; Subbiah, M.; Kaplan, J. D.;            arXiv:2410.21276.
+Dhariwal, P.; Neelakantan, A.; Shyam, P.; Sastry, G.; Askell,
+A.; et al. 2020. Language models are few-shot learners. Ad-            Jiang, C.; Shu, X.; Qian, H.; Lu, X.; Zhou, J.; Zhou, A.; and
+vances in neural information processing systems, 33: 1877–             Yu, Y. 2024a. LLMOPT: Learning to Define and Solve Gen-
+1901.                                                                  eral Optimization Problems from Scratch. arXiv preprint
+                                                                       arXiv:2410.13213.
+Brucker, P.; Drexl, A.; Möhring, R.; Neumann, K.; and
+Pesch, E. 1999. Resource-constrained project scheduling:               Jiang, J.; Wang, F.; Shen, J.; Kim, S.; and Kim, S. 2024b.
+Notation, classification, models, and methods. European                A Survey on Large Language Models for Code Generation.
+journal of operational research, 112(1): 3–41.                         arXiv:2406.00515.
+Chaudhary, S. 2023. Code Alpaca: An Instruction-following              Kumar, A.; Zhuang, V.; Agarwal, R.; Su, Y.; Co-Reyes, J. D.;
+LLaMA model for code generation. https://github.com/                   Singh, A.; Baumli, K.; Iqbal, S.; Bishop, C.; Roelofs, R.;
+sahil280114/codealpaca.                                                et al. 2024. Training language models to self-correct via
+                                                                       reinforcement learning. arXiv preprint arXiv:2409.12917.
+Chen, X.; Aksitov, R.; Alon, U.; Ren, J.; Xiao, K.; Yin, P.;
+Prakash, S.; Sutton, C.; Wang, X.; and Zhou, D. 2023. Uni-             Lee, C.-Y.; Lee, H. L.; and Zhang, J. 2015. The impact of
+versal Self-Consistency for Large Language Model Genera-               slow ocean steaming on delivery reliability and fuel con-
+tion. arXiv:2311.17311.                                                sumption. Transportation Research Part E: Logistics and
+Christiano, P. F.; Leike, J.; Brown, T.; Martic, M.; Legg, S.;         Transportation Review, 76: 176–190.
+and Amodei, D. 2017. Deep reinforcement learning from                  Li, Y.; Choi, D.; Chung, J.; et al. 2022. Competition-
+human preferences. Advances in neural information pro-                 Level Code Generation with AlphaCode. arXiv preprint
+cessing systems, 30.                                                   arXiv:2203.07814.
+Cobbe, K.; Kosaraju, V.; Bavarian, M.; Chen, M.; Jun, H.;              Long, Z.; Shimkin, N.; Zhang, H.; and Zhang, J. 2020. Dy-
+Kaiser, L.; Plappert, M.; Tworek, J.; Hilton, J.; Nakano, R.;          namic scheduling of multiclass many-server queues with
+et al. 2021. Training verifiers to solve math word problems.           abandonment: The generalized cµ/h rule. Operations Re-
+arXiv preprint arXiv:2110.14168.                                       search, 68(4): 1218–1230.
+Dubey, A.; Jauhri, A.; Pandey, A.; Kadian, A.; Al-Dahle, A.;           Lu, H.; Xie, Z.; Wu, Y.; Ren, C.; Chen, Y.; and Wen,
+Letman, A.; Mathur, A.; Schelten, A.; Yang, A.; Fan, A.;               Z. 2025. Optmath: A scalable bidirectional data synthe-
+et al. 2024. The llama 3 herd of models. arXiv e-prints,               sis framework for optimization modeling. arXiv preprint
+arXiv–2407.                                                            arXiv:2502.11102.
+Guo, D.; Yang, D.; Zhang, H.; Song, J.; Zhang, R.; Xu, R.;             Mostajabdaveh, M.; Yu, T. T. L.; Dash, S. C. B.; Ramamon-
+Zhu, Q.; Ma, S.; Wang, P.; Bi, X.; et al. 2025. Deepseek-r1:           jison, R.; Byusa, J. S.; Carenini, G.; Zhou, Z.; and Zhang,
+
+
+                                                                 235
+Y. 2025. Evaluating LLM Reasoning in the Operations Re-                Xin, H.; Ren, Z.; Song, J.; Shao, Z.; Zhao, W.; Wang, H.;
+search Domain with ORQA. In Proceedings of the AAAI                    Liu, B.; Zhang, L.; Lu, X.; Du, Q.; et al. 2024. Deepseek-
+Conference on Artificial Intelligence, volume 39, 24902–               prover-v1. 5: Harnessing proof assistant feedback for re-
+24910.                                                                 inforcement learning and monte-carlo tree search. arXiv
+Ouyang, L.; Wu, J.; Jiang, X.; Almeida, D.; Wainwright, C.;            preprint arXiv:2408.08152.
+Mishkin, P.; Zhang, C.; Agarwal, S.; Slama, K.; Ray, A.;               Yang, A.; Li, A.; Yang, B.; Zhang, B.; Hui, B.; Zheng, B.;
+et al. 2022. Training language models to follow instructions           Yu, B.; Gao, C.; Huang, C.; Lv, C.; et al. 2025a. Qwen3
+with human feedback. Advances in neural information pro-               technical report. arXiv preprint arXiv:2505.09388.
+cessing systems, 35: 27730–27744.                                      Yang, A.; Yang, B.; Zhang, B.; Hui, B.; Zheng, B.; Yu, B.;
+Prabhudesai, M.; Chen, L.; Ippoliti, A.; Fragkiadaki, K.; Liu,         Li, C.; Liu, D.; Huang, F.; Wei, H.; Lin, H.; Yang, J.; Tu, J.;
+H.; and Pathak, D. 2025. Maximizing Confidence Alone                   Zhang, J.; Yang, J.; Yang, J.; Zhou, J.; Lin, J.; Dang, K.; Lu,
+Improves Reasoning. arXiv preprint arXiv:2505.22660.                   K.; Bao, K.; Yang, K.; Yu, L.; Li, M.; Xue, M.; Zhang, P.;
+                                                                       Zhu, Q.; Men, R.; Lin, R.; Li, T.; Tang, T.; Xia, T.; Ren, X.;
+Qu, Y.; Zhang, T.; Garg, N.; and Kumar, A. 2024. Recur-                Ren, X.; Fan, Y.; Su, Y.; Zhang, Y.; Wan, Y.; Liu, Y.; Cui, Z.;
+sive introspection: Teaching language model agents how to              Zhang, Z.; and Qiu, Z. 2025b. Qwen2.5 Technical Report.
+self-improve. Advances in Neural Information Processing                arXiv:2412.15115.
+Systems, 37: 55249–55285.                                              Yang, Z.; Huang, Y.; Shi, W.; Feng, L.; Song, L.; Wang, Y.;
+Rafailov, R.; Sharma, A.; Mitchell, E.; Manning, C. D.;                Liang, X.; and Tang, J. 2024a. Benchmarking LLMs for Op-
+Ermon, S.; and Finn, C. 2023. Direct preference opti-                  timization Modeling and Enhancing Reasoning via Reverse
+mization: Your language model is secretly a reward model.              Socratic Synthesis. arXiv preprint arXiv:2407.09887.
+Advances in Neural Information Processing Systems, 36:                 Yang, Z.; Wang, Y.; Huang, Y.; Guo, Z.; Shi, W.;
+53728–53741.                                                           Han, X.; Feng, L.; Song, L.; Liang, X.; and Tang, J.
+Ramamonjison, R.; Yu, T.; Li, R.; Li, H.; Carenini,                    2024b. OptiBench meets ReSocratic: Measure and im-
+G.; Ghaddar, B.; He, S.; Mostajabdaveh, M.; Banitalebi-                prove LLMs for optimization modeling. arXiv preprint
+Dehkordi, A.; Zhou, Z.; et al. 2023. Nl4opt competition:               arXiv:2407.09887.
+Formulating optimization problems based on their natural               Yao, S.; Yu, D.; Zhao, J.; Shafran, I.; Griffiths, T.; Cao,
+language descriptions. In NeurIPS 2022 Competition Track,              Y.; and Narasimhan, K. 2023. Tree of thoughts: Deliber-
+189–203. PMLR.                                                         ate problem solving with large language models. Advances
+                                                                       in neural information processing systems, 36: 11809–11822.
+Schulman, J.; Wolski, F.; Dhariwal, P.; Radford, A.; and
+Klimov, O. 2017. Proximal policy optimization algorithms.              Yu, Q.; Zhang, Z.; Zhu, R.; Yuan, Y.; Zuo, X.; Yue, Y.; Fan,
+arXiv preprint arXiv:1707.06347.                                       T.; Liu, G.; Liu, L.; Liu, X.; et al. 2025. Dapo: An open-
+                                                                       source llm reinforcement learning system at scale. arXiv
+Shao, Z.; Wang, P.; Zhu, Q.; Xu, R.; Song, J.; Bi, X.; Zhang,          preprint arXiv:2503.14476.
+H.; Zhang, M.; Li, Y.; Wu, Y.; et al. 2024. Deepseekmath:
+                                                                       Zhang, B.; and Luo, P. 2025. Or-llm-agent: Automat-
+Pushing the limits of mathematical reasoning in open lan-
+                                                                       ing modeling and solving of operations research optimiza-
+guage models. arXiv preprint arXiv:2402.03300.
+                                                                       tion problem with reasoning large language model. arXiv
+Sheng, G.; Zhang, C.; Ye, Z.; Wu, X.; Zhang, W.; Zhang, R.;            preprint arXiv:2503.10009.
+Peng, Y.; Lin, H.; and Wu, C. 2024. HybridFlow: A Flexi-               Zhang, C.; Sheng, G.; Liu, S.; Li, J.; Feng, Z.; Liu, Z.; Liu,
+ble and Efficient RLHF Framework. arXiv preprint arXiv:                X.; Jia, X.; Peng, Y.; Lin, H.; et al. 2024. A Framework
+2409.19256.                                                            for Training Large Language Models for Code Generation
+Thind, R.; Sun, Y.; Liang, L.; and Yang, H. 2025. OptimAI:             via Proximal Policy Optimization. In NL2Code Workshop
+Optimization from Natural Language Using LLM-Powered                   of ACM KDD.
+AI Agents. arXiv preprint arXiv:2504.16918.                            Zhao, W. X.; Zhou, K.; Li, J.; Tang, T.; Wang, X.; Hou, Y.;
+Wang, D.; Shelhamer, E.; Liu, S.; Olshausen, B.; and Dar-              Min, Y.; Zhang, B.; Zhang, J.; Dong, Z.; Du, Y.; Yang, C.;
+rell, T. 2020. Tent: Fully test-time adaptation by entropy             Chen, Y.; Chen, Z.; Jiang, J.; Ren, R.; Li, Y.; Tang, X.; Liu,
+minimization. arXiv preprint arXiv:2006.10726.                         Z.; Liu, P.; Nie, J.-Y.; and Wen, J.-R. 2025. A Survey of
+                                                                       Large Language Models. arXiv:2303.18223.
+Wei, J.; Wang, X.; Schuurmans, D.; Bosma, M.; Xia, F.;
+                                                                       Zuo, Y.; Zhang, K.; Sheng, L.; Qu, S.; Cui, G.; Zhu, X.; Li,
+Chi, E.; Le, Q. V.; Zhou, D.; et al. 2022. Chain-of-
+                                                                       H.; Zhang, Y.; Long, X.; Hua, E.; et al. 2025. Ttrl: Test-time
+thought prompting elicits reasoning in large language mod-
+                                                                       reinforcement learning. arXiv preprint arXiv:2504.16084.
+els. Advances in neural information processing systems, 35:
+24824–24837.
+Xiao, Z.; Zhang, D.; Wu, Y.; Xu, L.; Wang, Y. J.; Han, X.;
+Fu, X.; Zhong, T.; Zeng, J.; Song, M.; et al. 2023. Chain-of-
+experts: When llms meet complex operations research prob-
+lems. In The twelfth international conference on learning
+representations.
+
+
+                                                                 236
+

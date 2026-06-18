@@ -1,0 +1,13 @@
+# Related Work Matrix for ReplenishVerifier
+
+Use this file as a starting point for Claude Code. Fill/check details against paper_texts.
+
+| Work | Task Setting | Solver Feedback | LP Artifact Used | Structure Verification | Domain-Specific Rules | Candidate Selection | Repair Feedback | Preference Learning | Difference from ReplenishVerifier |
+|---|---|---|---|---|---|---|---|---|---|
+| OptiMUS | LLM-based optimization modeling and solver-code/debugging agent | Yes | Possibly via solver/model artifacts | Generic | No replenishment-specific rules | Agent-level | Debugging/repair | Not central | ReplenishVerifier focuses on replenishment-specific LP structure evidence. |
+| SIRL | Solver-informed reinforcement learning for OR modeling | Yes | Yes | Generic solver/LP feedback | No replenishment-specific rules | Reward/training | Not main | Yes/RL-style | ReplenishVerifier uses domain-specific structures for selection/repair/preference data. |
+| OR-R1 / SolveOR-R1 | SFT + test-time RL for OR modeling | Yes | Code execution | Mainly result/reward signals | No replenishment-specific rules | Voting/reward | Not main | RL | ReplenishVerifier provides LP-level semantic structures in replenishment. |
+| StepORLM / GenPRM | Process supervision / process reward model for OR reasoning | Solver outcomes/process supervision | Possibly | Process-level but more general | No replenishment-specific LP rules | Best-of-K / PRM | Critique | Possible | ReplenishVerifier derives process labels from verifiable LP artifacts. |
+| OptArgus | Optimization-modeling hallucination detection / structural audit | May use implementation checks | May use artifacts | Generic objective/variable/constraint/implementation audit | No inventory-only rules | Auditing | Detection/report | No | ReplenishVerifier specializes in replenishment and uses scores/repair/preference signals. |
+| OptiRepair | Supply-chain optimization model diagnosis and repair | Yes | Model artifacts | Domain repair/rationality checks | Supply-chain/inventory checks | Not primarily LLM generation-time selection | Yes | Not main | ReplenishVerifier targets LLM candidate selection for feasible-but-wrong generated models. |
+| ReplenishVerifier | LLM-generated replenishment optimization models | Yes | Yes, exported .lp files | LP-level structure verification | Yes: inventory balance, shortage, capacity, fixed cost, Big-M | Yes | Yes, structure-aware prompts | Planned DPO/preference data | This paper. |

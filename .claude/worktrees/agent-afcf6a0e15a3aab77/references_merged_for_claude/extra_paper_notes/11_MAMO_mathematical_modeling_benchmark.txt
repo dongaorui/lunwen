@@ -1,0 +1,21 @@
+# MAMO: A Mathematical Modeling Benchmark with Solvers
+
+URL: https://arxiv.org/abs/2405.13144
+类别: 数学建模 benchmark / EasyLP / ComplexLP
+
+## 为什么对 ReplenishVerifier 有帮助
+MAMO 评估 LLM 的 mathematical modeling 能力，优化部分包括 Easy LP 和 Complex LP，并使用 solvers 评估。
+
+## 你论文中怎么用
+- Related Work benchmark 部分引用。
+- 可作为外部 benchmark 的候选：筛选 inventory/capacity/production planning 相关子集。
+- 差异点：MAMO 更通用；ReplenishmentOR 有 inventory-specific expected structures。
+
+## 风险 / 审稿人可能怎么问
+你的 benchmark 如果太小，要用 MAMO/IndustryOR 子集做辅助验证。
+
+## 给 Claude Code 的可执行指令
+请考虑增加 external subset evaluation：MAMO/IndustryOR 中筛选库存、生产计划、capacity planning 题。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

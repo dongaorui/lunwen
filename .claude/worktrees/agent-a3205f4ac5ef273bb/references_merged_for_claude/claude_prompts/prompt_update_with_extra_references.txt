@@ -1,0 +1,42 @@
+# 给 Claude Code 的提示词：基于额外参考文献完善论文和实验
+
+现在 `references_extra_txt/` 中包含了额外参考文献笔记。请只把这些作为参考，不要夸大，也不要说我们完整复现了外部论文。
+
+任务：
+1. 阅读 `paper_notes/*.txt` 和 `matrices/related_work_comparison_extra.txt`。
+2. 更新 `papers/replenishverifier_draft_zh.md` 的 Related Work，使其覆盖：
+   - OptArgus
+   - OptiRepair
+   - SIRL
+   - OptiMUS
+   - OR-R1
+   - StepORLM
+   - ORLM
+   - LLMOPT
+   - OptMATH
+   - NL4Opt
+   - MAMO
+   - IndustryOR
+   - inventory RL background
+3. 不要使用高风险表述：
+   - first solver-in-the-loop
+   - first LP verifier
+   - no prior work considers structure
+   - existing methods only check objective
+4. 修改实验计划，加入强 baseline：
+   - SIRL-like LP-Stats
+   - OptArgus-like Audit
+   - OptiRepair-like Repair
+   - OR-R1-like Voting / Consensus
+5. 生成 `docs/rebuttal_risk_checklist.md`：
+   - 审稿人可能说“像 OptArgus”怎么回答；
+   - 审稿人可能说“像 OptiRepair”怎么回答；
+   - 审稿人可能说“只是规则工程”怎么回答；
+   - 审稿人可能说“benchmark 自造自赢”怎么回答；
+   - 审稿人可能说“结构正确不代表数学正确”怎么回答。
+
+完成后输出：
+- 修改文件列表；
+- 更新后的 Related Work 结构；
+- 新增 baseline；
+- 仍然薄弱的点。

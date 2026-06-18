@@ -1,0 +1,21 @@
+# MABIM: A Versatile Multi-Agent Reinforcement Learning Benchmark for Inventory Management
+
+URL: https://arxiv.org/abs/2306.07542
+类别: 库存管理 benchmark / 多智能体
+
+## 为什么对 ReplenishVerifier 有帮助
+MABIM 是多级、多商品库存管理模拟 benchmark，可帮助你说明补货任务天然具有复杂结构。
+
+## 你论文中怎么用
+- 作为库存管理 benchmark 背景，不是 LLM 建模 benchmark。
+- 可借鉴其任务属性分类：agents, echelons, commodities, shared resources, nonstationarity。
+- Future Work：把 ReplenishmentOR 扩展到 multi-echelon/multi-agent。
+
+## 风险 / 审稿人可能怎么问
+如果论文过度强调 benchmark，审稿人会问为什么不用 MABIM；回答：MABIM 是策略学习 simulator，而本文是 natural language to optimization formulation verification。
+
+## 给 Claude Code 的可执行指令
+请在 Related Work 中区分 inventory policy learning benchmark 和 LLM formulation verification benchmark。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

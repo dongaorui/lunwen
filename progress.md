@@ -307,3 +307,57 @@ The user asked to fix real LLM generation output formatting after a Qwen3-8B K=4
 ### Notes
 
 No existing experiment results were deleted or modified. No benchmark generation logic, evaluation metric definitions, large dependencies, or real LLM experiment runs were introduced.
+
+## 2026-06-18 — Experiment diagnostics, retry, selection, and repair hardening
+
+### User request
+
+The user asked to continue improving ReplenishVerifier experiment code for Qwen3-8B format-fix v2, with the goal of improving objective accuracy and structure completeness while preserving strict no-leakage constraints. The user later requested conserving tokens and not using more multi-agent/subagent execution, so Tasks 3-7 were completed inline in the main session.
+
+### Actions completed
+
+1. Added shared static validation quality signals in `replenishverifier/pipeline/quality_signals.py` and reused them in generic code-format validation.
+2. Attached static validation fields to generation rows and candidate evaluation rows.
+3. Added bounded Qwen generation retry controls to `replenishverifier/llm/run_generation.py`:
+   - `--max_generation_attempts_per_candidate`
+   - `--require_static_valid_code`
+   - `--retry_on_invalid_code`
+   - per-attempt metadata with `<think>` detection, static validation score/errors, acceptance, and error fields.
+4. Strengthened no-reference selection in `replenishverifier/experiments/methods.py`:
+   - Direct still selects candidate index 0.
+   - Best-of-K now uses a deterministic no-reference tie-breaker instead of first viable.
+   - Structure-aware selectors apply near-zero critical-structure penalties for missing required inventory balance, capacity, shortage, binary/Big-M, or fixed-cost evidence as appropriate by problem type.
+   - Generic baselines remain generic and do not receive replenishment-specific penalties.
+5. Added `replenishverifier/experiments/diagnose_run.py`, which writes:
+   - `problem_diagnostics.jsonl`
+   - `problem_type_summary.csv`
+   - `candidate_diversity.csv`
+   - `missing_structure_distribution.csv`
+   - `failure_examples.jsonl`
+   - `summary.md`
+6. Kept repair prompt generation separate from true LLM repair:
+   - repair rows now carry static validation errors;
+   - structure-aware repair prompt text includes static validation errors;
+   - generated repair candidates are marked `requires_re_evaluation=True` and `is_evaluated_repair_result=False` until re-run through evaluation.
+7. Added focused tests for static validation, generation retry, selection gating/tie-breakers, diagnostics, and repair context.
+
+### Verification
+
+- Focused Task 1-6 regression:
+  - Command: `python -m pytest tests/test_static_validation.py tests/test_run_generation_retry.py tests/test_run_generation_output_format.py tests/test_selection_gating.py tests/test_strong_baselines.py tests/test_diagnose_run.py tests/test_repair_prompt_fairness.py tests/test_repair_generation_dry_run.py -q`
+  - Result: `35 passed in 1.37s`
+- Diff/compile check:
+  - Command: `git diff --check && python -m py_compile replenishverifier/experiments/methods.py replenishverifier/experiments/diagnose_run.py replenishverifier/llm/run_generation.py replenishverifier/llm/run_repair_generation.py`
+  - Result: passed; git emitted only an existing line-ending warning for `run_generation.py`.
+- Full suite:
+  - Command: `python -m pytest -q`
+  - Result: `99 passed, 52 warnings in 2.77s`
+
+### Notes
+
+- No large LLM experiment was run.
+- No existing experiment results were deleted.
+- No model weights were uploaded or added.
+- No large dependency was introduced.
+- Formal selection changes do not use `reference_objective`, reference answers, reference LPs, reference status, objective accuracy, relative error, or oracle labels. Reference objective remains diagnostic/evaluation-only.
+- Repair remains prompt generation or candidate generation only until repaired candidates are explicitly re-evaluated through the standard pipeline.

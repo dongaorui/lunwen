@@ -1,0 +1,21 @@
+# IndustryOR benchmark / dataset
+
+URL: https://huggingface.co/datasets/CardinalOperations/IndustryOR
+类别: 工业 OR benchmark
+
+## 为什么对 ReplenishVerifier 有帮助
+IndustryOR 是 ORLM 提出的工业 OR benchmark，100 real-world OR problems，覆盖 LP/IP/MIP/NLP 等多类型和多难度。
+
+## 你论文中怎么用
+- 用作外部 benchmark 或辅助验证集。
+- 可以筛选 supply chain、inventory、production planning、capacity planning 的相关样本做附加实验。
+- 差异点：IndustryOR 不一定有 LP structure labels；ReplenishmentOR 提供 expected structures。
+
+## 风险 / 审稿人可能怎么问
+如果不做外部验证，审稿人可能说 benchmark 自造自赢。
+
+## 给 Claude Code 的可执行指令
+请新增 scripts/filter_external_or_subset.py（可选），从外部 benchmark 中筛选 inventory/supply-chain/capacity planning 样本。
+
+## 建议放入论文的定位句
+ReplenishVerifier should be positioned as a replenishment-specific LP-structure supervision layer that complements this line of work, rather than a replacement for it.

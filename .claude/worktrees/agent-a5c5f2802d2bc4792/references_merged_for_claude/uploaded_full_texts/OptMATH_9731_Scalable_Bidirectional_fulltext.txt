@@ -1,0 +1,2118 @@
+          OptMATH: A Scalable Bidirectional Data Synthesis Framework for
+                            Optimization Modeling
+
+
+              Hongliang Lu * 1 Zhonglin Xie * 2 Yaoyu Wu 1 Can Ren 3 Yuxuan Chen 3 Zaiwen Wen 2
+
+
+                          Abstract                                      1. Introduction
+                                                                        Automatic translation of natural language descriptions of
+      Despite the rapid development of large language                   optimization problems into solver-ready formats is a criti-
+      models (LLMs), a fundamental challenge per-                       cal step in democratizing access to optimization techniques.
+      sists: the lack of high-quality optimization mod-                 This capability would enable individuals without expertise
+      eling datasets hampers LLMs’ robust modeling                      in optimization to leverage the power of optimization for
+      of practical optimization problems from natural                   solving real-world problems across various domains, includ-
+      language descriptions (NL). This data scarcity                    ing logistics (Ghiani et al., 2022), finance (Consigli, 2019),
+      also contributes to the generalization difficulties               and engineering (Rao, 2019). Known as optimization mod-
+      experienced by learning-based methods. To ad-                     eling, this task has long been challenging due to the inherent
+      dress these challenges, we propose a scalable                     ambiguity of natural language and the need for a deep under-
+      framework for synthesizing a high-quality dataset,                standing of optimization modeling principles. The manual
+      named OptMATH. Starting from curated seed                         process of formulating an optimization problem typically
+      data with mathematical formulations (MF), this                    involves iterative refinement and demands significant mas-
+      framework automatically generates problem data                    tery of the relevant techniques, making it time-consuming
+      (PD) with controllable complexity. Then, a back-                  and inaccessible to many practitioners.
+      translation step is employed to obtain NL. To ver-
+      ify the correspondence between the NL and the                     Recent advances in Large Language Models (LLMs), such
+      PD, a forward modeling step followed by rejec-                    as ChatGPT (Brown et al., 2020b), GPT-4 (OpenAI et al.,
+      tion sampling is used. The accepted pairs consti-                 2023), and OpenAI’s o1 (OpenAI, 2024), have demonstrated
+      tute the training part of OptMATH. Then a col-                    remarkable capabilities in understanding natural language
+      lection of rejected pairs is identified and further               and performing complex reasoning tasks. Notably, the intro-
+      filtered. This collection serves as a new bench-                  duction of o1 has significantly enhanced the performance
+      mark for optimization modeling, containing dif-                   of LLMs in mathematical reasoning, achieving state-of-the-
+      ficult instances whose lengths are much longer                    art results on challenging datasets including AIME (2024),
+      than these of NL4OPT and MAMO. Through ex-                        GPQA, and CodeForces. However, optimization modeling
+      tensive experiments, we demonstrate that models                   presents unique challenges. Unlike grade-school mathemat-
+      of various sizes (0.5B-32B parameters) trained on                 ics, where problems typically have a single correct solu-
+      OptMATH achieve superior results on multiple                      tion, optimization problems can often be approached using
+      modeling benchmarks, thereby validating the ef-                   multiple valid models, making the task semi-open-ended.
+      fectiveness and scalability of our approach. The                  Furthermore, optimization frequently relies on a vast body
+      OptMATH dataset and related resources are avail-                  of empirical knowledge that is less formally structured than
+      able at https://github.com/optsuite/                              purely mathematical concepts. As a result, research has
+      OptMATH.                                                          shown that directly applying LLMs to optimization model-
+                                                                        ing tasks yields suboptimal outcomes (Ramamonjison et al.,
+                                                                        2021).
+  *
+    Equal contribution, alphabetical order 1 College of Engineer-
+ing, Peking University 2 Beijing International Center for Math-         LLMs for Optimization Modeling. To address this issue,
+ematical Research, Peking University 3 School of Mathematics            recent efforts have explored various strategies. Research
+Science, Peking University. Correspondence to: Zaiwen Wen               on leveraging LLMs for optimization modeling typically
+<wenzw@pku.edu.cn>.                                                     follows two main approaches. The first uses prompt engi-
+                                                                        neering techniques to guide LLMs in generating or refin-
+Proceedings of the 42 nd International Conference on Machine
+Learning, Vancouver, Canada. PMLR 267, 2025. Copyright 2025             ing optimization models, without modifying the underlying
+by the author(s).                                                       model parameters. Examples include the NL4Opt compe-
+
+                                                                    1
+                  OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+tition (Ramamonjison et al., 2021), which aims to extract             dresses data scarcity by developing generative models that
+optimization formulations from natural language descrip-              preserve instance hardness and constraints. Examples in-
+tions, and OptiMUS (AhmadiTeshnizi et al., 2023), which               clude the bipartite graph variational autoencoder framework
+proposes an agent-based prompt engineering method. More               proposed by (Geng et al., 2023), the block decomposition
+recently, Autoformulation (Astorga et al., 2024) combines             operators for constraint matrices introduced in (Liu et al.,
+Monte Carlo tree search with LLMs to address optimization             2024b), the duality-driven feasibility guarantees established
+modeling. While these methods rely heavily on the base                by (Wang et al., 2023), and the adaptive constraint modi-
+capabilities of general-purpose LLMs, they do not yield               fication mechanisms developed in (Guo et al., 2024). The
+fundamental advancements beyond refined prompting.                    rule-based approach leverages instance space analysis tech-
+                                                                      niques (Alipour et al., 2022; Strassl & Musliu, 2022; Alipour
+The second approach centers on fine-tuning, wherein model
+                                                                      & Smith-Miles, 2023) to guide the generation of more di-
+parameters are adapted using specially curated or synthe-
+                                                                      verse instance distributions (Smith-Miles & Bowly, 2015;
+sized optimization datasets. ORLM (Tang et al., 2024) intro-
+                                                                      Bowly, 2019). Alternatively, it may rely on manually se-
+duces OR-Instruct, a data augmentation framework for opti-
+                                                                      lected features to control the characteristics of the generated
+mization problems, and demonstrates performance gains via
+                                                                      instances (Bowly et al., 2020).
+Supervised Fine-Tuning on a foundation model. LLMOPT
+(Jiang et al., 2024) likewise applies a multi-instruction fine-       Our Contributions. We propose a scalable bidirectional
+tuning strategy and self-correction mechanisms. Similarly,            synthesis framework that addresses the critical challenge
+OptLLM (Zhang et al., 2024) presents a framework that fine-           of data scarcity in optimization modeling through triplet-
+tuned a Qwen model using a large-scale self-developed op-             aligned (NL, MF, PD) data generation and rigorous vali-
+timization dataset, reporting an accuracy boost over prompt-          dation. Our framework uniquely integrates a closed-loop
+based models. However, many of these methods still tend               workflow with optimal value matching, ensuring seman-
+to generate synthetic training data that can be limited in            tic equivalence between NL, MF, and PD. This approach
+quantity, or may lack consistent quality and sufficient com-          demonstrates exceptional scalability. The framework’s do-
+plexity. Consequently, their ability to generalize to more            main adaptability is evidenced by coverage of 10+ real-
+sophisticated optimization tasks can be constrained.                  world applications (e.g., logistics, energy, finance) through
+                                                                      53 seed generators, with manual analysis confirming 99.6%
+LLM-Based Data Synthesis for Optimization. Data syn-
+                                                                      equivalence accuracy across all triplets.
+thesis methods have become essential for addressing data
+scarcity and enhancing the performance of LLMs. Accord-               We introduce OptMATH-Train, a large scale verified opti-
+ing to (Wang et al., 2024), these methods can be broadly cat-         mization modeling dataset containing rigorously validated
+egorized into two main approaches: data augmentation and              (NL, MF, PD) triplets. Each triplet undergoes three-stage
+data synthesis. OR-Instruct (Tang et al., 2024; Wang et al.,          quality control: mathematical consistency checks (MF-
+2022) exemplifies a data augmentation approach, following             to-PD compilation), semantic fidelity validation (PD-to-
+the self-instruct framework to expand existing datasets. In           NL backtranslation), and solution equivalence verification
+(Yang et al., 2025), a framework is proposed for the reverse          through solver-based rejection sampling. From rejected
+synthesis of optimization problem data pairs. However, this           instances, we curate OptMATH-Bench, a challenging bench-
+approach initiates reverse synthesis from formatted demon-            mark comprising “hard instances” characterized by ex-
+strations, which inherently limits its scalability and does not       tended natural language contexts (2.9× longer than MAMO
+ensure the correspondence between the generated code and              EasyLP) and complex constraints. We further span it us-
+the natural language descriptions. MILP-Evolve (Li et al.,            ing various problems including LP, MILP, IP, NLP, SOCP.
+2024) introduces an evolutionary framework designed to                This benchmark provides the standardized evaluation for
+generate diverse mixed-integer linear programming (MILP)              long-context optimization modeling.
+problems using LLMs. While MILP-Evolve and other syn-
+                                                                      Finally, extensive experiments demonstrate the efficacy of
+thesis efforts represent significant steps forward in synthetic
+                                                                      our framework. Models trained on the OptMATH-Train
+data generation, the critical challenge of translating natural
+                                                                      dataset achieve state-of-the-art performance on multiple
+language descriptions into robust mathematical optimization
+                                                                      established modeling benchmarks, including NL4OPT and
+models often remains a key area for advancement, which
+                                                                      MAMO. These results definitively validate the effectiveness
+our OptMATH framework directly addresses through its
+                                                                      and scalability of our framework for generating high-quality
+scalable, bidirectionally validated approach.
+                                                                      optimization modeling datasets.
+Instance Generation for Optimization. Recent research
+in MILP instance generation has evolved along two primary
+axes: learning-based structural synthesis and rule-based
+distribution expansion. The learning-based paradigm ad-
+
+
+                                                                  2
+                      OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+2. Backgrounds & Overview                                            where promptM is a modeling prompt template map-
+                                                                     ping NL to MF′ and PD′ . The quality metric Q evalu-
+In mathematical optimization theory, a canonical optimiza-           ates the generated (MF′ , PD′ ) pairs based on the verified
+tion problem can be formulated as:                                   (NL, MF, PD) triplet. Constraint (3) formalizes the auto-
+               min            g(x),                                  mated formulation process (Autoformulation), as depicted
+                  x
+                                                                     in the example in Appendix D.1. Optimizing θ relies on hav-
+              subject to ci (x) = 0,        i ∈ E,         (1)
+                                                                     ing a large corpus of high-quality triplets (NL, MF, PD).
+                              ci (x) ≥ 0,   i ∈ I,                   To address this requirement, we propose a systematic frame-
+              n
+where x ∈ R denotes the decision vector. The objective               work for generating synthetic training data that maintains
+function g : Rn → R assigns a scalar value to each candi-            mathematical rigor.
+date solution, which we seek to minimize. The constraint             An Overview of Our Pipeline. The pipeline of our frame-
+functions ci : Rn → R define the feasible region through             work is presented in Figure 1. In the reverse data gener-
+equality constraints indexed by E and inequality constraints         ation phase, we collect optimization problems from two
+indexed by I.                                                        sources: (1) LP/MPS files from challenging benchmarks
+To formalize the optimization modeling problem, we define            such as MIPLIB 2017 (Gleixner et al., 2021) and netlib
+several key concepts and illustrate them using a concrete            (Netlib, 1990; Gay, 1985), and (2) over 50 expert-curated
+example in Appendix D.1. For a specific optimization prob-           seed problem generators covering diverse optimization sce-
+lem, we define NL as the natural language description,               narios. Through our carefully designed backtranslation
+which corresponds to the “Input-Natural Language Descrip-            pipeline, we leverage both the LP files and their MFs to gen-
+tion” in the example. We represent the LP/MPS file, the              erate high-quality NLs of optimization problems. Notably,
+concrete mathematical expression (corresponding to the               using an LLM-based feedback workflow with evaluation,
+“Output-Instance Formulation”), and any other solver-ready           our collected generators can produce tremendous PDs with
+formats, such as executable Python code with Gurobi shown            controllable varying difficulty levels. This enables us to
+in Appendix D.1, as problem data (PD). A common char-                effectively address the data scarcity challenge in training
+acteristic of these representations is that they allow us to         learning-based optimization methods.
+obtain the optimal value of the problem by invoking a solver         In the forward modeling and evaluation process, we uti-
+based on the PD. Mathematical formulation (MF) refers to             lize our trained AutoFormulator to translate the generated
+formulation where concrete numbers are not yet specified,            NLs back into PDs. Specifically, in this phase, all PDs are
+corresponding to the “Output-General Formulation” in the             represented as solver code, which can then be exported as
+example. We emphasize that, in subsequent sections, we               LP files. We then implement a rigorous rejection sampling
+may use different forms of PD. However, these forms es-              strategy, where only instances whose optimal objective val-
+sentially carry the same information about the problem and           ues match between the original and generated LP files are
+can be inferred from the context without ambiguity. We use           retained. This equivalence-based filtering mechanism en-
+different forms of PD to facilitate their integration into the       sures the high quality of our OptMATH-Train dataset by
+workflow and to enhance clarity in various contexts.                 guaranteeing the semantic consistency of each instance.
+Modern solvers such as Gurobi and Mosek (Gurobi Opti-                Building upon the high-quality instances obtained through
+mization, LLC, 2024; MOSEK ApS, 2025) can efficiently                rejection sampling, we employ various data augmentation
+solve problems stored with PDs using algorithms like                 strategies to further enhance the diversity and coverage of
+interior-point methods (Karmarkar, 1984). However, prac-             our dataset. This enriched collection of training pairs is
+tical challenges remain. In real-world applications, one of          then utilized to fine-tune a foundation model, leading to
+the main difficulties lies in converting informal NLs of prob-       AutoFormulator, a specialized model specifically designed
+lems into precise MFs. Moreover, extracting the PDs from             for automated mathematical optimization modeling.
+NLs poses an additional significant challenge. Tradition-
+ally, this process has required deep optimization expertise
+                                                                     3. Feedback-Driven PD Generation
+(Boyd, 2004), but recent advances in LLMs offer promising
+opportunities to automate this transformation.                       The mature development of the optimization community has
+Let Aθ represent an LLM parameterized by θ. The formula-             provided us with access to many high-quality optimization
+tion for increasing the modeling capability of the LLM can           PDs. These PDs are typically stored in standardized formats
+be expressed as:                                                     like MPS or LP files. To effectively leverage these resources,
+                                                                     we began by curating over 50 seed problem classes sourced
+  max      E(NL,MF,PD)∼D [Q(NL,MF,PD) (MF′ , PD′ )], (2)             from a variety of optimization journals and websites (see
+    θ
+                                                                     Appendix A.2 for details). For each i-th problem class, we
+    s.t.   (MF′ , PD′ ) = Aθ (promptM (NL)),               (3)
+
+                                                                 3
+                   OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+  Step1: Reverse Data Generation                                               Step2: Forward Modeling and Evaluation
+
+                                    Quality Filtering
+                                                                                  Rejection Sampling
+                        Generator               Generated LP Files                                                        LP Files
+   Benchmark
+ (Hard LP Files)
+
+                                                                                                  Reject
+
+                        min �� �               Backtranslation
+         LLM/Expert     s.t. 푨� ≤ �               Pipeline
+                                                                              Natural Language                        AutoFormulator
+                      Math Formula
+                                                                                 Description
+
+
+  Step3: Fine-Tuning
+
+
+
+                            Augmentation                                                                               Fine Tuning
+
+  OptMATH-Train                                         Filter         Augmented Data Base Model
+
+
+
+
+                            Figure 1. An overview of our scalable, bidirectional data synthesizing pipeline.
+
+
+developed a corresponding instance generator Gi . This gen-                tribution of each component to the overall complexity. To
+erator takes a problem-specific configuration as input and                 illustrate it, we provide an example in Appendix B.1 that
+outputs a probability distribution over PDs. The distribu-                 considers a MIP problem incorporating multiple constraint
+tion is designed to produce PDs with varying scales and                    types to optimize production costs for two products under
+complexities, which are controllable through adjustable con-               resource constraints.
+figurations. Before delving into the controlled generation
+                                                                           Selecting Parameters to Control the Complexity. We now
+process for the PDs, we first explain how the complexity of
+                                                                           present the workflow in Algorithm 1 for selecting parameter
+PDs can be measured.
+                                                                           configurations for instance generator Gi to generate PDs
+Measuring the Modeling Complexity. The complexity of                       fitting the complexity, feasibility, and solving time require-
+formulating and solving a MIP problem depends on mod-                      ments. The prompt templates are illustrated in Appendix
+eling choices such as the types of variables, the forms of                 E.4. As formalized in Algorithm 1, the process begins by
+constraints, and auxiliary modeling techniques employed.                   specifying target bounds. Then a template promptIC for
+We introduce a scoring function S defined as:                              initializing the configuration are incorporated. After obtain-
+                                                                           ing the configuration, we generate N PDs using it. We then
+   S(PD) = αbin Nbin + αint Nint + αcont Ncont                             evaluate the generated PDs through the complexity score,
+               + βlin Nlin + βindic Nindic + βquad Nquad         (4)       solving time, and feasibility satisfactory. Then, a feedback
+               + βgen Ngen + γBigM fBigM + δexpr Lexpr ,                   promptRC is created based on the statistics of these metrics
+                                                                           over the N generated PDs. The LLM iteratively adjusts
+where Nbin , Nint , Ncont are the number of binary, inte-                  parameters based on feedback from solved instances, ulti-
+ger, and continuous variables, respectively. Similarly,                    mately converging to a configuration that satisfy predefined
+Nlin , Nindic , Nquad , Ngen represent the number of linear, in-           criteria. This ensures generated PDs remain both expressive
+dicator, quadratic, and general nonlinear constraints. The                 and tractable by adhering to runtime thresholds.
+term fBigM is a factor reflecting the frequency of Big-M
+formulations, and Lexpr is the average number of terms per                 4. The Data Synthesis Framework
+constraint and the objective function, which captures the
+structural information of the expressions. Lastly, the weights             This section presents our bidirectional scalable data synthe-
+α· , β· , γBigM , δexpr are tunable parameters reflecting the con-         sis framework. In this section, all of the PDs are in solver
+
+                                                                       4
+                  OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+Algorithm 1 Feedback-Driven Problem Data Generation                     Algorithm 2 Bidirectional Data Synthesis Algorithm
+Require: Target complexity range [Smin , Smax ], time lim-              Require: Instance pair (MFi , PDi,j ), Max Iteration T
+    its [Tmin , Tmax ], instance generator G, feasibility               Ensure: (NLi,j , MF′i,j , PD′i,j , OVi,j )
+    threshold Ftarget , max iterations T                                 1: Initial generation: NL ← L(promptI (MFi , PDi,j ))
+Ensure: Configuration Θ such that for PDi ∼ G(Θ):                        2: Initialize: SC = SR = Null
+    S(PDi ) ∈ [Smin , Smax ] (complexity), τi ≤ Tmax (solv-              3: for k = 1, . . . , T − 1 do
+    ing time), Pr(fi = feasible) ≥ Ftarget                               4:    Self-Criticize:
+ 1: Initialize parameters via LLM:                                             SC ← L(promptC (MFi , PDi,j , NL))
+       Θ0 ← L(promptIC (Smin , Smax , Tmin , Tmax ))                     5:    Self-Refine:
+ 2: for t = 1 to T do                                                          SR ← L(promptR (MFi , PDi,j , NL, SC, SR))
+ 3:    Generate N PDs: {PDi }N         i=1 ← G(Θt−1 )                    6:    if SR is good enough then
+ 4:    Compute metrics: S(PDi ) (Eq. 4), τi (solving time),              7:       break
+       fi (feasibility)                                                  8:    end if
+                                    S̄t = N1
+                                              P
+ 5:    Aggregate       statistics:              S(PDi ), τ̄t =           9: end for
+        1                   1
+          P                   P
+       N      τi , F t  =  N      I(fi  = feasible)                     10: NLi,j ← SR
+ 6:    if S̄t ∈ [Smin , Smax ] and τ̄t ≤ Tmax and Ft ≥                  11: AutoFormulation:
+       Ftarget then                                                         (MF′i,j , PD′i,j ) ← Aθ (promptM (NLi,j ))
+ 7:       return Θt−1                                                   12: OVi,j ← Solve PDi,j by Gurobi
+ 8:    else                                                             13: OV′i,j ← Solve PD′i,j by Gurobi
+ 9:       Refine parameters via feedback:                               14: if OVi,j = OV′i,j then
+             Θt ← L(promptRC (S̄t , τ̄t , Ft ; Θt−1 ))                  15:    return (NLi,j , MF′i,j , PD′i,j , OVi,j )
+10:    end if                                                           16: else
+11: end for                                                             17:    return Null
+12: return ∅ (no valid Θ found)                                         18: end if
+
+
+
+
+code form (see subsection 4.2 for more details). Let L                  tasks often benefit from iterative refinement approaches
+represents the LLM employed on the reverse data genera-                 rather than direct generation (Madaan et al., 2024). This
+tion phase, and Aθ for our fine-tuned AutoFormulator with               observation aligns with human problem-solving processes
+weights θ. We define promptI , promptC , promptR as the                 in mathematics, which typically requires multiple attempts
+prompt templates that accept certain inputs for the initial             and refinements. Building upon this insight, we design a
+generation, self-critism, and self-refinement stages. The               three-phase backtranslation pipeline that systematically im-
+algorithm is formalized in Algorithm 2, with an illustrative            proves the quality of generated descriptions through iterative
+example of the backtranslation process shown in Figure 13.              refinement. All prompt templates used in this pipeline can
+                                                                        be found in E.1.
+The final OptMATH dataset D is constructed by collecting
+all valid quadruples (NLi,j , MF′i,j , PD′i,j , OVi,j ) that pass       Initial Generation. Given the mathematical formulation
+the validation process, where MF′i,j and PD′i,j represent               MFi and the corresponding problem data PDi,j of a prob-
+the generated mathematical formulation and problem data                 lem j in i-class, the LLM generates an initial natural lan-
+using Aθ , OVi,j is the optimal value obtained by solving               guage description NL using the prompt template promptI .
+the problem specified by PDi,j . By leveraging our instance             This stage requires the model to comprehend both the math-
+generators and the iterative refinement process, this algo-             ematical semantics and the instance parameters to produce
+rithm enables scalable generation of high-quality data pairs.           a preliminary human-readable description.
+The mathematical equivalence between the generated for-                 Self-Criticism. Using prompt template promptC , the LLM
+mulations and the original instances is rigorously validated            evaluates the current description by examining the math-
+through rejection sampling, ensuring the reliability of our             ematical equivalence with MFi , completeness of the con-
+dataset. A comprehensive discussion of our quality control              straints and objective functions, clarity and comprehensi-
+and rejection sampling can be found in Section 4.3.                     bility, and consistency of the parameters with PDi,j . The
+                                                                        criticism SC in iteration k incorporates feedback from all
+4.1. Backtranslation Pipeline                                           previous iterations to guide improvements.
+To generate high-quality NLs of optimization problems at                Self-Refinement. Based on the criticism, the model gen-
+scale, we leverage a specific LLM as the foundation of our              erates refined descriptions SR with the prompt template
+pipeline. Recent research has demonstrated that complex                 promptR . The refinement process focuses on improving
+
+                                                                    5
+                  OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+the mathematical accuracy, completeness of the constraints,            rate. We acknowledge that determining the exact equiva-
+and clarity of the descriptions.                                       lence between two mathematical formulations remains an
+                                                                       open research question worthy of further investigation. Nev-
+This process iterates for T rounds until a satisfactory de-
+                                                                       ertheless, our current approach provides a practical and
+scription NLi,j is obtained, with each iteration potentially
+                                                                       highly effective mechanism for ensuring dataset quality.
+improving the quality of the generated description. Based
+on our empirical analysis (see Appendix C.2), we set T = 1
+in the final implementation.                                           5. Fine-Tuning
+                                                                       5.1. Data Augmentation
+4.2. Forward modeling
+                                                                       To improve the diversity of our dataset, we use data augmen-
+Building upon the NLs generated in subsection 4.1, we                  tation to augment the training data. This method generates
+leverage AutoFormulator to transform them back into MFs                more non-standard problems compared to a data genera-
+and PDs in solver code form, enabling rejection sampling               tor, enhancing the model’s generalization performance. We
+for quality validation. Given a NL as input, AutoFormu-                create rules for problem rewriting, semantic substitution,
+lator produces two key outputs: a MF and corresponding                 constraint expansion, and numerical augmentation. For
+PD in solver code form. While previous works (Tang et al.,             each instance, a randomly selected rule is used to prompt
+2024; Jiang et al., 2024) adopted fixed output formats, our            the LLMs to generate the corresponding augmented data.
+approach is not constrained to any particular format, as               The detailed augmentation rules and prompt templates can
+our primary goal is to obtain correct solver code, with the            be found in Appendix E.7.
+formulation serving as an intermediate reasoning step. To
+facilitate genuine mathematical modeling capabilities rather           For quality control, we employ a specific LLM L to sample
+than superficial format mapping, we design diverse Chain-              each augmented description twice independently, followed
+of-Thought (CoT) prompting strategies (Wei et al., 2022).              by the rejection sampling strategy described in Section 4.3.
+This approach generates multiple valid reasoning paths and             This process yields approximately 10 qualified augmented
+formulation variants for the same problem, enriching our               datasets for each problem, and this method was applied to
+training data with diverse modeling perspectives and en-               augment 50 thousand instances to complement our original
+hancing the model’s mathematical reasoning capabilities.               dataset.
+Detailed implementation of these CoT strategies is described
+in Appendix D.1.                                                       5.2. Training the AutoFormulator
+                                                                       We adopt a supervised fine-tuning (SFT) approach to en-
+4.3. Rejection Sampling
+                                                                       hance the AutoFormulator’s modeling capabilities. Specif-
+To ensure the quality and mathematical soundness of our                ically, we employ the LoRA algorithm (Hu et al., 2021)
+generated optimization problem descriptions, we employ                 for efficient parameter-efficient fine-tuning, which signif-
+a rejection sampling strategy (Yuan et al., 2023; Liu et al.,          icantly reduces memory requirements while maintaining
+2024c) to filter and select high-quality samples from the              model performance by updating only a small set of adapter
+generated candidates.                                                  parameters. Using the OptMATH-Train dataset DSFT =
+                                                                       {(NLi , MFi , PDi )}N  Train
+                                                                                            i=1     , we train the model to generate
+As illustrated in Algorithm 2, our rejection sampling mech-            both mathematical formulations and solver code given prob-
+anism relies on solution-based comparison to validate the              lem descriptions. For each training sample, the input con-
+generated samples. Specifically, for each generated natural            sists of the problem description NLi , while the target output
+language description NLi,j , we use AutoFormulator to trans-           is the concatenation of the formulation and solver code:
+form it into a mathematical formulation MF′i,j and solver              yi = [MFi ; PDi ], where [; ] denotes sequence concatena-
+code PD′i,j , obtaining solution OV′i,j . This solution is then        tion. The training objective follows the standard sequence-
+compared with OVi,j , obtained by directly solving the orig-           to-sequence loss:
+inal instance PDi,j . A sample is accepted into our dataset
+D as a validated quadruple (NLi,j , MF′i,j , PD′i,j , OVi,j ) if
+                                                                                                                                 
+                                                                                                          |y|
+and only if OVi,j = OV′i,j .
+                                                                                                         X
+                                                                          LSFT (θ) = −E(p,y)∼DSFT  A         log Pθ (yt |y<t , p) (5)
+                                                                                                        t=1
+While this solution-based validation approach may not guar-
+antee perfect equivalence (as problems with identical opti-            where yt represents the token at position t in the target
+mal values may represent different optimization problems),             sequence, and y<t denotes all preceding tokens. This ap-
+our analysis using an LLM-committee (Zhao et al., 2024)                proach allows the model to learn the mapping from nat-
+and manual inspection of randomly sampled instances (1%                ural language problem descriptions to both mathematical
+of the total dataset) reveals a remarkable 99.6% accuracy              formulations and solver code within a unified sequence-to-
+
+                                                                   6
+                             OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+     sequence framework.                                                        4000                                OptMATH-Train           MAMO EasyLP
+                                                                                                                    OptMATH-Bench           NL4OPT
+                                                                                3500     3,315                      MAMO ComplexLP
+                                                                                                       2,974
+     6. Experiments                                                             3000
+
+                                                                                2500
+     6.1. Statistics of the OptMATH Dataset
+                                                                                2000                                1,724
+    First, using our generators, we generated a quality-filtered
+                                                                                1500
+    dataset containing over 600,000 LP files, which span 53                                                                     1,045
+                                                                                1000
+    distinct problem types and are distributed across five hard-                                                                                541
+    ness levels. For more details on the seed data class, please                 500
+
+    refer to Appendix A.2. To ensure computational feasibility,                    0
+    we impose a solving time threshold and employ a feedback                                         Average Question Length (character)
+    pipeline that leverages an LLM to regulate both the com-                                     Figure 3. Question length analysis
+    plexity and feasibility of the generated instances. Further
+    details on this process are provided in Appendix B. The
+    distribution of file lengths across these LP files is visual-
+    ized in Figure 2. As shown, the lengths range widely from
+    1,000 to 25,000 characters, capturing a rich variety of prob-                 Figure 4. The proportion of problems in different datasets.
+    lem complexities. The proportions of different lengths are
+    well-balanced, with a concentration on medium difficulty
+    levels (which are already quite challenging compared to                    To visualize the distribution of different benchmarks and
+    other benchmarks) and a gradual decline as the problems                    OptMATH dataset, we project their high-dimensional em-
+    become harder. Additionally, the distribution confirms the                 beddings onto a 2D space using t-SNE(van der Maaten
+    effectiveness of our complexity control mechanism.                         & Hinton, 2008). As shown in Figure 5, the instances
+                                                                               from different sources form distinct clusters, suggesting
+                 5                                                             that OptMATH effectively captures the diversity of differ-
+                                                        Easy                   ent problem families. It can be observed that OptMATH
+                                                        Medium Easy            surrounds the area of other benchmarks. This explains the
+                 4                                      Medium
+                                                        Medium Hard            improvement on various benchmarks obtained by training
+Percentage (%)
+
+
+
+
+                 3                                      Hard                   on OptMATH-Train.
+
+                 2
+                                                                                 40
+
+                 1
+                                                                                 20
+                 0
+                     5,000      10,000     15,000       20,000    25,000
+                                Number of Characters                              0
+                     Figure 2. Distribution of LP file lengths.
+                                                                                −20
+
+
+    We further conducted a comparative analysis of problem
+                                                                                −40
+    lengths between OptMATH and other benchmark datasets,
+    with their average lengths shown in Figure 3. The analy-                            −40           −20           0           20             40
+    sis reveals that OptMATH presents significantly more com-                          NL4OPT                  MAMO ComplexLP              OptMATH-Train
+    plex problem descriptions compared to existing benchmarks.                         MAMO EasyLP             OptMATH-Bench
+
+    This increased complexity, manifested through longer prob-                 Figure 5. Visualization of OptMATH and other benchmarks.
+    lem descriptions, poses greater challenges for LLMs, as
+    longer descriptions typically demand enhanced comprehen-
+    sion and reasoning capabilities.                                           6.2. Autoformulation
+    As shown in Figure 4, OptMATH-Bench has selected a num-                    Evaluation Benchmarks and Metrics.            We eval-
+    ber of representative mathematical optimization problems                   uate our fine-tuned model on five benchmarks:
+    covering a wide range of application scenarios, including                  NL4OPT(Ramamonjison et al., 2021), MAMO(Huang et al.,
+    LP, MILP, IP, NLP, SOCP and other optimization problems.                   2024), IndustryOR(Tang et al., 2024), OptiBench(Yang
+    For details, please refer to Appendix A.1.                                 et al., 2025) and our newly constructed OptMATH-Bench.
+
+                                                                           7
+                                                                   OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+                                                                                                  Table 1. Performance Comparison of Models on Different Benchmarks
+                                                                                                                                                        MAMO           MAMO                OptMATH
+                    Types                                   Models                                                                   NL4OPT                                                          IndustryOR   OptiBench     Macro AVG
+                                                                                                                                                        EasyLP        ComplexLP             Bench
+                                                            Llama3.1-8B(pass@1)                                                          0.0%            0.2%                   0.0%        0.0%        0.0%         0.0%            0.1%
+                                                            Qwen2.5-7B(pass@1)                                                          86.9%           83.6%                   21.8%        1.6%      10.0%        36.2%           40.0%
+                    Baseline                                GPT-3.5-turbo(pass@1)                                                       78.0%           79.3%                   33.2%       15.0%      21.0%        47.4%           51.4%
+                                                            GPT-4(pass@1)                                                               89.0%           87.3%                   49.3%       16.6%      33.3%        68.6%           57.4%
+                                                            Deepseek-V3(pass@1)                                                         95.9%           88.3%                   51.1%       32.6%      37.0%        71.6%           62.8%
+                                                            OptiMUS (GPT-4o-2024-05-13)                                                 78.8%           77.0%                   43.6%       20.2%      31.0%        45.8%           49.4%
+                                                            Qwen2.5-32B(pass@1)                                                         92.7%           82.2%                   44.6%        9.3%      16.0%        47.6%           48.7%
+                                                            ORLM-Llama-3-8B (reported)                                                  85.7%           82.3%                   37.4%          *       38.0%           *            60.9%
+                    Fine-tuning
+                                                            ORLM-Llama-3-8B (reproduced)                                                84.5%           74.9%                   34.1%        2.6%      24.0%        51.1%           45.2%
+                                                            OptMATH-Llama3.1-8B (pass@1)                                                55.5%           73.9%                   40.8%       24.4%      18.0%        55.5%           44.7%
+                                                            OptMATH-Qwen2.5-7B (pass@1)                                                 94.7%           86.5%                   51.2%       24.4%      20.0%        57.9%           55.8%
+                                                            OptMATH-Qwen2.5-32B (pass@1)                                                95.9%           89.9%                   54.1%       34.7%      31.0%        66.1%           62.0%
+                                                            OptMATH-Llama3.1-8B                                                         97.6%           94.2%                   71.6%       51.6%      37.0%        66.6%           69.8%
+                    Pass@8                                  OptMATH-Qwen2.5-7B                                                          98.4%           94.5%                   72.5%       56.0%      38.0%        68.1%           71.3%
+                                                            OptMATH-Qwen2.5-32B                                                         97.9%           93.9%                   75.4%       67.4%      47.0%        76.8%           76.4%
+
+
+
+                                          
+                                                                                                                                                                                80
+                                                               % D V H O L Q H  0 R G H O
+                                                               ) L Q H W X Q H G  0 R G H O                                                                            70
+                                                                                                                                   
+                                                                                                                 
+                                                                                                                                                                                60
+ 0 L F U R  $ F F X U D F \    
+
+
+
+
+                                                                                                
+                                                                                              
+                                                                                                                                                                 Accuracy (%)
+
+                                                                                                                                                                         50
+                                                                          
+                                                                                                                                                                                40
+                                          
+                                                                                                                                                            30
+                                                                                          
+                                                                                                                                                                              20
+                                                                                                                                                                                                                               NL4OPT
+                                                                                                                                                                                                                               MAMO EasyLP
+                                                                                                                                                                                10                                             MAMO ComplexLP
+
+                                                                                                                                                                                                                      OptMATH-Bench
+
+                                                     %                  %                  %              %            %             %                               0                                             Micro Accuracy
+
+
+                                                                                                0 R G H O  6 L ] H                                                                  0.0    0.2       0.4         0.6         0.8           1.0
+Figure 6. Scaling behavior of Qwen2.5 models (0.5B-32B).                                                                                                                                               Proportion
+                                                                                                                                                                 Figure 7. Accuracy of Qwen2.5-1.5B within one training epoch.
+
+Detailed descriptions of these benchmarks can be found in
+Appendix A.1. We use pass@1 accuracy as the evaluation                                                                                                           performs ORLM-Llama-3-8B, a model of comparable size,
+metric, which specifically measures whether the optimal                                                                                                          demonstrates performance only marginally inferior to GPT-
+value obtained by the generated code matches the ground                                                                                                          4. Collectively, these results demonstrate that training with
+truth provided in the benchmark. The detailed matching                                                                                                           OptMATH-Train significantly enhances the model’s opti-
+criteria are described in Appendix A.1. Notably, since                                                                                                           mization modeling capabilities.
+prompt design can significantly impact model performance,
+                                                                                                                                                                 The results in Table 1 also highlight that different base
+we maintain consistency by using the same prompt template
+                                                                                                                                                                 models possess varying inherent modeling capabilities. For
+across all model evaluations (see Appendix E.2 for details).
+                                                                                                                                                                 instance, the Llama3.1-8B(Dubey et al., 2024) base model
+Additionally, comprehensive details about our fine-tuning
+                                                                                                                                                                 exhibits very poor initial modeling ability, with performance
+procedure are provided in Appendix D.3.
+                                                                                                                                                                 close to 0% on most datasets. However, after fine-tuning
+Main Results. The primary results are presented in Table 1.                                                                                                      with our dataset (OptMATH-Llama3.1-8B), its modeling
+First, our best-performing model, OptMATH-Qwen2.5-32B,                                                                                                           capability is substantially improved. Despite this significant
+achieves superior performance across all benchmarks, sur-                                                                                                        enhancement, the fine-tuned OptMATH-Llama3.1-8B still
+passing proprietary large language models such as GPT-3.5-                                                                                                       performs below the level of OptMATH-Qwen2.5-7B, un-
+Turbo(Brown et al., 2020a) and GPT4(OpenAI et al., 2023),                                                                                                        derscoring the impact of the base model’s architecture or
+and reaching a level comparable to Deepseek-V3(Liu et al.,                                                                                                       pre-training on final fine-tuned performance. Moreover, the
+2024a), despite these models often having significantly more                                                                                                     strong pass@8 results achieved by the fine-tuned models
+parameters. Furthermore, our OptMATH-Qwen2.5-7B out-                                                                                                             suggest a high upper limit to their modeling capabilities,
+
+                                                                                                                                                            8
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+indicating potential for further enhancement through re-             Impact Statement
+inforcement learning methods, similar to approaches like
+Deepseek-R1(Guo et al., 2025).                                       This study introduces OptMATH, a dataset for optimization
+                                                                     modeling, comprising a large-scale training set (OptMATH-
+Ablation Study on Model Size. To investigate the effective-          Train) and a challenging benchmark (OptMATH-Bench).
+ness of OptMATH training across different model scales, we           OptMATH has the potential to democratize optimization
+conducted experiments using Qwen2.5 models ranging from              by enabling those without expertise to translate real-world
+0.5B to 32B parameters. Due to computational constraints,            problems into mathematical formulations. The OptMATH-
+we used a randomly sampled subset of 100,000 training                Train dataset will significantly improve LLMs’ ability to
+examples. As shown in Figure 6, all models exhibit sub-              understand and model optimization problems. Further-
+stantial performance improvements after fine-tuning with             more, OptMATH’s structured data facilitates the integra-
+OptMATH-Train. Notably, we observe that while larger                 tion of optimization with advanced AI techniques like re-
+models generally achieve better absolute performance, the            inforcement learning, Monte Carlo Tree Search. Addition-
+relative performance gains from OptMATH-Train training               ally, OptMATH-Bench provides a standardized benchmark
+demonstrate diminishing returns as model size increases.             for evaluating optimization modeling systems, pushing the
+Ablation Study on Data Size. Figure 7 shows how the                  boundaries of LLM capabilities. Ultimately, OptMATH can
+amount of training data affects Qwen2.5-1.5B’s perfor-               improve efficiency and decision-making across industries.
+mance across different benchmarks. We observed significant
+improvements in the model’s optimization modeling capabil-           References
+ities even with only a small fraction of the OptMATH-Train
+                                                                     Abara, J. Applying integer linear programming to the fleet
+dataset. As we gradually increased the size of the training
+                                                                       assignment problem. Interfaces, 19(4):20–28, 1989.
+data, the performance gains became less pronounced, ex-
+hibiting a typical pattern of diminishing returns. Larger mod-       Adams, J., Balas, E., and Zawack, D. The shifting bottleneck
+els exhibit smoother learning curves, while smaller models             procedure for job shop scheduling. Management Science,
+demonstrate greater sensitivity to additional training data,           34(3):391–401, 1988. ISSN 00251909, 15265501. URL
+indicating higher potential for improvement through data               http://www.jstor.org/stable/2632051.
+scaling (detailed results across model sizes can be found in
+the Appendix D.4).                                                   AhmadiTeshnizi, A., Gao, W., and Udell, M. OptiMUS:
+                                                                       Optimization modeling using MIP solvers and large lan-
+                                                                       guage models, 2023. URL http://arxiv.org/
+7. Conclusion
+                                                                       abs/2310.06116.
+In this paper, we introduce a bidirectional data synthesis
+                                                                     Alipour, H. and Smith-Miles, K.           Instance
+framework for optimization modeling. It utilizes a two-
+                                                                       space analysis for 2d bin packing mathemat-
+step process: reverse data generation, where LLMs refine
+                                                                       ical models.      Discrete Optimization, 2023.
+themselves in a loop to create diverse datasets, and auto-
+                                                                       URL      https://www.sciencedirect.com/
+formulation, where a specialized model translates natural
+                                                                       science/article/pii/S0377221723009335.
+language into mathematical representations. Our evalu-
+ation on NL4OPT, MAMO and OptMATH-Benchmarks                         Alipour, H., Muñoz, M. A., and Smith-Miles, K. En-
+demonstrated AutoFormulator’s superior performance in                  hanced instance space analysis for the maximum flow
+generating accurate and well-formed optimization models                problem. European Journal of Operational Research,
+compared to baseline approaches.                                       2022. URL https://www.sciencedirect.com/
+                                                                       science/article/pii/S0377221722003101.
+Acknowledgments
+                                                                     Astorga, N., Liu, T., Xiao, Y., and Schaar, M. v. d. Aut-
+The computational resources were supported by the Center               oformulation of mathematical optimization models us-
+for Intelligent Computing and Song-Shan Lake HPC Cen-                  ing LLMs, 2024. URL http://arxiv.org/abs/
+ter (SSL-HPC) in Great Bay University, Dongguan, China.                2411.01679.
+This work was supported in part by National Key Research
+and Development Program of China under the grant num-                Beasley, J. E., Krishnamoorthy, M., Sharaiha, Y. M., and
+bers 2024YFA1012901 and 2024YFA1012903, and the Na-                    Abramson, D. Scheduling aircraft landings—the static
+tional Natural Science Foundation of China under the grant             case. Transportation Science, 34(2):180–197, 2000. doi:
+numbers 12331010 and 12288101. We also thank the anony-                10.1287/trsc.34.2.180.12302.
+mous reviewers for their valuable feedback.                          Bertsekas, D. Network optimization: continuous and dis-
+                                                                       crete models, volume 8. Athena Scientific, 1998.
+
+                                                                 9
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+Bowly, S. Stress testing mixed integer programming solvers            Cooper, L. G. Market-share models. In Handbooks in Op-
+  through new test instance generation methods. PhD thesis,             erations Research and Management Science, volume 5,
+  University of Melbourne, Parkville, Victoria, Australia,              pp. 259–314. Elsevier Science Publishers, 1993. URL
+  2019.                                                                 https://escholarship.org/content/
+                                                                        qt1gk2z67m/qt1gk2z67m_noSplash_
+Bowly, S., Smith-Miles, K., Baatar, D., and Mittelmann, H.              3fabc6d7de059914e4c306fc58649c48.pdf.
+  Generation techniques for linear programming instances                [Online; accessed 19-January-2025].
+  with controllable properties. Math. Program. Comput.,
+  12(3):389–415, 2020. ISSN 1867-2949,1867-2957. doi:                 Cordeau, J., Pasin, F., and Solomon, M. An integrated
+  10.1007/s12532-019-00170-6. URL https://doi.                          model for logistics network design. Annals of Op-
+  org/10.1007/s12532-019-00170-6.                                       erations Research, 144:59–82, 2006. doi: 10.1007/
+                                                                        s10479-006-0001-3.
+Boyd, S. Convex optimization. Cambridge UP, 2004.
+                                                                      Dantzig, G., Fulkerson, R., and Johnson, S. Solution of a
+Brown, G. G., Dell, R. F., and Newman, A. M. Op-                        large-scale traveling-salesman problem. Journal of the
+  timizing military capital planning. Interfaces, 34(6):                Operations Research Society of America, 2(4):393–410,
+  415–425, 2004. ISSN 00922102, 1526551X. URL                          1954. doi: 10.1287/opre.2.4.393.
+  http://www.jstor.org/stable/25062950.
+                                                                      Daskin, M. S.       Network and Discrete Location:
+Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D.,            Models, Algorithms, and Applications.        Wi-
+  Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G.,                 ley, 1995.     URL https://www.wiley.com/
+  Askell, A., et al. Language models are few-shot learners.             en-us/Network+and+Discrete+Location%
+  Advances in neural information processing systems, 33:                3A+Models%2C+Algorithms%2C+and+
+  1877–1901, 2020a.                                                     Applications-p-9780471181170.           [Online;
+Brown, T. B., Mann, B., Ryder, N., Subbiah, M., Kaplan,                 accessed 19-January-2025].
+  J., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G.,           Drexl, A. and Kimms, A. Lot sizing and scheduling —
+  Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G.,               survey and extensions. European Journal of Operational
+  Henighan, T., Child, R., Ramesh, A., Ziegler, D. M., Wu,              Research, 99(2):221–235, 1997. ISSN 0377-2217.
+  J., Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M.,          doi: https://doi.org/10.1016/S0377-2217(97)00030-1.
+  Gray, S., Chess, B., Clark, J., Berner, C., McCandlish,               URL        https://www.sciencedirect.com/
+  S., Radford, A., Sutskever, I., and Amodei, D. Language               science/article/pii/S0377221797000301.
+  models are few-shot learners, 2020b. URL http://
+  arxiv.org/abs/2005.14165.                                           Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle, A.,
+                                                                        et al. The llama 3 herd of models. ArXiv, abs/2407.21783,
+Burkard, R., Dell’Amico, M., and Martello, S. Assign-                   2024. URL https://api.semanticscholar.
+  ment Problems. Society for Industrial and Applied                     org/CorpusID:271571434.
+  Mathematics, 2012. doi: 10.1137/1.9781611972238.
+  URL https://epubs.siam.org/doi/abs/10.                              Fleischmann, B. The discrete lot-sizing and schedul-
+  1137/1.9781611972238.                                                 ing problem.       European Journal of Operational
+                                                                        Research, 44(3):337–348, 1990. ISSN 0377-2217.
+Caprara, A., Toth, P., and Fischetti, M. Algorithms                     doi:   https://doi.org/10.1016/0377-2217(90)90245-7.
+  for the set covering problem. Annals of Operations                    URL        https://www.sciencedirect.com/
+  Research, 98(1):353–371, 2000.       URL https:                       science/article/pii/0377221790902457.
+  //www.dei.unipd.it/˜fisch/papers/
+  survey_set_covering_problem.pdf. [Online;                           Florian, M. and Klein, M. Deterministic production plan-
+  accessed 19-January-2025].                                            ning with concave costs and capacity constraints. Man-
+                                                                        agement Science, 18(1):12–20, 1971.
+Chen, G., Li, X., and Ye, Y. An improved analysis
+  of lp-based control for revenue management. arXiv                   Ford, L. R. and Fulkerson, D. R. Maximal flow through a
+  preprint, 2022. URL https://arxiv.org/abs/                            network. Canadian Journal of Mathematics, 8:399–404,
+  2101.11092. [Online; accessed 19-January-2025].                       1956. doi: 10.4153/CJM-1956-045-5.
+
+Consigli, G. Optimization methods in finance. Quan-                   Garey, M. R. and Johnson, D. S. Approximation algorithms
+  titative Finance, 19:717 – 719, 2019. URL https:                      for bin packing problems: A survey. In Analysis and
+  //api.semanticscholar.org/CorpusID:                                   design of algorithms in combinatorial optimization, pp.
+  262220633.                                                           147–172. Springer, 1981.
+
+                                                                 10
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+Garille, S. G. and Gass, S. I. Stigler’s diet problem revis-          selection for hardness-preserving milp instance genera-
+  ited. Operations Research, 49(1):1–13, 2001. doi: 10.               tion. In International Conference on Machine Learn-
+ 1287/opre.49.1.1.11187. URL https://doi.org/                         ing (ICML), 2024. URL https://dblp.org/rec/
+  10.1287/opre.49.1.1.11187.                                          conf/icml/GuoLLOY24.
+
+Gay, D. M. Electronic mail distribution of linear program-          Gurobi Optimization, L.      Optimization model-
+  ming test problems. Mathematical Programming Society                ing, 2025.         URL https://www.gurobi.
+  COAL Newsletter, 13:10–12, 1985.                                    com/documentation/9.5/refman/
+                                                                      optimization_modeling.html.            [Online;
+Gendron, B., Crainic, T. G., and Frangioni, A. Multicom-              accessed 19-January-2025].
+  modity capacitated network design. In Telecommunica-
+                                                                    Gurobi Optimization, LLC. Gurobi Optimizer Reference
+  tions network planning, pp. 1–19. Springer, 1999.
+                                                                      Manual, 2024. URL https://www.gurobi.com.
+Geng, Z., Li, X., Wang, J., Li, X., Zhang, Y., and Wu, F.           Hazell, P. B. R. and Norton, R. D. Mathematical
+  A deep instance generative framework for MILP solvers               Programming for Economic Analysis in Agriculture.
+  under limited data availability. In Oh, A., Naumann,                Macmillan Publishing Co., 1986.     URL https:
+  T., Globerson, A., Saenko, K., Hardt, M., and Levine,              //www.researchgate.net/publication/
+  S. (eds.), Advances in Neural Information Processing                256475967_Mathematical_Programming_
+  Systems 36: Annual Conference on Neural Information                 for_Economic_Analysis_in_Agriculture.
+  Processing Systems 2023, NeurIPS 2023, New Orleans,                 [Online; accessed 19-January-2025].
+  LA, USA, December 10 - 16, 2023, 2023.
+                                                                    Herrmann, J. W. (ed.). Handbook of Production Scheduling.
+Ghiani, G., Laporte, G., and Musmanno, R. Introduction                International Series in Operations Research & Manage-
+  to Logistics Systems Management: With Microsoft Excel               ment Science. Springer New York, NY, 1 edition, 2006.
+  and Python Examples. John Wiley & Sons, 2022.                       ISBN 978-0-387-33115-7. doi: https://doi.org/10.1007/
+                                                                      0-387-33117-4.
+Gilmore, P. C. and Gomory, R. E. A linear program-
+  ming approach to the cutting-stock problem. Operations            Hillier, F. S. and Lieberman, G. J. Introduction to Opera-
+  Research, 9(6):849–859, 1961. doi: 10.1287/opre.9.6.                tions Research. McGraw-Hill Education, 10th edition,
+  849. URL https://doi.org/10.1287/opre.9.                            2014. URL https://thuvienso.hoasen.edu.
+  6.849.                                                              vn/handle/123456789/8952. [Online; accessed
+                                                                      19-January-2025].
+Gleixner, A., Hendel, G., Gamrath, G., Achterberg, T.,              Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang,
+  Bastubbe, M., Berthold, T., Christophel, P. M., Jarck,              S., Wang, L., and Chen, W. Lora: Low-rank adaptation of
+  K., Koch, T., Linderoth, J., Lübbecke, M., Mittelmann,             large language models. arXiv preprint arXiv:2106.09685,
+  H. D., Ozyurt, D., Ralphs, T. K., Salvagnin, D., and                2021.
+  Shinano, Y. MIPLIB 2017: Data-Driven Compila-
+  tion of the 6th Mixed-Integer Programming Library.                Huang, X., Shen, Q., Hu, Y., Gao, A., and Wang, B.
+  Mathematical Programming Computation, 2021. doi:                    Mamo: a mathematical modeling benchmark with solvers.
+  10.1007/s12532-020-00194-3. URL https://doi.                       CoRR, abs/2405.13144, 2024. doi: 10.48550/ARXIV.
+  org/10.1007/s12532-020-00194-3.                                     2405.13144. URL https://doi.org/10.48550/
+                                                                      arXiv.2405.13144.
+Golden, B., Raghavan, S., and Wasil, E. (eds.). The Vehi-
+                                                                    Jiang, C., Shu, X., Qian, H., Lu, X., Zhou, J., Zhou, A., and
+  cle Routing Problem: Latest Advances and New Chal-
+                                                                       Yu, Y. LLMOPT: Learning to define and solve general
+  lenges. Operations Research/Computer Science Inter-
+                                                                       optimization problems from scratch, 2024. URL http:
+  faces Series. Springer New York, NY, 1 edition, 2008.
+                                                                       //arxiv.org/abs/2410.13213.
+  ISBN 978-0-387-77777-1. doi: https://doi.org/10.1007/
+  978-0-387-77778-8.                                                Karmarkar, N. A new polynomial-time algorithm for linear
+                                                                      programming. In Proceedings of the sixteenth annual
+Guo, D., Yang, D., Zhang, H., Song, J., Zhang, R., Xu, R.,            ACM symposium on Theory of computing, pp. 302–311,
+  Zhu, Q., Ma, S., Wang, P., Bi, X., et al. Deepseek-r1: In-         1984.
+  centivizing reasoning capability in llms via reinforcement
+  learning. arXiv preprint arXiv:2501.12948, 2025.                  Klein, M. A primal method for minimal cost flows with
+                                                                      applications to the assignment and transportation prob-
+Guo, Z., Li, Y., Liu, C., Ouyang, W., and Yan, J. Acm-                lems. Management Science, 14(3):205–220, 1967. doi:
+  milp: Adaptive constraint modification via grouping and             10.1287/mnsc.14.3.205.
+
+                                                               11
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+Kuby, M. J.       Programming models for facility dis-                OpenAI.     Learning to reason with llms: Introduc-
+  persion: the p-dispersion and maxisum dispersion                      ing openai o1. https://openai.com/index/
+  problems.        Mathematical and Computer Mod-                       learning-to-reason-with-llms/, 2024. Ac-
+  elling, 10(10):792, 1988. ISSN 0895-7177. doi:                        cessed: 2024-12-21.
+  https://doi.org/10.1016/0895-7177(88)90094-5.
+  URL         https://www.sciencedirect.com/                          OpenAI, Achiam, J., and Adler, S. e. a. GPT-4 Technical Re-
+  science/article/pii/0895717788900945.                                 port, 2023. URL http://arxiv.org/abs/2303.
+                                                                        08774.
+Kuhn, H. W. The hungarian method for the assignment
+  problem. Naval Research Logistics Quarterly, 2(1-2):83–             Padhy, N. Unit commitment-a bibliographical survey. IEEE
+  97, 1955. doi: https://doi.org/10.1002/nav.3800020109.                Transactions on Power Systems, 19(2):1196–1205, 2004.
+  URL https://onlinelibrary.wiley.com/                                  doi: 10.1109/TPWRS.2003.821611.
+  doi/abs/10.1002/nav.3800020109.                                     Pinedo, M. L. Scheduling: Theory, Algorithms, and Systems.
+                                                                        Springer Cham, 6 edition, 2022. ISBN 978-3-031-05920-
+Li, S., Kulkarni, J., Menache, I., Wu, C., and Li, B. Towards
+                                                                        9. doi: https://doi.org/10.1007/978-3-031-05921-6.
+   foundation models for mixed integer linear programming.
+   arXiv preprint arXiv:2410.08288, 2024.                             Rajendran, C. Heuristics for scheduling in flowshop with
+                                                                        multiple objectives. European Journal of Operational
+Liu, A., Feng, B., Xue, B., Wang, B., Wu, B., Lu, C., Zhao,
+                                                                        Research, 82(3):540–555, 1995. ISSN 0377-2217.
+  C., Deng, C., Zhang, C., Ruan, C., et al. Deepseek-
+                                                                        doi: https://doi.org/10.1016/0377-2217(93)E0212-G.
+  v3 technical report. arXiv preprint arXiv:2412.19437,
+                                                                        URL        https://www.sciencedirect.com/
+  2024a.
+                                                                        science/article/pii/0377221793E0212G.
+Liu, H., Wang, J., Zhang, W., Geng, Z., Kuang, Y., Li,                Ramamonjison, R., Yu, T. T. L., Li, R., Li, H.,
+  X., Li, B., Zhang, Y., and Wu, F. Milp-studio: MILP                   Carenini, G., Ghaddar, B., He, S., Mostajabdaveh,
+  instance generation via block structure decomposition.                M., Banitalebi-Dehkordi, A., Zhou, Z., and Zhang, Y.
+  CoRR, abs/2410.22806, 2024b. doi: 10.48550/ARXIV.                     Nl4opt competition: Formulating optimization prob-
+  2410.22806. URL https://doi.org/10.48550/                             lems based on their natural language descriptions. In
+  arXiv.2410.22806.                                                     Ciccone, M., Stolovitzky, G., and Albrecht, J. (eds.),
+                                                                        NeurIPS 2022 Competition Track, November 28 - De-
+Liu, H., Zhang, Y., Luo, Y., and Yao, A. C.-
+                                                                        cember 9, 2022, Online, volume 220 of Proceedings
+  C.    Augmenting math word problems via itera-
+                                                                        of Machine Learning Research, pp. 189–203. PMLR,
+  tive question composing. ArXiv, abs/2401.09003,
+                                                                        2021. URL https://proceedings.mlr.press/
+  2024c. URL https://api.semanticscholar.
+                                                                        v220/ramamonjison22a.html.
+  org/CorpusID:267028678.
+                                                                      Rao, S. S. Engineering optimization: theory and practice.
+Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao,                   John Wiley & Sons, 2019.
+ L., Wiegreffe, S., Alon, U., Dziri, N., Prabhumoye, S.,
+ Yang, Y., et al. Self-refine: Iterative refinement with self-        Schöbel, A. Line planning in public transportation: models
+ feedback. Advances in Neural Information Processing                    and methods. OR Spectrum, 34:491–510, 2012. doi:
+ Systems, 36, 2024.                                                     10.1007/s00291-011-0251-6.
+
+Markowitz, H. Portfolio selection. The Journal of Finance,            Smith, D. Network flows: Theory, algorithms, and ap-
+ 7(1):77–91, 1952. ISSN 00221082, 15406261. URL                         plications. J Oper Res Soc, 45:1340, 1994. doi:
+ http://www.jstor.org/stable/2975974.                                  10.1057/jors.1994.208.
+
+Martello, S. and Toth, P. Knapsack problems: algorithms               Smith-Miles, K. and Bowly, S. Generating new test in-
+ and computer implementations. John Wiley & Sons, Inc.,                 stances by evolving in instance space. Comput. Oper.
+ USA, 1990. ISBN 0471924202.                                            Res., 63:102–113, 2015. ISSN 0305-0548,1873-765X.
+                                                                        doi: 10.1016/j.cor.2015.04.022. URL https://doi.
+MOSEK ApS. MOSEK Optimization Software, 2025. Ver-                      org/10.1016/j.cor.2015.04.022.
+ sion 11.0.3.
+                                                                      Solomon, M. M. Algorithms for the vehicle routing
+Netlib. Netlib: A collection of mathematical software,                  and scheduling problems with time window constraints.
+  papers, and databases. http://netlib.org, 1990.                       Oper. Res., 35:254–265, 1987. URL https://api.
+  Available at http://netlib.org.                                       semanticscholar.org/CorpusID:15346313.
+
+                                                                 12
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+SteadieSeifi, M., Dellaert, N., Nuijten, W., Van Woensel,             Wei, J., Wang, X., Schuurmans, D., Bosma, M.,
+  T., and Raoufi, R. Multimodal freight transporta-                    Chi, E. H., Xia, F., Le, Q., and Zhou, D.
+  tion planning: A literature review. European Journal                 Chain of thought prompting elicits reasoning in
+  of Operational Research, 233(1):1–15, 2014. ISSN                     large language models.   ArXiv, abs/2201.11903,
+  0377-2217. doi: https://doi.org/10.1016/j.ejor.2013.06.              2022. URL https://api.semanticscholar.
+  055. URL https://www.sciencedirect.com/                              org/CorpusID:246411621.
+  science/article/pii/S0377221713005638.
+                                                                      Wikipedia. Supply chain management — Wikipedia,
+Strassl, S. and Musliu, N. Instance space analysis                     the free encyclopedia. http://en.wikipedia.
+  and algorithm selection for the job shop scheduling                  org/w/index.php?title=Supply%20chain%
+  problem. European Journal of Operational Research,                   20management&oldid=1261250036,          2025.
+  2022. URL https://www.sciencedirect.com/                             [Online; accessed 19-January-2025].
+  science/article/pii/S0305054821003634.                              Winston, W. L. Operations Research: Applications
+                                                                       and Algorithms. Duxbury Press, 4th edition, 2004.
+Tang, Z., Huang, C., Zheng, X., Hu, S., Wang, Z., Ge, D.,
+                                                                       URL https://www.academia.edu/download/
+  and Wang, B. ORLM: Training large language models for
+                                                                       43587201/Winston.OperationsResearch.
+  optimization modeling, 2024. URL http://arxiv.
+                                                                       pdf. [Online; accessed 19-January-2025].
+  org/abs/2405.17743.
+                                                                      Xiao, Z., Zhang, D., Wu, Y., Xu, L., Wang, Y. J., Han, X., Fu,
+Toregas, C., Swain, R., ReVelle, C., and Bergman, L. The                X., Zhong, T., Zeng, J., Song, M., and Chen, G. Chain-
+  location of emergency service facilities. Operations Re-              of-experts: When llms meet complex operations research
+  search, 19(6):1363–1373, 1971. doi: 10.1287/opre.19.                  problems. In The Twelfth International Conference on
+  6.1363. URL https://doi.org/10.1287/opre.                             Learning Representations, ICLR 2024, Vienna, Austria,
+  19.6.1363.                                                            May 7-11, 2024. OpenReview.net, 2024. URL https:
+                                                                        //openreview.net/forum?id=HobyL1B9CZ.
+Toth, P. The vehicle routing problem. SIAM Monographs
+  on Discrete Mathematics and Applications, 2002.                     Yang, A., Yang, B., Zhang, B., Hui, B., Zheng, B., Yu,
+                                                                        B., Li, C., Liu, D., Huang, F., Wei, H., et al. Qwen2. 5
+van der Maaten, L. and Hinton, G. E. Visualizing                        technical report. arXiv preprint arXiv:2412.15115, 2024.
+  data using t-sne. Journal of Machine Learning Re-
+  search, 9:2579–2605, 2008. URL https://api.                         Yang, Z., Wang, Y., Huang, Y., Guo, Z., Shi, W., Han, X.,
+  semanticscholar.org/CorpusID:5855042.                                 Feng, L., Song, L., Liang, X., and Tang, J. Optibench
+                                                                        meets resocratic: Measure and improve llms for optimiza-
+Wang, H., Liu, J., Chen, X., Wang, X., Li, P., and Yin,                 tion modeling. In The Thirteenth International Confer-
+ W. DIG-MILP: A Deep Instance Generator for Mixed-                      ence on Learning Representations, ICLR 2025, Singapore,
+ Integer Linear Programming with Feasibility Guaran-                    April 24-28, 2025. OpenReview.net, 2025. URL https:
+ tee. arXiv preprint, 2023. URL https://arxiv.                          //openreview.net/forum?id=fsDZwS49uY.
+ org/abs/2310.13261. Code: https://github.
+ com/Graph-COM/DIG_MILP.                                              Yuan, Z., Yuan, H., Li, C., Dong, G., Tan, C., and Zhou,
+                                                                        C. Scaling relationship on learning mathematical reason-
+Wang, K., Zhu, J., Ren, M., Liu, Z., Li, S., Zhang, Z., Zhang,          ing with large language models. ArXiv, abs/2308.01825,
+ C., Wu, X., Zhan, Q., Liu, Q., et al. A survey on data                 2023. URL https://api.semanticscholar.
+ synthesis and augmentation for large language models.                  org/CorpusID:260438790.
+ arXiv preprint arXiv:2410.12896, 2024.
+                                                                      Zhang, J., Wang, W., Guo, S., Wang, L., Lin, F., Yang, C.,
+Wang, Y., Kordi, Y., Mishra, S., Liu, A., Smith, N. A.,                 and Yin, W. Solving general natural-language-description
+ Khashabi, D., and Hajishirzi, H. Self-instruct: Aligning               optimization problems with large language models. arXiv
+ language models with self-generated instructions. arXiv                preprint arXiv:2407.07924, 2024.
+ preprint arXiv:2212.10560, 2022.                                     Zhao, R., Zhang, W., Chia, Y. K., Xu, W., Zhao, D., and
+                                                                        Bing, L. Auto-arena: Automating llm evaluations with
+Weatherford, L. R. and Bodily, S. E. Forecasting and con-               agent peer battles and committee discussions, 2024. URL
+ trol of passenger bookings. Journal of Revenue and                     https://arxiv.org/abs/2405.20267.
+ Pricing Management, 1(1):37–45, 1997. doi: 10.1057/
+ palgrave.rpm.5170134. URL https://doi.org/10.                        Zheng, Y., Zhang, R., Zhang, J., Ye, Y., Luo, Z., Feng,
+ 1057/palgrave.rpm.5170134. [Online; accessed                           Z., and Ma, Y. Llamafactory: Unified efficient fine-
+ 19-January-2025].                                                      tuning of 100+ language models. In Proceedings of the
+
+                                                                 13
+               OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+  62nd Annual Meeting of the Association for Computa-
+  tional Linguistics (Volume 3: System Demonstrations),
+  Bangkok, Thailand, 2024. Association for Computational
+  Linguistics. URL http://arxiv.org/abs/2403.
+  13372.
+Zieyel, E. R.       Operations research :  applica-
+  tions and algorithms. Technometrics, 30:361–362,
+  1988. URL https://api.semanticscholar.
+  org/CorpusID:122790857.
+
+
+
+
+                                                       14
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+A. Dataset
+A.1. An Introduction of Different Benchmarks
+We evaluated the modeling capabilities of our trained model on NL4OPT, MAMO, IndustryOR, OptiBench, and our
+self-constructed dataset, OptMATH-Bench. Both MAMO and OptMATH-Bench have ground truth annotations, while
+the original NL4OPT dataset lacks ground truth. To address this, we utilized a LLM to generate initial ground truth for
+NL4OPT, followed by expert validation and correction for each data. As a result, we obtained the ground truth for the
+NL4OPT dataset. In addition, we have also analyzed these datasets in terms of problem scenarios and problem model types,
+and the distribution of scenarios for each dataset is shown in Figure 8, the distribution of problem types for each dataset is
+shown in Figure 4.
+
+
+
+
+                                         Figure 8. Scenarios distribution of the datasets.
+
+NL4OPT(Ramamonjison et al., 2021) is a curated dataset derived from the NL4OPT Competition, where participants
+were tasked with developing automated methods to convert natural language problem descriptions into solver-ready code.
+This dataset primarily focuses on LP (Linear Programming) problems across various contexts, though the underlying
+mathematical models are relatively uniform, with more complex MIPS (Mixed Integer Programming and Scheduling)
+problems notably absent. For our experiments, we selected the test set from this dataset, filtered out low-quality examples,
+and retained a total of 245 high-quality instances.
+MAMO(Huang et al., 2024) introduces a novel optimization dataset to assess the modeling capabilities of LLMs. The
+dataset is divided into two main components, Easy LP and Complex LP, containing 652 and 211 instances, respectively.
+These components cover both LP and MILP problems, capturing a wide range of real-life scenarios. However, the dataset
+does not include any nonlinear programming (NLP) problems.
+IndustryOR(Tang et al., 2024) is the first industrial benchmark for operations research, consisting of 100 real-world
+OR problems collected from eight different industries. This dataset covers five types of optimization problems: linear
+programming, integer programming, mixed integer programming, non-linear programming, and others, with problems
+distributed across three levels of difficulty.
+
+                                                               15
+                  OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+OptiBench(Yang et al., 2025) introduces a comprehensive benchmark designed to evaluate LLMs’ end-to-end solving
+capabilities in optimization tasks. The dataset consists of 605 carefully selected and manually verified problems, covering
+linear and nonlinear programming with both integer and mixed integer variables. Since this benchmark does not directly
+include an ”answer” field, we extracted the optimal values to serve as golden answers using both rule-based methods and
+LLM-based approaches.
+OptMATH-Bench. As shown in Table 1, while our fine-tuned model achieves remarkable performance on NL4OPT
+and MAMO EasyLP, these datasets alone are insufficient to comprehensively evaluate the model’s optimization modeling
+capabilities. Moreover, both NL4OPT and MAMO datasets are limited to linear programming problems, making them less
+representative of the broader optimization landscape. To address this limitation, we constructed OptMATH-Bench, a more
+challenging dataset for large models that also expands the diversity of problem types.
+The creation of OptMATH-Bench followed two distinct routes. The first pathway began with instances initially rejected by
+our AutoFormulator due to failing the optimal value (OV) check, indicating their inherent difficulty. A ”LLM-Committee”
+(inspired by (Zhao et al., 2024), utilizing diverse powerful models such as GPT-4, Claude, Gemini, and DeepSeek) then
+filtered these problematic instances. PD and NL pairs were retained only if at least one, but no more than two, committee
+members successfully formulated them (i.e., passed the OV check). This process isolated problems that were well-posed yet
+presented non-trivial modeling challenges. Crucially, human OR experts subsequently validated the correctness of these
+selected pairs and further refined them based on relevance and clarity. The second pathway involved OR experts directly
+curating challenging problems from external operations research literature, including journals and textbooks. This approach
+ensured methodological and source independence in the dataset’s composition and allowed for the inclusion of known hard
+problem types, such as NLP and SOCP (as illustrated in Figure 4).
+This dataset includes a carefully curated selection of representative mathematical optimization problems that span a broad
+range of application scenarios, covering LP, MILP, IP, NLP, SOCP, and other common optimization problems. Additionally,
+the problems in OptMATH-Bench are inherently challenging, making them effective in distinguishing the modeling
+capabilities of the model.
+During evaluation, we observed that certain ambiguities in problem statements could cause the LLM to struggle in
+determining whether a variable is integer or continuous. To address this, we applied a rule-based substitution approach: as
+long as the optimal solution derived under either assumption (integer or continuous variable) matches the ground truth, we
+consider it a pass. We also implemented several other rule-based substitutions to handle variations in solution formats and
+representations, ensuring a fair evaluation process where all models are assessed using the same standardized evaluation
+methodology. To determine whether the optimal values are equivalent, we use the following formula:
+
+                                                    |ypred − ylabel |
+                                                                      < ϵ,
+                                                      |ylabel | + 1
+
+where ϵ is set to 1e-6.
+
+A.2. Seed Classes
+Our seed problem classes were curated by drawing from MIPLIB instances and integrating insights from both Chain-of-
+Experts(Xiao et al., 2024) and peer-reviewed literature. For each instance, we conducted an in-depth analysis of its structure,
+starting from the problem description to identify its broader optimization category and further refining it into specific
+subclasses. To ensure theoretical accuracy, we consulted literature that provided detailed descriptions of these optimization
+subclasses. Based on these references, we formulated the mathematical representation of each subclass, systematically
+outlining sets (where applicable), parameters, decision variables, objective functions, and constraints. This step aimed to
+establish an abstract mathematical framework rather than focusing on specific instances.
+We organized comprehensive metadata for each problem class in a structured metadata.json file, encompassing subclass
+names, references, reference links, and LaTeX-formulated mathematical expressions. An example of this metadata structure
+is provided in Appendix E.5. This systematic documentation not only ensures clarity but also facilitates dataset utilization
+and future extensions.
+Next, we focused on generating new problem instances. We implemented a custom Python class, Generator(), in
+generator.py, which contained a step-by-step algorithm to create instances of the identified subclasses (an example is
+
+                                                             16
+                OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+provided in Appendix E.6). The input parameters and outputs were explicitly defined, with detailed specifications for each
+parameter’s type and valid range documented in README.md. We validated the generator by running test generator()
+with default parameters to ensure the produced instances were both mathematically valid and practically meaningful.
+Through this systematic and meticulous approach, we constructed a high-quality dataset of Problem Description (PD)
+generators that lays a solid foundation for generating natural language descriptions of optimization problems through
+Backtranslation Pipeline. This dataset is designed to be versatile and scalable, making it suitable for a wide range of
+applications in optimization research and practice.
+
+ Main Class                                Problem Class                          Num     Reference
+ Assignment and Resource Allocation        Car Selection Problem                  1       (Burkard et al., 2012)
+ Optimization
+                                           Contract Allocation Problem            1       (Wikipedia, 2025)
+                                           Assignment Problem                     2       (Kuhn, 1955)
+                                           Structure-Based Assignment Prob-       1       (Burkard et al., 2012)
+                                           lem
+                                           Team Formation Problem                 1       (Gurobi Optimization, 2025)
+                                           Military Personnel Deployment          1       (Brown et al., 2004)
+                                           Problem
+ Combinatorial Optimization                Knapsack Problem                       1       (Martello & Toth, 1990)
+                                           Market Share Optimization Problem      1       (Cooper, 1993)
+                                           Set Multi-Cover Problem                1       (Winston, 2004)
+                                           Set Cover Problem                      1       (Caprara et al., 2000)
+ Cutting and Packing Optimization          Bin Packing Problem                    1       (Garey & Johnson, 1981)
+                                           Blending Problem                       1       (Zieyel, 1988)
+                                           Cutting Stock Problem                  1       (Gilmore & Gomory, 1961)
+ Domain-Specific Optimization              Diet Problem                           3       (Garille & Gass, 2001)
+                                           Unit Commitment Problem                1       (Padhy, 2004)
+                                           Farm Planning Problem                  1       (Hazell & Norton, 1986)
+ Facility Location Optimization            Facility Location Problem              2       (Toregas et al., 1971)
+                                           Capacitated Facility Location Prob-    2       (Daskin, 1995)
+                                           lem
+                                           Transportation Problem, Airline In-    1       (Toth, 2002)
+                                           dustry Resource Allocation
+                                           Facility Dispersion Problem            2       (Kuby, 1988)
+ Financial and Revenue Optimization        Portfolio Optimization Problem         1       (Markowitz, 1952)
+                                           Profit Maximization Problem            1       (Hillier & Lieberman, 2014)
+                                           Revenue Management Problem             1       (Chen et al., 2022)
+                                           Revenue Maximization Problem           1       (Weatherford & Bodily, 1997)
+ Network Flow Optimization                 Multi-Commodity Capacitated Net-       1       (Gendron et al., 1999)
+                                           work Design Problem
+                                           Multi-Commodity Transportation         1       (Smith, 1994)
+                                           Problem
+                                           Minimum Cost Flow Problem              1       (Klein, 1967)
+                                           Multi-Commodity Network Flow           1       (Smith, 1994)
+                                           Problem
+                                           Network Flow Problem                   1       (Ford & Fulkerson, 1956)
+                                           Static Line Planning Problem           1       (Schöbel, 2012)
+                                           Supply Chain Optimization              1       (Cordeau et al., 2006)
+                                           Network Optimization                   1       (Bertsekas, 1998)
+ Production Planning and Scheduling        Capacitated Lot-Sizing Problem         1       (Florian & Klein, 1971)
+ Optimization
+                                           Factory Planning Problem               1       (Pinedo, 2022)
+                                           Flow Shop Scheduling Problem           1       (Rajendran, 1995)
+
+
+                                                           17
+                  OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+                                                                                                                              Input
+                                                                                   5000                                       Output
+
+                                                                                   4000
+
+
+
+
+                                                                       Frequency
+                                                                                   3000
+
+                                                                                   2000
+
+                                                                                   1000
+
+                                                                                     0
+                                                                                          0           5000               10000
+                                                                                                    Sequence Length
+
+
+Figure 9. Distribution of Application Scenarios across OptMATH-         Figure 10. Sequence Length Distribution of OptMATH-Train
+Train
+
+
+ Main Class                                   Problem Class                                   Num    Reference
+                                              Job Shop Scheduling Problem                     1      (Adams et al., 1988)
+                                              Discrete Lot-Sizing and Scheduling              1      (Fleischmann, 1990)
+                                              Problem
+                                              Production Planning Problem                     3      (Herrmann, 2006)
+                                              Lot-Sizing Problem                              1      (Drexl & Kimms, 1997)
+ Transportation and Routing Optimiza-         Aircraft Assignment Problem                     1      (Abara, 1989)
+ tion
+                                              Aircraft Landing Problem                        1      (Beasley et al., 2000)
+                                              Transportation Problem                          2      (SteadieSeifi et al., 2014)
+                                              Traveling Salesman Problem                      1      (Dantzig et al., 1954)
+                                              Operations Optimization                         1      (Golden et al., 2008)
+                                              Capacitated Vehicle Routing Prob-               3      (Solomon, 1987)
+                                              lem with Time Windows
+
+
+
+A.3. OptMATH-Train
+The OptMATH-Train dataset consists of over 150k reverse-generated samples and 50k augmented instances, forming a
+comprehensive collection of optimization problems. The dataset encompasses a rich variety of real-world application
+scenarios. As illustrated in Figure 9, the dataset covers over 10 major application domains spanning across both core
+business sectors and specialized industries, demonstrating extensive coverage of real-world optimization scenarios. The
+substantial proportions in logistics, supply chain, and manufacturing ensure robust representation of primary industrial
+applications, while the balanced inclusion of sectors like transportation, energy, and finance provides comprehensive
+coverage of specialized use cases. This thoughtful allocation of problems across different domains not only prevents data
+concentration but also maintains sufficient samples for each sector, enabling effective model training and evaluation.
+The sequence length distribution of OptMATH-Train, as shown in Figure 10, exhibits a well-balanced profile for both
+input and output sequences. The distribution approximates a normal distribution with mild right-skewness, centered
+around 5,000 characters, demonstrating a natural variation in problem complexity. This balanced distribution pattern is
+particularly advantageous for model training, as it ensures sufficient context length for complex problem representation
+while maintaining computational efficiency. Furthermore, the moderate right-skewness encompasses challenging cases
+with extended sequences, which is essential for developing robust models capable of handling sophisticated optimization
+problems that require comprehensive reasoning and detailed solution steps.
+
+                                                                  18
+                                           OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+B. Details of Instance Generation
+B.1. An Example for Measuring the Complexity
+Let binary variables y1 , y2 ∈ {0, 1} indicate whether products 1 and 2 are produced, integer variables x1 , x2 ∈ Z+
+represent production quantities, and a continuous variable z ≥ 0 denote total cost. The objective function minimizes total
+operational costs: min z + 10y1 + 8y2 . The constraints span four categories: First, linear constraints include the resource
+limitation 2x1 + 3x2 ≤ 100 and market demand bounds x1 ≤ 50, x2 ≤ 30. Second, indicator constraints using the Big-M
+method (with M = 100) enforce minimum production levels when activated: y1 = 1 =⇒ x1 ≥ 5 is reformulated as
+x1 ≥ 5 − 100(1 − y1 ), and analogously for y2 = 1 =⇒ x2 ≥ 3. Third, a quadratic constraint z ≥ 0.5x21 + 0.3x22 integrates
+inventory costs into the objective. Finally, a general nonlinear constraint x1 ex2 ≤ 100 captures efficiency coupling between
+products.
+To compute the complexity score S(PD), we identify: 2 binary variables, 2 integer variables, and 1 continuous variable; 3
+linear constraints, 2 indicator constraints, 1 quadratic constraint, and 1 nonlinear constraint. The Big-M factor frequency is
+fBigM = 2, while the average number of terms per expression Lexpr ≈ 2.71 is derived from structural analysis of constraints
+and the objective. With all weights set to 1, the total complexity score becomes S = 16.71. This example demonstrates
+how modeling choices (e.g., introducing nonlinear terms, Big-M parameterization) directly influence the score, providing a
+quantitative framework for assessing model complexity.
+
+B.2. An Overview of the Generated LP Files
+The average lengths of LP files for different difficulty levels are illustrated in Figure 11. We define the complexity thresholds
+for the five difficulty levels—easy, medium easy, medium, medium hard, and hard—as [25, 75], [50, 100], [75, 125], [100,
+150], and [125, 175], respectively. The results demonstrate that our feedback-driven problem data generation approach is
+effective. The average length of the generated LP files across the five difficulty levels is presented in Figure 12, categorized
+by seed data name. All generated LP files are feasible and possess optimal solutions.
+
+
+
+                                          25000                                                                                         24,329
+           Average Number of Characters
+
+
+
+
+                                          20000
+
+                                                                                                                     16,098
+                                          15000
+                                                                                                  11,919
+                                          10000
+                                                                               8,430
+
+                                          5000              4,092
+
+
+                                              0
+                                                          sy
+
+
+
+
+                                                                                                  m
+
+
+
+
+                                                                                                                   rd
+
+
+
+
+                                                                                                                                       rd
+                                                                             sy
+
+
+
+
+                                                                                              diu
+                                                        Ea
+
+
+
+
+                                                                           Ea
+
+
+
+
+                                                                                                                 Ha
+
+
+
+
+                                                                                                                                     Ha
+                                                                                            Me
+                                                                         m
+
+
+
+
+                                                                                                                m
+                                                                       diu
+
+
+
+
+                                                                                                             diu
+                                                                     Me
+
+
+
+
+                                                                                                           Me
+
+
+
+
+                                                                                           Difficulty Level
+                                                  Figure 11. Distribution of LP file lengths across generated instances by difficulty levels.
+
+
+
+
+                                                                                             19
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+
+                      Figure 12. Distribution of LP file lengths across generated instances by problem types.
+
+
+
+
+C. Details of Backtranslation
+C.1. Backtranslation Pipeline
+In our reverse generation pipeline, we employ Deepseek-V3(Liu et al., 2024a) as our foundation model and configure
+its temperature parameter to 0.8 to enhance the diversity of generated problems. Furthermore, to achieve rich contextual
+diversity, we implement a random scenario assignment mechanism during the Initial Generate phase. This mechanism
+directs the LLM to synthesize problems that optimally integrate the mathematical characteristics with the designated scenario
+context. The detailed prompt is elaborated in Section E.1.
+Through this backtranslation process, we initially generated approximately 120,000 easy optimization problems. As
+shown in Figure 15, the length distribution of problem descriptions exhibits a right-skewed pattern, with most problems
+containing 2,000 to 5,000 characters. After applying rejection sampling, around 40% of the generated problems were
+filtered out while maintaining a similar distribution pattern. This consistency in distribution before and after filtering
+suggests that our quality control process effectively removes low-quality samples without introducing length-related biases,
+ensuring the retained problems maintain natural and appropriate descriptive lengths. After multi-stage refinement including
+semantic verification and difficulty calibration, the pipeline ultimately produced 150,000 rigorously validated optimization
+problems. Together with 50,000 augmented instances, this curated collection forms our OptMATH-Train dataset, where
+each instance demonstrates: (1) Contextual alignment between mathematical formulations and real-world scenarios, (2)
+Controllable complexity levels matching specified difficulty tiers, and (3) Natural language expressions adhering to authentic
+problem-solving discourse patterns. The hierarchical quality assurance framework ensures the dataset’s applicability for
+both educational interventions and benchmarking mathematical reasoning systems.
+
+                                                                20
+                   OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+        An Example of Backtranslation
+
+
+     Input-General Formulation                                                       Input-LP File
+                                                                                     Minimize
+                                                                                      80000 Selected[1] + 40000 Selected[2] + 20000
+                                                                                     Selected[3] + 10000Selected[4]
+                                                                                      + 80000 Selected[5] + 90000 Selected[6]
+                                                                                     Subject To
+                                                                   Generator         MultiCover_e1: Selected[1] + Selected[3] + Selected[5] +
+                                                                                     Selected[6] >= 4
+                                                                                     …………
+            represents the cost coefficient for each set                             MultiCover_e10: Selected[1] + Selected[4] + Selected[5] +
+           is a binary decision variable indicating whether set                      Selected[6]
+        i is selected                                                                 >= 4
+             represents the set of all sets containing element j                     Bounds
+                                                                                     Binaries
+            represents the minimum number of times element j                         Selected[1] Selected[2] Selected[3] Selected[4] Selected[5]
+        needs to be covered                                                          Selected[6]
+                                                                                     End
+
+
+
+                                               Backtranslation
+     Output-Natural Language Description
+     A city is planning the layout of emergency medical stations. There are 6 candidate locations for building medical stations, each
+     with different construction costs:
+     Location 1: Construction cost $80,000 ; Location 2: Construction cost $40,000 ……
+     The city is divided into 10 districts, each requiring different numbers of medical stations for coverage due to population density and
+     emergency medical needs:
+     Districts 1 and 2: require coverage by at least 4 stations； District 3: requires coverage by at least 2 stations    ……
+     Each candidate location can cover specific districts:
+     Location 1 covers districts: 1, 2, 6, 10； Location 2 covers districts: 3, 5, 6, 9 ……
+     The objective is to decide which locations should be selected for building medical stations, minimizing the total construction cost
+     while meeting the coverage requirements for each district. Each location can only be selected or not selected (binary decision).
+
+
+
+
+Figure 13. An example of backtranslation: transforming mathematical formulations and LP files into natural language descriptions of
+optimization problems. The process transforms formal mathematical notation and concrete data into human-readable problem descriptions.
+
+
+C.2. Ablation Study on the Impact of Self-Refine Iterations
+To validate the effectiveness of each step in our backtranslation pipeline, we conducted comprehensive ablation studies.
+We first compared the accuracy between using only the Generate step versus implementing the complete pipeline with
+Generate, Self-criticize, and Self-refine steps. To investigate the impact of parameter T on the acceptance rate of rejection
+sampling, we randomly selected 500 instances for evaluation, with results shown in Figure 14. The results demonstrate that
+our Self-Refine loop (T ≥ 1) consistently outperforms direct generation (T = 0) in terms of acceptance rate. While there
+are some fluctuations in performance across different T values, possibly due to the inherent hallucination tendencies of large
+language models, we observe that setting T = 1 achieves a satisfactory acceptance rate of 61.56%. Considering the trade-off
+between performance and computational efficiency (token usage), we adopt T = 1 in our final data synthesis process.
+
+D. Details of AutoFormulation
+D.1. CoT Instructions of AutoFormulation
+To support comprehensive mathematical modeling capabilities, we developed a diverse set of CoT instructions, which
+are detailed in Section E.3. These instructions vary in their decomposition approaches, intermediate reasoning steps, and
+
+                                                                     21
+                                            OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+                      66                                                                        65.77                                                          Original
+                                                                                                                         5000                                  After Rejection
+                      65
+                                               64.37                                    64.26
+                                                                                                                         4000
+Acceptance Rate (%)
+
+
+
+
+                      64
+
+
+
+
+                                                                                                             Frequency
+                                                                              63.06
+                      63
+                                                                                                                         3000
+
+                      62            61.56                     61.67                                                      2000
+                            60.86
+                      61
+                                                                                                                         1000
+                      60
+
+                                                                                                                           0
+                             0       1          3               5               7        9       10                              0             5000              10000
+                                               Max Iteration of the self-refine loop                                                    Problem Description Length
+
+
+Figure 14. Acceptance Rate vs. Maximum Iteration of Self-Refine                                               Figure 15. Distribution of Natural Language Description Lengths
+Loop. The bar chart illustrates the acceptance rate achieved at                                               for Easy Problems in OptMATH-Train Dataset. The histogram
+different maximum iteration limits.                                                                           compares the length distribution before and after rejection sam-
+                                                                                                              pling, showing the quality filtering process.
+
+
+presentation formats, providing multiple pathways for problem formulation. In Figure 16, we present one representative
+formulation pattern from our instruction set. This format includes three key components: a general mathematical formulation
+with standard notation, a detailed instance-specific formulation with complete parameter specifications, and the corresponding
+Python implementation using Gurobi. However, this represents just one of many possible formulation styles. Other formats
+in our instruction set may use different ordering of steps, alternative notation systems, or various levels of mathematical
+abstraction. The diversity in formulation patterns ensures that our dataset captures a wide range of valid mathematical
+modeling approaches while maintaining logical coherence and mathematical correctness.
+
+D.2. Ablation Study on Augmentation
+As mentioned in the previous section, the purpose of data augmentation is to increase the diversity of the dataset and generate
+more non-standard problems, which can help the fine-tuned model to solve more difficult problems. We use 50k raw data,
+augmented data and mixed data (50% raw data and 50% augmented data) for fine-tuning training on the Qwen2.5-7B model,
+respectively, and the results show in Table 3 that the model fine-tuned with raw data performs better in solving relatively
+simple problems, augmented data performs better in solving difficult problems, and mixed data combines the advantages of
+the above two very well, being the best in terms of average accuracy across the four types of test sets.
+
+
+                                                    Table 3. Comparison of Original Data and Augmentation Data in Training Models.
+                                                                                                        MAMO                 MAMO        OptMATH       Micro     Macro
+                           Types                                                       NL4OPT
+                                                                                                        EasyLP              ComplexLP     Bench        Avg        Avg
+                           Without Augmentation                                        86.9%            88.0%                   44.5%      31.1%       72.1%     62.3%
+                           Without Original                                            82.9%            85.5%                   44.7%      23.6%       69.2%     59.2%
+                           Mixture of Augmentation and Original                        87.3%            87.7%                   48.1%      33.3%       73.1%     64.1%
+
+
+D.3. SFT
+We employ the LlamaFactory framework for fine-tuning (Zheng et al., 2024). We select the Qwen2.5 series (0.5B∼32B) as
+our base models (Yang et al., 2024), and the hyperparameters are generally set as follows: initial learning rate of 1e-4, 1∼3
+epochs, LoRA rank of 32, LoRA alpha of 32, and LoRA dropout of 0.1. While there are minor variations in hyperparameters
+
+                                                                                                        22
+            OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+
+ An Example of AutoFormulation
+Input-Natural Language Description
+A city is planning the layout of emergency medical stations. There are 6 candidate locations for building medical stations, each
+with different construction costs:
+Location 1: Construction cost $80,000 ; Location 2: Construction cost $40,000 ……
+The city is divided into 10 districts, each requiring different numbers of medical stations for coverage due to population density and
+emergency medical needs:
+Districts 1 and 2: require coverage by at least 4 stations； District 3: requires coverage by at least 2 stations    ……
+Each candidate location can cover specific districts:
+Location 1 covers districts: 1, 2, 6, 10； Location 2 covers districts: 3, 5, 6, 9 ……
+The objective is to decide which locations should be selected for building medical stations, minimizing the total construction cost
+while meeting the coverage requirements for each district. Each location can only be selected or not selected (binary decision).
+
+                                                    AutoFormulation
+Output-General Formulation                                              Output-Python Code with Gurobi
+                                                                    from gurobipy import *
+
+                                                                    # Create a new model
+                                                                    m = Model("Medical Station Location")
+
+                                                                    # Parameters
+                                                                    costs = {
+                                                                    1: 8, # $80,000
+                                                                    2: 4,
+     represents the cost coefficient for each set                   …………
+    is a binary decision variable indicating whether set i is       }
+  selected                                                          # Coverage requirements for each district
+      represents the set of all sets containing element j           coverage_req = {
+     represents the minimum number of times element j               1: 4,
+                                                                    2: 4,
+  needs to be covered                                               3: 2,
+                                                                    …………
+                                                                    }
+                                                                    # Coverage matrix
+                                                                    coverage = {
+Output-Instance Formulation                                         1: [1, 2, 6, 10],
+                                                                    2: [3, 5, 6, 9],
+1.Sets                                                              …………
+L = {1,...,6}: set of potential locations                           }
+                                                                    # Decision Variables
+D = {1,...,10}: set of districts
+                                                                    selected = m.addVars(costs.keys(),
+2. Parameters                                                               vtype=GRB.BINARY, name="Selected")
+c[i]: construction cost for location i ∈ L
+      c[1] = 8, c[2] = 4, c[3] = 2, c[4] = 1, c[5] = 8, c[6] = 9    # Objective Function
+r[j]: coverage requirement for district j ∈ D                       m.setObjective(quicksum(costs[i] * selected[i] for
+                                                                            i in costs.keys()), GRB.MINIMIZE)
+      r[1] = 4, r[2] = 4, r[3] = 2, r[4] = 4, r[5] = 5
+      r[6] = 1, r[7] = 2, r[8] = 3, r[9] = 4, r[10] = 4             # Constraints
+a[i,j]: coverage matrix, 1 if location i can cover district j, 0    for district in coverage_req.keys():
+otherwise.                                                                  # Sum up all locations
+3. Variables                                                                m.addConstr(quicksum(selected[loc]
+                                                                            for loc in coverage.keys() if district in
+        x[i] ∈ {0,1}: binary decision variable                              coverage[loc])>=coverage_req[district],
+                                                                            f"MultiCover_e{district}")
+        x[i] = 1 if location i is selected
+        x[i] = 0 otherwise                                          # Optimize model
+                                                                    m.optimize()
+4. Objective Function
+     Minimize: ∑(i∈L) c[i]×x[i] (total construction cost)           # Print results
+5. Constraints                                                      if m.status == GRB.OPTIMAL:
+                                                                          print("\nOptimal solution found:")
+        Coverage requirements: ∑(i∈L) a[i,j]×x[i] ≥ r[j], ∀j∈D
+                                                                    else:
+        Binary constraints: x[i] ∈ {0,1}, ∀i∈L
+                                                                          print("No solution found")
+
+
+
+
+                                               Figure 16. An Example of AutoFormulation
+
+
+
+                                                                   23
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+across different experiments, the overall settings remain similar and we omit these details for brevity. Notably, as illustrated
+in our framework diagram 1, the entire AutoFormulator training process is an iterative cycle. The Rejection Sampling
+in Step 2 relies on AutoFormulator’s modeling capabilities - stronger modeling abilities lead to higher pass rates and
+better data quality. Similarly, the data augmentation phase depends on AutoFormulator’s modeling competence. Higher
+quality data, in turn, results in a more capable Formulator through training.Through this systematic model fine-tuning
+and data augmentation approach, we have developed a dynamically evolving fine-tuning framework. This framework
+not only accurately transforms natural language descriptions into mathematical formulations and solver code but, more
+importantly, establishes a self-improving data flywheel mechanism. This positive feedback loop enables the AutoFormulator
+system to continuously enhance its capability in handling complex optimization problems through ongoing learning and
+self-optimization, forming a virtuous growth cycle.
+
+D.4. Detailed Ablation Studies on Model Size and Data Size
+To investigate the impact of model capacity and training data volume on optimization modeling performance, we conducted
+two sets of experiments using OptMATH-Train. For the model size study in Figure 6 and Figure 17, we compare the
+performance of baseline and finetuned Qwen2.5 models ranging from 0.5B to 32B parameters. For the data scaling analysis
+in Figure 7 and Figure 18, we track the accuracy progression within the first training epoch across different model sizes,
+using varying proportions of the training data.
+The model size experiments reveal distinct scaling patterns across benchmarks. On NL4OPT, the performance improves
+from 12.7% (0.5B) to 96.7% (32B), showing particularly rapid gains in the 0.5B-3B range. For MAMO EasyLP, we observe
+similar but more moderate improvements, with accuracy increasing from 31.9% to 90.5%. However, on more challenging
+benchmarks like MAMO ComplexLP and OptMATH-Bench, even the largest models achieve relatively modest gains,
+reaching 52.6% and 30.6% respectively at 32B parameters.
+The comparison between baseline and OptMATH-Train finetuned models reveals interesting patterns across different model
+scales. For simpler benchmarks like NL4OPT and MAMO EasyLP, while the performance gap narrows with increased
+model size, OptMATH-Train finetuning still provides consistent improvements even for the largest models. More notably, on
+complex benchmarks such as MAMO ComplexLP and OptMATH-Bench, models finetuned on OptMATH-Train demonstrate
+substantial performance gains across all model sizes, highlighting the effectiveness of our training dataset in enhancing
+models’ capabilities for challenging optimization problems.
+The data scaling analysis reveals distinct learning dynamics across model sizes. Smaller models (0.5B, 1.5B, 3B) exhibit
+higher initial performance variance during training, while larger models (7B, 14B) demonstrate more stable learning curves
+from the outset. Notably, all model sizes achieve relative performance stability after utilizing approximately 40% of the
+training data, though the absolute performance levels differ significantly. The 3B model, for instance, maintains consistently
+higher performance across all benchmarks while requiring a similar proportion of training data to reach stability.
+This efficient data utilization pattern holds true across all benchmarks, regardless of their complexity levels. Whether for
+the relatively straightforward tasks in NL4OPT or the more challenging problems in OptMATH-Bench, models typically
+converge to their peak performance using around 40% of the available training data. The remaining 60% of the data
+contributes primarily to fine-tuning and minor performance adjustments rather than substantial improvements.
+
+
+
+
+                                                              24
+                                                  OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+Table 4. Performance comparison of Qwen2.5 models of varying sizes on mathematical optimization tasks. The percentages in parentheses
+indicate improvements after fine-tuning.
+  Models                           NL4OPT       MAMO EasyLP           MAMO ComplexLP OptMATH-Bench                  Micro AVG
+  Qwen2.5-0.5B                                                                       0.00%                                     0.15%                                                   0.00%                                           0.00%                                    0.08%
+  Qwen2.5-0.5B(Finetuned)                                                       12.65% (↑12.65%)                          31.90% (↑31.75%)                                        16.59% (↑16.59%)                                15.03% (↑15.03%)                         23.29% (↑23.21%)
+  Qwen2.5-1.5B                                                                       0.00%                                     2.15%                                                   0.95%                                           0.00%                                    1.23%
+  Qwen2.5-1.5B(Finetuned)                                                       46.12% (↑46.12%)                          68.10% (↑65.95%)                                        22.75% (↑21.80%)                                18.65% (↑18.65%)                         49.27% (↑48.04%)
+  Qwen2.5-3B                                                                        67.35%                                     65.18%                                                  16.11%                                          0.52%                                    48.04%
+  Qwen2.5-3B(Finetuned)                                                         68.57% (↑1.22%)                           80.98% (↑15.80%)                                         25.59% (↑9.48%)                                15.03% (↑14.51%)                         59.88% (↑11.84%)
+  Qwen2.5-7B                                                                                  86.94%                           83.59%                                                  21.80%                                          1.55%                                    62.03%
+  Qwen2.5-7B(Finetuned)                                                                       86.94%                       89.42% (↑5.83%)                                        48.82% (↑27.02%)                                30.05% (↑28.50%)                         73.56% (↑11.53%)
+  Qwen2.5-14B                                                                       93.47%                                     82.52%                                                  42.65%                                          14.51%                                    68.02%
+  Qwen2.5-14B(Finetuned)                                                        95.51% (↑2.04%)                            90.49% (↑7.97%)                                         51.18% (↑8.53%)                                29.53% (↑15.02%)                           76.02% (↑8.00%)
+  Qwen2.5-32B                                                                       92.65%                                     82.21%                                                  44.55%                                          9.33%                                     67.26%
+  Qwen2.5-32B(Finetuned)                                                        96.73% (↑4.08%)                            88.04% (↑5.83%)                                         56.4% (↑11.85%)                                36.27% (↑26.94%)                           76.86% (↑9.60%)
+
+
+
+
+                                                                                                                                                                                                                                                             
+                                                                                                                                                                                                                                                                   
+                                                                                                                                                                                                          % D V H O L Q H  0 R G H O                                              
+                                                           % D V H O L Q H  0 R G H O                                                                                                               ) L Q H W X Q H G  0 R G H O     
+                                                           ) L Q H W X Q H G  0 R G H O                                                                                             
+                                                                                             
+                                                                                                                                                                                                                       
+                                                                                                                                                                                                                 
+                                                                                                                                                       $ F F X U D F \    
+
+
+
+
+                                                                                                                                                                                     
+        $ F F X U D F \    
+
+
+
+
+                                      
+                                                                        
+                                                                                                                                 
+                                                                                                                                                                                                                                                                   
+                                                                                                                                                                                             
+                                                                                                                                                                                                                                     
+
+                                                                                                                                                                              
+                                                
+
+                                                                                                                                                                                                        
+                                                %                   %                  %               %            %           %                                                  %                   %                 %               %            %           %
+                                                                                             0 R G H O  6 L ] H                                                                                                                           0 R G H O  6 L ] H
+                                                                                (a) NL4OPT                                                                                                                           (b) MAMO EasyLP
+
+                                                                                                                                                                                 
+                                                          % D V H O L Q H  0 R G H O                                                                                                                    % D V H O L Q H  0 R G H O
+                                                          ) L Q H W X Q H G  0 R G H O                                                                                                                  ) L Q H W X Q H G  0 R G H O
+                                                                                                                                                                                  
+
+                                                                                                                                           
+      $ F F X U D F \    
+
+
+
+
+                                                                                                                                                     $ F F X U D F \    
+
+
+
+
+                                                                                                                                                                    
+                                                                                                                       
+                                                                                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                                          
+                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                             
+                                                                                                                                                                                                                       
+                                                                                                                                                                                                                      
+                                                                                                         
+                                                                                                                                                                                                                                                                                   
+                                                                                                                                                                                                                                      
+                                                %                  %                  %               %            %           %                                                   %                  %                  %              %            %           %
+                                                                                            0 R G H O  6 L ] H                                                                                                                           0 R G H O  6 L ] H
+                                                                (c) MAMO ComplexLP                                                                                                                                (d) OptMATH-Bench
+
+                                                                    Figure 17. Scaling behavior of Qwen2.5 models (0.5B-32B) on various benchmarks.
+
+
+
+                                                                                                                                                   25
+                                     OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+
+                       40         NL4OPT
+                                  MAMO EasyLP
+                       35         MAMO ComplexLP                                                                       80
+                                  OptMATH-Bench
+                                  Micro Accuracy
+                       30
+                                                                                                                       60
+        Accuracy (%)
+
+
+
+
+                                                                                                        Accuracy (%)
+                       25
+
+                       20
+                                                                                                                       40
+                       15
+
+                       10                                                                                              20                                        NL4OPT
+                                                                                                                                                                 MAMO EasyLP
+                        5                                                                                                                                        MAMO ComplexLP
+                                                                                                                                                                 OptMATH-Bench
+                                                                                                                        0
+                        0                                                                                                                                        Micro Accuracy
+
+                            0.0            0.2        0.4       0.6   0.8             1.0                                   0.0   0.2      0.4       0.6   0.8             1.0
+                                                       Proportion                                                                           Proportion
+
+                                                   (a) Qwen2.5-0.5B                                                                     (b) Qwen2.5-3B
+
+                                                                                                                 100
+
+                      80
+                                                                                                                   80
+       Accuracy (%)
+
+
+
+
+                                                                                                  Accuracy (%)
+
+
+
+
+                      60
+                                                                                                                   60
+
+                      40
+                                                                                                                   40
+
+                      20                                                    NL4OPT                                                                               NL4OPT
+                                                                                                                   20
+                                                                            MAMO EasyLP                                                                          MAMO EasyLP
+                                                                            MAMO ComplexLP                                                                       MAMO ComplexLP
+                                                                            OptMATH-Bench                                                                        OptMATH-Bench
+                       0                                                    Micro Accuracy                             0                                         Micro Accuracy
+
+                            0.0           0.2         0.4      0.6    0.8             1.0                                   0.0   0.2      0.4      0.6    0.8             1.0
+                                                       Proportion                                                                           Proportion
+
+                                                   (c) Qwen2.5-7B                                                                       (d) Qwen2.5-14B
+
+Figure 18. Scaling behavior of Qwen2.5-0.5B, Qwen2.5-3B, Qwen2.5-7B and Qwen2.5-14B Accuracy Within One Training Epoch.
+
+
+
+
+                                                                                             26
+                 OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+E. Prompt Templates
+In this section, we present all the important prompt templates. Due to space constraints, certain parts are omitted, and only
+the prompt frameworks are shown.
+
+E.1. Reverse Data Generate Prompt
+
+    G ENERATE P ROMPT
+
+    As an Operations Research Expert, analyze the given mathematical optimization
+        expression and LP data.
+
+    ......
+
+    Input Mathematical Expression:
+    {{mathematical_expression}}
+
+    Input LP Data:
+    {{lp_data}}
+
+    Reference Examples:
+    {{examples}}
+
+    ## Required Output:
+    Provide ONLY a clear, detailed natural language description of the optimization
+        problem that:
+    - Describes the complete scenario
+    - States all decisions to be made
+    - Specifies the objective clearly
+    - Incorporates all constraints and conditions naturally
+    - Includes all numerical parameters within narrative
+    - Uses appropriate domain terminology
+    - Maintains mathematical accuracy without showing formulation
+
+
+
+    S ELF -C RITICISM P ROMPT
+
+    As an Operations Research Expert, evaluate if the generated problem description
+        matches the mathematical optimization problem...
+
+    Input LP Data:
+    {{lp_data}}
+
+    Generated Problem Description:
+    {{problem_description}}
+
+    Analysis Steps...
+
+    ## Required Output:
+    If perfect match:
+    "Complete Instance"
+
+    If inconsistencies exist:
+    "Incomplete Instance:
+    [List specific discrepancies...]"
+
+
+
+
+                                                             27
+           OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+
+S ELF -R EFINEMENT P ROMPT
+
+As an Operations Research Expert, analyze the criticism and refine the problem
+    description if needed.
+
+First, check the criticism result:
+{{criticism}}
+
+If the criticism shows "Complete Instance":
+Output "Nothing need to refine"
+
+Otherwise, follow these steps to generate an improved description:
+
+1. Review Input Materials:
+Mathematical Expression:
+{{mathematical_expression}}
+
+LP Data:
+{{lp_data}}
+
+Initial Description:
+{{initial_description}}
+
+2. Task:
+Based on the criticism feedback, LP data information, and initial description,
+    generate a complete and accurate problem description.
+
+Required Output:
+If criticism is "Complete Instance":
+Output "Nothing need to refine"
+
+Otherwise:
+[Direct natural language description of the optimization problem]
+- No introductory phrases or meta-commentary
+- No section headers or separators
+- Just the complete problem description in clear natural language
+- Ensure exact match with all LP data parameters
+- Include all constraints and objectives naturally
+- Avoid mathematical notation
+
+Note: The output should be ONLY the complete natural language description itself,
+    with no additional text or formatting.
+
+
+
+
+                                                   28
+               OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+E.2. Baseline Prompt
+
+   BASELINE P ROMPT T EMPLATE FOR OPTIMIZATION MODELING
+
+   Below is an operations research question. Build a mathematical model and
+       corresponding python code using ‘gurobipy‘ that appropriately addresses the
+       question.
+   # Question:
+   {}
+
+   # Notes:
+   - Please output Python code starting with the following lines:‘‘‘python\n\nimport
+       gurobipy as gp\nfrom gurobipy import GRB\n‘‘‘
+   - Make sure the model variable is named ‘model‘.
+   - Avoid using "<" and ">" in Gurobi constraints; instead, use "<=" or ">=" as
+       appropriate.
+   - Carefully determine whether the variable is an integer or a continuous variable.
+
+   # Response:
+
+   (Provide your response here,keep the notes above in mind)
+
+
+
+
+E.3. AutoFormulation Instructions
+   C OT I NSTRUCTIONS
+
+   instructions = [
+       # Total instructions: 15 entries
+       # Showing 5 representative examples below...
+
+       "Below is an operations research question. Build a mathematical model and
+       corresponding Python code using ‘gurobipy‘ to solve it.",
+
+       "Create a complete solution that includes: 1) Mathematical formulation 2) Python
+        code using gurobipy 3) Results interpretation. Ensure all variables and
+       constraints are properly defined.",
+
+       "Transform this operations research problem into a mathematical model and
+       implement it in Python with gurobipy. Include clear variable definitions and
+       constraint explanations.",
+
+       "The following is an operations research problem. Let’s solve it step by step:
+       1) Identify the decision variables, objective function, and constraints 2)
+       Formulate the mathematical model 3) Implement the solution using Gurobi in
+       Python 4) Verify and interpret the results.",
+
+       "This is an operations research problem. Follow this structured approach: Begin
+       with understanding the problem -> Identify the key variables -> Analyze the
+       constraints -> Develop the mathematical model -> Solve it programmatically using
+        Gurobi in Python. Provide clear reasoning and explanations at each stage."
+   ]
+
+
+
+
+                                                       29
+               OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+E.4. Prompts for Configuration Selecting
+
+   I NITIALIZING THE PARAMETERS
+
+   You are an optimization expert helping to tune the parameters in:
+   \begin{verbatim}
+   {generator_code}
+   \end{verbatim}
+
+   CRITICAL REQUIREMENT:
+   Generated instances MUST be solvable to OPTIMALITY by Gurobi...
+
+   Model Complexity Score Calculation:
+   1. Variable Score:
+      - Binary variables: weight = {weights[’alpha\_bin’]}
+      - Integer variables: weight = {weights[’alpha\_int’]}
+      - Continuous variables: weight = {weights[’alpha\_cont’]}
+   2. Constraint Score...
+   3. Additional Complexity Factors...
+
+   Total Score = Variable Score + Constraint Score + Big-M Score + Expression Score
+
+   Secondary Requirements:
+   1. Model Complexity: {complexity\_score\_min} to {complexity\_score\_max}
+   2. Solve Time: {min\_solve\_time} to {max\_solve\_time} seconds
+
+   Return parameter values in JSON format matching ’default\_parameters’ structure:
+   - Keep exact same keys
+   - Preserve data types
+   - Use lists for tuples
+   - Format with proper indentation
+
+
+   F EEDBACK P ROMPT
+
+   Based on testing {total_instances} instances with your suggested parameters:
+   {last_suggested_parameters}
+
+   Here are the detailed results:
+
+   1. Solution Status Analysis:
+      - Total Instances: {total_instances}
+      - Solvable Instances: {solvable_instances}
+      - OPTIMAL Solutions: {optimal_instances} ({optimal_rate:.1f}%)
+      - Solution Status Distribution:
+        ...
+      - Status Percentages:
+        ...
+
+   2. Overall Performance (Only OPTIMAL Solutions):
+      - Success Rate: {success_rate:.1f}% ({results["requirements_met"]["
+       all_requirements"]} out of {total_instances} instances met all requirements)
+      - Note: Only OPTIMAL solutions are considered successful
+
+   3. Requirements Satisfaction (Only OPTIMAL Solutions):
+      Complexity Score Distribution:{analyze_distribution("complexity")}
+      - Required range: {requirements}
+      - Success rate: {num_satisfying_requirements/total_instances}
+
+       Solve Time Distribution:{analyze_distribution("solve time")}
+       - Required range: {requirements}
+       - Success rate: {num_satisfying_requirements/total_instances}
+
+
+
+                                                       30
+         OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+
+
+4. Model Structure Analysis (Only OPTIMAL Solutions):
+   Variable Distributions:
+   Binary Variables: ...
+
+  Constraint Distributions:
+  Linear Constraints: ...
+  Indicator Constraints: ...
+  Quadratic Constraints: ...
+  General Constraints: ...
+
+  Complexity Score Components: ...
+
+5. Distribution Analysis Insights:
+    {throughout analysis of the instances generated by the parameters by calling
+    statistics package in Python}
+
+Based on these results and distribution analysis, please suggest parameter values
+    that would:
+1. MAXIMIZE the proportion of instances that reach OPTIMAL status
+2. Adjust the model complexity to meet the target score range (for OPTIMAL instances
+    )
+3. Maintain solve times within the required range (for OPTIMAL instances)
+4. Reduce variability in key metrics where high variance was detected
+5. Increase the overall success rate
+
+Return your response in JSON format, strictly following the structure of the
+    previous suggestions dictionary. Ensure that:
+1. All keys remain exactly the same as in the previous suggestions
+2. The data types for each value are preserved
+3. The JSON should be properly formatted with indentation for readability
+4. Do not add any new keys or remove any existing keys
+
+
+
+
+                                                 31
+              OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+E.5. An Example of Metadata
+
+
+
+
+   Metadata
+   Subclass:     Bin Packing
+   Reference: Garey, M. R. and Johnson, D. S. "Approximation Algorithms for
+   Bin Packing Problems: A Survey." Analysis and Design of Algorithms in
+   Combinatorial Optimization (1981)
+   Reference URL: https://doi.org/10.1007/978-3-7091-2748-3 8
+   Mathematical Formula:
+   Consider n items, where each item i has:
+     • Weight si :    The weight of item i
+   The problem includes:
+
+     • Bin Capacity c:         The uniform capacity of each bin
+     • Bin Usage Variable yj :         A binary variable indicating whether bin j is
+       used
+
+     • Assignment Variable xi,j :         A binary variable indicating whether item i is
+       assigned to bin j
+                                               n
+                                               X
+                              Minimize               yj
+                                               j=1
+
+                              Subject to:
+                                               n
+                                               X
+                                                     si xi,j ≤ cyj   ∀j = 1, . . . , n
+                                               i=1
+                                               Xn
+                                                     xi,j = 1        ∀i = 1, . . . , n
+                                               j=1
+
+                                              xi,j , yj ∈ {0, 1}     ∀i, j = 1, . . . , n
+
+
+
+
+                                                          32
+               OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+E.6. An Example of Generator
+
+
+
+
+   Python Code for Bin Packing Generator
+
+    1   import gurobipy as gp
+    2   from gurobipy import GRB
+    3   import random
+    4
+    5   class Generator:
+    6       def __init__(self, parameters=None, seed=None):
+    7           self.problem_type = "binpacking"
+    8           default_parameters = {
+    9               "n_items": (3, 10),
+   10               "weight_range": (1, 50),
+   11               "bin_capacity": 100
+   12           }
+   13           if parameters is None:
+   14               parameters = default_parameters
+   15           for key, value in parameters.items():
+   16               setattr(self, key, value)
+   17           self.seed = seed
+   18           if self.seed:
+   19               random.seed(seed)
+   20
+   21       def generate_instance(self):
+   22           self.n_items = random.randint(*self.n_items)
+   23           items = list(range(self.n_items))
+   24           item_weights = {i: random.randint(*self.weight_range) for i in items}
+   25
+   26            model = gp.Model("BinPacking")
+   27            model.Params.OutputFlag = 0 # Suppress Gurobi output
+   28            x = model.addVars(items, items, vtype=GRB.BINARY, name="x")
+   29            y = model.addVars(items, vtype=GRB.BINARY, name="y")
+   30
+   31          # Objective: Minimize the number of bins used
+   32          model.setObjective(gp.quicksum(y[j] for j in items), GRB.MINIMIZE)
+   33          for j in items:
+   34              model.addConstr(
+   35                  gp.quicksum(item_weights[i] * x[i,j] for i in items) <= self.
+           bin_capacity * y[j],
+   36                  name=f"Capacity_{j}"
+   37              )
+   38          for i in items:
+   39              model.addConstr(
+   40                  gp.quicksum(x[i,j] for j in items) == 1,
+   41                  name=f"Assignment_{i}"
+   42              )
+   43          return model
+
+
+
+
+                                                       33
+              OptMATH: A Scalable Bidirectional Data Synthesis Framework for Optimization Modeling
+
+E.7. Augmentation Prompt
+
+   G ENERATE AUGMENTATION P ROBLEM P ROMPT
+
+   AUGMENTATION_RULES = [
+       # Semantic Enhancement
+       "Rephrase the problem description while maintaining the same mathematical
+       structure...",
+       "Rewrite the problem using different expressions and terminology...",
+       # Change the scenario
+       "Transform the problem into a different application scenario while preserving
+       the same structure...",
+       "Conceive a variant on another scenario for the mathematical model...",
+       # Numerical enhancement
+       "Change the numerical parameters while maintaining the same problem structure
+       ...",
+       "Scale up or down the problem size by adjusting parameters proportionally...",
+       # Problem variant generation
+       "Generate a variant by adding/removing/modifying constraints...",
+       "Create a variation by combining different types of constraints...",
+       # Complicating the problem
+       ## Variable Expansion
+       "Increase the number of decision variables while maintaining similar structure
+       ...",
+       "Add bounds for adjustment variables...",
+       ## Constraints Expansion
+       "Add realistic constraints like capacity limitations, budget restrictions...",
+       "Introduce cross-variable constraints between components...",
+       ## Data Complexity
+       "Convert parameters into tabular form with more complex data structures...",
+       ## Problem Types
+       "Generate non-linear problems by replacing linear relations...",
+       "Combine with other problem types to generate hybrid problems...",
+       # Multi-objective
+       "Add new objective functions to generate multi-objective problems...",
+       "Modify objective function to include additional terms...",
+       # Problem symmetry
+       "Generate variants by introducing symmetries...",
+       "Generate dual problems while modifying parameters and constraints..."
+   ]
+
+   AUGMENTATION_TEMPLATE = """Below is an optimization problem, please generate a new
+       optimization problem by following the augmentation rule provided.
+
+   # Original Problem
+   The original optimization problem is as follows:
+   ’’’
+   {original_problem}
+   ’’’
+   # Augmentation Rule
+   {rule}
+   # Augmented Problem
+   Please construct a new optimization problem according to the above requirements and
+       the provided question in the following format:
+
+   [Write your new problem here]
+
+   Note: The generated problem should maintain mathematical validity and practical
+       feasibility.And just provide the problem description without any additional
+       information.
+   """
+
+
+
+
+                                                      34
+

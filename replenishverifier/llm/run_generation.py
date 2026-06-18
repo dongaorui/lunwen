@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import logging
 import random
 from pathlib import Path
@@ -8,6 +8,7 @@ from tqdm import tqdm
 from replenishverifier.experiments.baselines import code_output_format_valid
 from replenishverifier.llm.code_extractor import extract_code
 from replenishverifier.llm.prompt_builder import build_chat_messages, build_prompt
+from replenishverifier.pipeline.quality_signals import compute_static_validation
 from replenishverifier.utils.io import read_jsonl, write_jsonl
 
 LOGGER = logging.getLogger("replenishverifier.llm")
@@ -113,6 +114,29 @@ def generate_one(model, tokenizer, prompt, max_new_tokens=2048, temperature=0.2,
     return tokenizer.decode(generated_ids, skip_special_tokens=True)
 
 
+def _attempt_metadata(attempt_index, raw_generated_text, generated_code, static_validation, accepted, error=None):
+    return {
+        "attempt_index": attempt_index,
+        "raw_contains_think": "<think" in (raw_generated_text or "").lower(),
+        "extracted_code_chars": len(generated_code or ""),
+        "code_output_format_valid": code_output_format_valid(generated_code),
+        "static_validation_score": float(static_validation.get("static_validation_score", 0.0)),
+        "static_validation_errors": list(static_validation.get("static_validation_errors", [])),
+        "accepted": bool(accepted),
+        "error": error,
+    }
+
+
+def _should_accept_generation(raw_generated_text, generated_code, static_validation, require_static_valid_code=False):
+    if "<think" in (raw_generated_text or "").lower():
+        return False
+    if not code_output_format_valid(generated_code):
+        return False
+    if require_static_valid_code and static_validation.get("static_validation_errors"):
+        return False
+    return True
+
+
 def run_generation(
     benchmark_path,
     out_path,
@@ -126,7 +150,11 @@ def run_generation(
     use_chat_template=True,
     prompt_type="hidden_verifier",
     seed=None,
+    max_generation_attempts_per_candidate=1,
+    require_static_valid_code=False,
+    retry_on_invalid_code=False,
 ):
+    max_generation_attempts_per_candidate = max(1, int(max_generation_attempts_per_candidate or 1))
     benchmark = read_jsonl(benchmark_path)
     if max_samples is not None:
         benchmark = benchmark[:max_samples]
@@ -144,6 +172,9 @@ def run_generation(
         "top_p": top_p,
         "use_chat_template": use_chat_template,
         "trust_remote_code": trust_remote_code,
+        "max_generation_attempts_per_candidate": max_generation_attempts_per_candidate,
+        "require_static_valid_code": require_static_valid_code,
+        "retry_on_invalid_code": retry_on_invalid_code,
     }
     for sample in tqdm(benchmark, desc="generate candidates"):
         prompt = render_prompt(tokenizer, sample, use_chat_template=use_chat_template, prompt_type=prompt_type)
@@ -165,23 +196,59 @@ def run_generation(
                 "code_output_format_valid": False,
                 "error": None,
             }
-            try:
-                raw_generated_text = generate_one(
-                    model,
-                    tokenizer,
-                    prompt,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                )
-                generated_code = extract_code(raw_generated_text)
-                row["raw_generated_text"] = raw_generated_text
-                row["generated_text"] = generated_code
-                row["generated_code"] = generated_code
-                row["code_output_format_valid"] = code_output_format_valid(generated_code)
-            except Exception as exc:
-                LOGGER.exception("Generation failed for %s candidate %d", sample["id"], idx)
-                row["error"] = repr(exc)
+            attempts = []
+            max_attempts = max_generation_attempts_per_candidate if retry_on_invalid_code else 1
+            for attempt_index in range(1, max_attempts + 1):
+                raw_generated_text = ""
+                generated_code = ""
+                try:
+                    raw_generated_text = generate_one(
+                        model,
+                        tokenizer,
+                        prompt,
+                        max_new_tokens=max_new_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
+                    )
+                    generated_code = extract_code(raw_generated_text)
+                    static_validation = compute_static_validation(generated_code, problem_type=sample.get("problem_type"))
+                    accepted = _should_accept_generation(
+                        raw_generated_text,
+                        generated_code,
+                        static_validation,
+                        require_static_valid_code=require_static_valid_code,
+                    )
+                    attempts.append(
+                        _attempt_metadata(attempt_index, raw_generated_text, generated_code, static_validation, accepted)
+                    )
+                    row["raw_generated_text"] = raw_generated_text
+                    row["generated_text"] = generated_code
+                    row["generated_code"] = generated_code
+                    row["code_output_format_valid"] = code_output_format_valid(generated_code)
+                    row["static_validation"] = static_validation
+                    row.update(static_validation)
+                    if accepted:
+                        break
+                except Exception as exc:
+                    LOGGER.exception("Generation failed for %s candidate %d attempt %d", sample["id"], idx, attempt_index)
+                    static_validation = compute_static_validation(generated_code, problem_type=sample.get("problem_type"))
+                    attempts.append(
+                        _attempt_metadata(
+                            attempt_index,
+                            raw_generated_text,
+                            generated_code,
+                            static_validation,
+                            False,
+                            error=repr(exc),
+                        )
+                    )
+                    row["error"] = repr(exc)
+            row["attempts"] = attempts
+            row["attempt_count"] = len(attempts)
+            if "static_validation" not in row:
+                static_validation = compute_static_validation(row.get("generated_code", ""), problem_type=sample.get("problem_type"))
+                row["static_validation"] = static_validation
+                row.update(static_validation)
             rows.append(row)
 
     write_jsonl(out_path, rows)
@@ -204,6 +271,9 @@ def main():
     parser.add_argument("--no_chat_template", action="store_false", dest="use_chat_template")
     parser.add_argument("--prompt_type", choices=["hidden_verifier", "plain", "structured"], default="hidden_verifier")
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--max_generation_attempts_per_candidate", type=int, default=1)
+    parser.add_argument("--require_static_valid_code", action="store_true", default=False)
+    parser.add_argument("--retry_on_invalid_code", action="store_true", default=False)
     args = parser.parse_args()
 
     setup_logging()
@@ -220,6 +290,9 @@ def main():
         use_chat_template=args.use_chat_template,
         prompt_type=args.prompt_type,
         seed=args.seed,
+        max_generation_attempts_per_candidate=args.max_generation_attempts_per_candidate,
+        require_static_valid_code=args.require_static_valid_code,
+        retry_on_invalid_code=args.retry_on_invalid_code,
     )
 
 
