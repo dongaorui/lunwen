@@ -1,0 +1,5 @@
+{"problem_type": "fixed_order_cost_big_m", "difficulty": "hard", "n": 10, "avg_n_required_structures": 10.0, "inventory_balance": 10, "shortage": 0, "capacity": 0, "binary_big_m": 10}
+{"problem_type": "multi_item_capacity", "difficulty": "hard", "n": 10, "avg_n_required_structures": 8.0, "inventory_balance": 10, "shortage": 0, "capacity": 10, "binary_big_m": 0}
+{"problem_type": "single_item_multi_period", "difficulty": "medium", "n": 10, "avg_n_required_structures": 7.0, "inventory_balance": 10, "shortage": 0, "capacity": 0, "binary_big_m": 0}
+{"problem_type": "single_item_multi_period_shortage", "difficulty": "medium", "n": 10, "avg_n_required_structures": 9.0, "inventory_balance": 10, "shortage": 10, "capacity": 0, "binary_big_m": 0}
+{"problem_type": "single_period_newsvendor", "difficulty": "easy", "n": 10, "avg_n_required_structures": 9.0, "inventory_balance": 0, "shortage": 10, "capacity": 0, "binary_big_m": 0}
