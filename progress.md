@@ -238,3 +238,72 @@ The user asked to continue the pre-experiment code enhancement and documentation
 ### Notes
 
 No real LLM generation, large benchmark run, fake result number, or SFT/DPO/PRM/RL/LoRA/TGRPO training claim was added. The warning count is from existing PuLP deprecation warnings.
+
+## 2026-06-18 — Qwen3 thinking output cleanup hardening
+
+### User request
+
+The user reran small Qwen3-8B generation after the previous output-format fix and found that `data/candidates/qwen3_8b_k1_small_formatfix.jsonl` still stored Qwen3 `<think>...</think>` reasoning text in `generated_text` instead of pure Python code. The user asked to continue modifying code and tests only, without running a 50-instance generation.
+
+### Actions completed
+
+1. Re-investigated generation formatting paths:
+   - `replenishverifier/llm/run_generation.py`
+   - `replenishverifier/llm/run_repair_generation.py`
+   - `replenishverifier/llm/code_extractor.py`
+   - `replenishverifier/llm/prompt_builder.py`
+   - `replenishverifier/experiments/baselines.py`
+2. Confirmed the root causes:
+   - generation saved raw model output in `generated_text`, so downstream JSONL still exposed `<think>` even when `generated_code` was extracted;
+   - `extract_python_code()` returned the whole text when no code marker was found, allowing pure reasoning to be treated as code-like output;
+   - the prompt did not explicitly ban `<think>` or require the first line to be exactly `import pulp`;
+   - `run_repair_generation.py` used `apply_chat_template()` without best-effort `enable_thinking=False`.
+3. Added regression tests before implementation for:
+   - closed Qwen thinking tags before `import pulp`;
+   - unclosed Qwen thinking text before `import pulp`;
+   - pure reasoning without a code start returning an empty string;
+   - prompt contract banning `<think>` and requiring first line `import pulp`;
+   - `run_generation()` preserving `raw_generated_text` while saving cleaned code into `generated_text` and `generated_code`;
+   - repair prompt rendering disabling thinking when supported and falling back when unsupported.
+4. Implemented the fix:
+   - `extract_python_code()` now returns `""` when no code block or code-start marker is found;
+   - `PULP_INTERFACE_REQUIREMENTS` now explicitly forbids `<think>` / chain-of-thought and requires the first answer line to be exactly `import pulp`;
+   - `run_generation()` now stores raw model output in `raw_generated_text`, and stores extracted code in both `generated_text` and `generated_code` for downstream compatibility;
+   - `code_output_format_valid()` now requires all three surface markers: `import pulp`, `def build_model`, and `pulp.LpProblem`;
+   - `render_repair_prompt()` now tries `enable_thinking=False` and falls back for tokenizers that do not support it.
+
+### Verification
+
+- Focused tests after implementation:
+  - Command: `PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest tests/test_code_extractor.py tests/test_prompt_modes.py tests/test_run_generation_output_format.py tests/test_strong_baselines.py tests/test_repair_generation_dry_run.py -q`
+  - Result: `31 passed, 1 warning in 2.50s`
+- Full suite with the user's requested environment:
+  - Command: `source .venv/bin/activate && PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q`
+  - Result: `84 passed, 53 warnings in 1.79s`
+
+### Notes
+
+No 50-instance generation or other large experiment was run. The warning count includes existing PuLP deprecation warnings plus a Torch CUDA driver warning from the new lightweight monkeypatched generation test importing the generation module.
+
+## 2026-06-18 — LLM generation output format repair
+
+### User request
+
+The user asked to fix real LLM generation output formatting after a Qwen3-8B K=4 run produced mostly explanatory text instead of runner-compatible PuLP code.
+
+### Actions completed
+
+1. Strengthened generation prompts so candidates must be plain importable Python modules and must define `build_model()` returning a `pulp.LpProblem` or a global PuLP `model`.
+2. Added robust LLM output extraction for Python fences, generic fences, and explanatory prefixes before code markers such as `import pulp` and `def build_model`.
+3. Added generation-time `code_output_format_valid` metadata and strengthened the existing generic format check with Markdown-fence rejection and `ast.parse`.
+4. Added a best-effort `enable_thinking=False` chat-template call for tokenizers that support it, with fallback for tokenizers that do not.
+5. Added focused tests for extraction, prompt contract, chat-template fallback, and stricter format validation.
+
+### Verification
+
+- Full suite command: `source .venv/bin/activate && PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q`
+- Result: `78 passed, 52 warnings in 0.56s`
+
+### Notes
+
+No existing experiment results were deleted or modified. No benchmark generation logic, evaluation metric definitions, large dependencies, or real LLM experiment runs were introduced.

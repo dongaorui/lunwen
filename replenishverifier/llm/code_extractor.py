@@ -1,35 +1,58 @@
 import re
 
 
-def extract_code(text):
-    """Extract Python code from an LLM response.
+CODE_START_MARKERS = [
+    "import pulp",
+    "from pulp import",
+    "def build_model",
+    "model = pulp.LpProblem",
+    "model= pulp.LpProblem",
+]
 
-    Priority:
-    1. First fenced markdown python code block.
-    2. Any fenced code block.
-    3. Text region starting near `import pulp` or `pulp.LpProblem`.
-    4. Original text as a last resort.
-    """
+TRAILING_TEXT_MARKERS = [
+    "\n# Explanation",
+    "\nExplanation:",
+    "\nNotes:",
+    "\n```",
+]
+
+
+def _normalize_code(code):
+    cleaned = code.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:python|py)?\s*\n?", "", cleaned, flags=re.IGNORECASE).strip()
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].strip()
+    return cleaned + "\n" if cleaned else ""
+
+
+def _strip_trailing_explanation(code):
+    stop_positions = [code.find(marker) for marker in TRAILING_TEXT_MARKERS if code.find(marker) > 0]
+    if stop_positions:
+        return code[: min(stop_positions)]
+    return code
+
+
+def extract_python_code(text):
+    """Extract Python code from an LLM response without executing it."""
     if text is None:
         return ""
 
     python_blocks = re.findall(r"```(?:python|py)\s*\n(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
     if python_blocks:
-        return python_blocks[0].strip() + "\n"
+        return _normalize_code(python_blocks[0])
 
     any_blocks = re.findall(r"```\s*\n(.*?)```", text, flags=re.DOTALL)
     if any_blocks:
-        return any_blocks[0].strip() + "\n"
+        return _normalize_code(any_blocks[0])
 
-    markers = ["import pulp", "from pulp", "pulp.LpProblem"]
-    starts = [text.find(marker) for marker in markers if text.find(marker) >= 0]
+    starts = [text.find(marker) for marker in CODE_START_MARKERS if text.find(marker) >= 0]
     if starts:
-        start = min(starts)
-        candidate = text[start:]
-        stop_markers = ["\n# Explanation", "\nExplanation:", "\n```", "\nNotes:"]
-        stop_positions = [candidate.find(marker) for marker in stop_markers if candidate.find(marker) > 0]
-        if stop_positions:
-            candidate = candidate[: min(stop_positions)]
-        return candidate.strip() + "\n"
+        candidate = text[min(starts):]
+        return _normalize_code(_strip_trailing_explanation(candidate))
 
-    return text.strip() + "\n"
+    return ""
+
+
+def extract_code(text):
+    return extract_python_code(text)

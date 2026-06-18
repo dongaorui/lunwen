@@ -50,7 +50,17 @@ def render_repair_prompt(tokenizer, sample, repair_row, original_code="", use_ch
     messages = build_repair_chat_messages(sample, repair_row, original_code=original_code, repair_type=repair_type)
     if use_chat_template and tokenizer is not None and hasattr(tokenizer, "apply_chat_template"):
         try:
-            return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            return tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        except TypeError:
+            try:
+                return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            except Exception:
+                LOGGER.warning("Tokenizer chat template failed; falling back to plain repair prompt.")
         except Exception:
             LOGGER.warning("Tokenizer chat template failed; falling back to plain repair prompt.")
     if repair_type == "generic":

@@ -1,5 +1,5 @@
 from replenishverifier.llm.prompt_builder import build_prompt, build_repair_prompt
-from replenishverifier.llm.run_repair_generation import run_repair_generation
+from replenishverifier.llm.run_repair_generation import render_repair_prompt, run_repair_generation
 from replenishverifier.utils.io import write_jsonl, read_jsonl
 
 
@@ -13,6 +13,43 @@ def test_prompt_builder_requires_explicit_constraint_names():
     assert "MUST explicitly provide string names for ALL constraints" in structured
     repair = build_repair_prompt(sample, {"feedback": "fix"})
     assert "Do NOT write anonymous constraints" in repair
+
+
+class RepairThinkingAwareTokenizer:
+    def __init__(self):
+        self.enable_thinking_seen = None
+
+    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True, enable_thinking=True):
+        self.enable_thinking_seen = enable_thinking
+        assert tokenize is False
+        assert add_generation_prompt is True
+        return "repair-prompt"
+
+
+class RepairThinkingUnsupportedTokenizer:
+    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
+        assert tokenize is False
+        assert add_generation_prompt is True
+        return "repair-fallback-ok"
+
+
+def test_render_repair_prompt_disables_thinking_when_supported():
+    tokenizer = RepairThinkingAwareTokenizer()
+
+    rendered = render_repair_prompt(tokenizer, {"id": "p0", "parameters": {}, "natural_language": "test"}, {"feedback": "fix"})
+
+    assert rendered == "repair-prompt"
+    assert tokenizer.enable_thinking_seen is False
+
+
+def test_render_repair_prompt_falls_back_when_enable_thinking_is_unsupported():
+    rendered = render_repair_prompt(
+        RepairThinkingUnsupportedTokenizer(),
+        {"id": "p0", "parameters": {}, "natural_language": "test"},
+        {"feedback": "fix"},
+    )
+
+    assert rendered == "repair-fallback-ok"
 
 
 def test_repair_generation_dry_run_outputs_uniform_placeholder(tmp_path):

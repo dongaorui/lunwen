@@ -34,19 +34,34 @@ GENERIC_REPAIR_NAMING_GUIDANCE = """Generic modeling clarity guidance:
 """
 
 
-PULP_INTERFACE_REQUIREMENTS = """Hard requirements:
-1. Use PuLP for modeling and solving.
-2. The code must contain:
-   - import pulp
-   - import os
-   - prob = pulp.LpProblem(...)
-   - prob.solve(pulp.PULP_CBC_CMD(msg=False))
-   - print("STATUS:", pulp.LpStatus[prob.status])
-   - print("OBJECTIVE:", pulp.value(prob.objective))
-   - if environment variable OUTPUT_LP_PATH exists, run prob.writeLP(os.environ["OUTPUT_LP_PATH"])
-3. Define a function build_model() that returns the PuLP LpProblem object named prob.
-4. In the main block, call build_model(), optionally write the LP using OUTPUT_LP_PATH, solve, and print STATUS and OBJECTIVE.
-5. Only output one complete Python code block. Do not output explanations or multiple code blocks.
+PULP_INTERFACE_REQUIREMENTS = """Hard output and runner-interface requirements:
+1. Output only plain Python source code. Do not output Markdown fences, explanations, natural-language reasoning, or multiple alternatives.
+2. Do not output <think>, </think>, chain-of-thought, analysis, or any hidden reasoning text.
+3. The first line of your answer must be exactly: import pulp
+4. The generated file must be importable as a Python module.
+5. Define build_model() with no arguments. build_model() must return a pulp.LpProblem object.
+6. A global model = pulp.LpProblem(...) object is acceptable only as a secondary runner-compatible interface; build_model() is preferred.
+7. Use PuLP for modeling and include import pulp.
+8. Build a complete objective and all required constraints inside build_model().
+9. If you include a main block, it may call build_model(), write OUTPUT_LP_PATH when present, solve with pulp.PULP_CBC_CMD(msg=False), and print STATUS and OBJECTIVE.
+10. Do not output Markdown. Do not wrap the answer in ```python or ``` fences.
+
+Required format template:
+import pulp
+
+def build_model():
+    prob = pulp.LpProblem("replenishment_model", pulp.LpMinimize)
+
+    # Define decision variables here
+
+    # Define objective here
+    prob += ...
+
+    # Define constraints here
+
+    return prob
+
+Replace the template placeholders with complete executable PuLP code for the given problem.
 """
 
 

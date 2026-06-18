@@ -4,6 +4,8 @@ These baselines intentionally avoid replenishment semantics and expected_structu
 They use only candidate-observable execution signals and generic LP artifacts.
 """
 
+import ast
+
 
 def code_output_format_valid(generated_code):
     """Generic code-format validity signal used by OR-R1-like voting.
@@ -14,9 +16,20 @@ def code_output_format_valid(generated_code):
     code = generated_code or ""
     if not code.strip():
         return False
-    has_pulp = "import pulp" in code or "from pulp" in code or "pulp." in code
-    has_model = "LpProblem" in code or "build_model" in code
-    return bool(has_pulp and has_model)
+    if "```" in code:
+        return False
+
+    has_build_model = "def build_model" in code
+    has_pulp_import = "import pulp" in code
+    has_lp_problem = "pulp.LpProblem" in code
+    if not (has_build_model and has_pulp_import and has_lp_problem):
+        return False
+
+    try:
+        ast.parse(code)
+    except SyntaxError:
+        return False
+    return True
 
 
 def compute_objective_consensus_scores(rows, rel_tol=1e-4, abs_tol=1e-4):

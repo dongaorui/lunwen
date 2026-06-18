@@ -57,8 +57,45 @@ def test_or_r1_like_voting_uses_candidate_consensus_without_reference_objective(
     assert consensus[1] > consensus[2]
     assert consensus[2] > 0.0
     assert consensus[3] == 0.0
-    assert code_output_format_valid("import pulp\nmodel = pulp.LpProblem('x')\n") is True
+    assert code_output_format_valid("import pulp\nmodel = pulp.LpProblem('x', pulp.LpMinimize)\n") is False
     assert or_r1_like_voting_score(rows[0]["execution"], consensus[0], code_format_valid=True) > 0.8
+
+
+def test_code_output_format_rejects_markdown_fences():
+    fence = chr(96) * 3
+    code = f'''{fence}python
+import pulp
+
+def build_model():
+    prob = pulp.LpProblem("x", pulp.LpMinimize)
+    return prob
+{fence}'''
+
+    assert code_output_format_valid(code) is False
+
+
+def test_code_output_format_rejects_syntax_errors():
+    code = '''import pulp
+
+def build_model(:
+    prob = pulp.LpProblem("x", pulp.LpMinimize)
+    return prob
+'''
+
+    assert code_output_format_valid(code) is False
+
+
+def test_code_output_format_accepts_runner_compatible_build_model():
+    code = '''import pulp
+
+def build_model():
+    prob = pulp.LpProblem("x", pulp.LpMinimize)
+    x = pulp.LpVariable("x", lowBound=0)
+    prob += x
+    return prob
+'''
+
+    assert code_output_format_valid(code) is True
 
 
 def _row(candidate_id, objective, structure_score=0.0, executable=True, status="Optimal", reference_objective=999.0):

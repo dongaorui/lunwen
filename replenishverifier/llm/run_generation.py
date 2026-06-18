@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from replenishverifier.experiments.baselines import code_output_format_valid
 from replenishverifier.llm.code_extractor import extract_code
 from replenishverifier.llm.prompt_builder import build_chat_messages, build_prompt
 from replenishverifier.utils.io import read_jsonl, write_jsonl
@@ -75,7 +76,17 @@ def render_prompt(tokenizer, sample, use_chat_template=True, prompt_type="hidden
     messages = build_chat_messages(sample, prompt_type=prompt_type)
     if use_chat_template and hasattr(tokenizer, "apply_chat_template"):
         try:
-            return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            return tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        except TypeError:
+            try:
+                return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            except Exception:
+                LOGGER.warning("Tokenizer chat template failed; falling back to plain prompt.")
         except Exception:
             LOGGER.warning("Tokenizer chat template failed; falling back to plain prompt.")
     return build_prompt(sample, prompt_type=prompt_type)
@@ -148,12 +159,14 @@ def run_generation(
                 "seed": seed,
                 "generation_config": dict(generation_config),
                 "reproducibility_note": REPRODUCIBILITY_NOTE,
+                "raw_generated_text": "",
                 "generated_text": "",
                 "generated_code": "",
+                "code_output_format_valid": False,
                 "error": None,
             }
             try:
-                generated_text = generate_one(
+                raw_generated_text = generate_one(
                     model,
                     tokenizer,
                     prompt,
@@ -161,8 +174,11 @@ def run_generation(
                     temperature=temperature,
                     top_p=top_p,
                 )
-                row["generated_text"] = generated_text
-                row["generated_code"] = extract_code(generated_text)
+                generated_code = extract_code(raw_generated_text)
+                row["raw_generated_text"] = raw_generated_text
+                row["generated_text"] = generated_code
+                row["generated_code"] = generated_code
+                row["code_output_format_valid"] = code_output_format_valid(generated_code)
             except Exception as exc:
                 LOGGER.exception("Generation failed for %s candidate %d", sample["id"], idx)
                 row["error"] = repr(exc)
