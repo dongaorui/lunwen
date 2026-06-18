@@ -1,6 +1,7 @@
 ﻿import argparse
 import logging
 import random
+import time
 from pathlib import Path
 
 from tqdm import tqdm
@@ -153,6 +154,7 @@ def run_generation(
     max_generation_attempts_per_candidate=1,
     require_static_valid_code=False,
     retry_on_invalid_code=False,
+    model_label=None,
 ):
     max_generation_attempts_per_candidate = max(1, int(max_generation_attempts_per_candidate or 1))
     benchmark = read_jsonl(benchmark_path)
@@ -175,15 +177,20 @@ def run_generation(
         "max_generation_attempts_per_candidate": max_generation_attempts_per_candidate,
         "require_static_valid_code": require_static_valid_code,
         "retry_on_invalid_code": retry_on_invalid_code,
+        "model": str(model_name_or_path),
+        "model_label": model_label,
     }
     for sample in tqdm(benchmark, desc="generate candidates"):
         prompt = render_prompt(tokenizer, sample, use_chat_template=use_chat_template, prompt_type=prompt_type)
         for idx in range(k):
-            candidate_id = f"{Path(str(model_name_or_path)).name}_k{idx}"
+            candidate_prefix = str(model_label) if model_label else Path(str(model_name_or_path)).name
+            candidate_id = f"{candidate_prefix}_k{idx}"
             row = {
                 "problem_id": sample["id"],
                 "candidate_id": candidate_id,
                 "method": "llm_generation",
+                "model": str(model_name_or_path),
+                "model_label": model_label,
                 "model_name_or_path": str(model_name_or_path),
                 "prompt_type": prompt_type,
                 "prompt": prompt,
@@ -194,6 +201,7 @@ def run_generation(
                 "generated_text": "",
                 "generated_code": "",
                 "code_output_format_valid": False,
+                "generation_time_sec": 0.0,
                 "error": None,
             }
             attempts = []
@@ -202,6 +210,7 @@ def run_generation(
                 raw_generated_text = ""
                 generated_code = ""
                 try:
+                    attempt_start = time.perf_counter()
                     raw_generated_text = generate_one(
                         model,
                         tokenizer,
@@ -210,6 +219,7 @@ def run_generation(
                         temperature=temperature,
                         top_p=top_p,
                     )
+                    generation_time_sec = time.perf_counter() - attempt_start
                     generated_code = extract_code(raw_generated_text)
                     static_validation = compute_static_validation(generated_code, problem_type=sample.get("problem_type"))
                     accepted = _should_accept_generation(
@@ -224,6 +234,7 @@ def run_generation(
                     row["raw_generated_text"] = raw_generated_text
                     row["generated_text"] = generated_code
                     row["generated_code"] = generated_code
+                    row["generation_time_sec"] = float(generation_time_sec)
                     row["code_output_format_valid"] = code_output_format_valid(generated_code)
                     row["static_validation"] = static_validation
                     row.update(static_validation)
@@ -261,6 +272,7 @@ def main():
     parser.add_argument("--benchmark", required=True, help="Benchmark JSONL path.")
     parser.add_argument("--out", required=True, help="Output candidate JSONL path.")
     parser.add_argument("--model", required=True, help="Local path or Hugging Face model name.")
+    parser.add_argument("--model_label", default=None, help="Optional stable label used in candidate_id and candidate metadata.")
     parser.add_argument("--k", type=int, default=4, help="Candidates per problem.")
     parser.add_argument("--max_samples", type=int, default=None, help="Optional sample cap.")
     parser.add_argument("--max_new_tokens", type=int, default=2048)
@@ -293,6 +305,7 @@ def main():
         max_generation_attempts_per_candidate=args.max_generation_attempts_per_candidate,
         require_static_valid_code=args.require_static_valid_code,
         retry_on_invalid_code=args.retry_on_invalid_code,
+        model_label=args.model_label,
     )
 
 

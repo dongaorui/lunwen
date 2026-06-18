@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from replenishverifier.data.structure_schema import STRUCTURE_KEYS
+from replenishverifier.experiments.paper_metrics import constraint_coverage as row_constraint_coverage
 from replenishverifier.utils.io import write_jsonl
 
 
@@ -153,9 +154,9 @@ def summarize_rows(rows, method=None, group_name=None):
         if expected.get("inventory_balance"):
             inventory_balance_hits.append(1.0 if detected.get("inventory_balance") else 0.0)
 
-        for key, needed in expected.items():
-            if needed:
-                coverage_values.append(1.0 if detected.get(key) else 0.0)
+        coverage = row_constraint_coverage(row)
+        if coverage is not None:
+            coverage_values.append(coverage)
 
     out = {
         "method": method or "all",

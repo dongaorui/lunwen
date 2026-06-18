@@ -12,6 +12,7 @@ from replenishverifier.experiments.baselines import (
     or_r1_like_voting_score,
     sirl_like_lp_stats_score,
 )
+from replenishverifier.experiments.objective_terms import evaluate_objective_terms
 from replenishverifier.pipeline.quality_signals import compute_static_validation
 from replenishverifier.pipeline.scoring import compute_score, hard_selection_gate
 from replenishverifier.solver.code_executor import execute_generated_code
@@ -109,6 +110,11 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
     generic_feedback = generic_repair_feedback(execution, optargus_audit)
 
     total_runtime = time.perf_counter() - start
+    objective_term_result = evaluate_objective_terms(
+        {"problem_type": reference.get("problem_type"), "generated_code": generated_code},
+        parsed=parsed,
+        generated_code=generated_code,
+    )
     runtime_fields = {
         "code_execution_time": execution.get("code_execution_time"),
         "solver_lp_export_time": execution.get("solver_lp_export_time"),
@@ -145,6 +151,11 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
         "difficulty": reference.get("difficulty"),
         "reference_objective": reference.get("reference_objective"),
         "reference_status": reference.get("reference_status"),
+        "objective_term_verification": objective_term_result,
+        "objective_term_coverage": objective_term_result.get("objective_term_coverage"),
+        "expected_objective_terms": objective_term_result.get("expected_objective_terms", []),
+        "detected_objective_terms": objective_term_result.get("detected_objective_terms", []),
+        "missing_objective_terms": objective_term_result.get("missing_objective_terms", []),
         "code_output_format_valid": code_output_format_valid(generated_code),
         "static_validation": static_validation,
         **static_validation,

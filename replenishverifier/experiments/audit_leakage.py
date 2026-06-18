@@ -7,6 +7,8 @@ from replenishverifier.utils.io import read_jsonl
 
 
 FORMAL_METHODS = {
+    "Direct",
+    "Best-of-K",
     "Solver-Filter",
     "Solver only",
     "Structure only",
@@ -28,11 +30,18 @@ FORMAL_METHODS = {
 
 FORBIDDEN_POLICY_PHRASES = [
     "closest to reference",
+    "reference_objective",
     "reference objective distance",
     "objective closeness to reference",
+    "objective_correct",
     "minimize relative error",
     "ground truth objective",
+    "oracle",
 ]
+
+
+def is_posthoc_metric_row(row):
+    return row.get("formal_selection_metric") is False or row.get("uses_reference_for_oracle_metrics") is True
 
 
 def _audit_rows(rows, source_name, require_selected=False):
@@ -40,18 +49,25 @@ def _audit_rows(rows, source_name, require_selected=False):
     for idx, row in enumerate(rows):
         if require_selected and not row.get("selected"):
             continue
+        if not require_selected and is_posthoc_metric_row(row):
+            continue
         method = row.get("method_name") or row.get("method")
         policy = str(row.get("selection_policy", "")).lower()
         if method in FORMAL_METHODS:
             if row.get("uses_reference_objective_for_selection") is not False:
-                issues.append(f"{source_name} row {idx} method={method} does not explicitly mark no reference-objective selection.")
+                issues.append(
+                    f"{source_name} row {idx} method={method} uses_reference_objective_for_selection "
+                    "must be explicitly False."
+                )
             if "reference objective" not in policy or "no reference" not in policy:
                 issues.append(f"{source_name} row {idx} method={method} selection_policy is missing no-reference statement: {row.get('selection_policy')}")
             if row.get("selection_score") != row.get("score"):
                 issues.append(f"{source_name} row {idx} method={method} score and selection_score differ unexpectedly.")
+            if row.get("uses_reference_for_oracle_metrics") is True and row.get("formal_selection_metric") is not False:
+                issues.append(f"{source_name} row {idx} method={method} mixes oracle reference metrics into a formal selection row.")
             for phrase in FORBIDDEN_POLICY_PHRASES:
-                if phrase in policy:
-                    issues.append(f"{source_name} row {idx} method={method} policy contains forbidden phrase: {phrase}")
+                if phrase in policy and "no reference objective" not in policy:
+                    issues.append(f"{source_name} row {idx} method={method} policy contains forbidden reference signal: {phrase}")
 
         if "objective_accuracy" in row or "objective_correct" in row or "objective_score" in row:
             if method in FORMAL_METHODS and "no reference" not in policy:
