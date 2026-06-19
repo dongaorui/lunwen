@@ -1,3 +1,4 @@
+import re
 import time
 from pathlib import Path
 
@@ -286,7 +287,6 @@ STRUCTURE_AWARE_METHODS = {
     "Solver + Structure + Consensus",
     "Structure-Grounded Consistency",
     "ReplenishVerifier-TypeAware",
-    "ReplenishVerifier-TypeAware-Consensus",
     "ReplenishVerifier-Full",
     "ReplenishVerifier-Repair",
     "ReplenishVerifier full",
@@ -383,6 +383,11 @@ def _objective_term_coverage(row):
     return float(value or 0.0)
 
 
+def _type_aware_validation_score(row):
+    validation = _type_aware_validation(row)
+    return float(validation.get("score", 1.0) if validation else 1.0)
+
+
 def _type_aware_hard_gate_score(row):
     validation = _type_aware_validation(row)
     return float(validation.get("hard_gate_score", 1.0) if validation else 1.0)
@@ -407,6 +412,7 @@ def type_aware_selection_components(row):
     structure_completeness = float(row.get("structure_score", ((row.get("structure_verification") or {}).get("structure_score", 0.0))) or 0.0)
     constraint_coverage = _constraint_coverage(row)
     objective_term_coverage = _objective_term_coverage(row)
+    type_aware_score = _type_aware_validation_score(row)
     hard_gate_score = _type_aware_hard_gate_score(row)
     consensus_score = float(row.get("objective_consensus_score", 0.0) or 0.0)
     repair_feedback_count = float(_type_aware_repair_feedback_count(row))
@@ -417,6 +423,7 @@ def type_aware_selection_components(row):
         "structure_completeness": structure_completeness,
         "constraint_coverage": constraint_coverage,
         "objective_term_coverage": objective_term_coverage,
+        "type_aware_score": type_aware_score,
         "hard_gate_score": hard_gate_score,
         "consensus_score": consensus_score,
         "repair_feedback_count": repair_feedback_count,
@@ -433,6 +440,7 @@ def type_aware_selection_score(row):
         + 80.0 * c["constraint_coverage"]
         + 80.0 * c["objective_term_coverage"]
         + 50.0 * c["hard_gate_score"]
+        + 20.0 * c["type_aware_score"]
         + 30.0 * c["consensus_score"]
         - 5.0 * c["repair_feedback_count"]
         - 0.1 * c["runtime_sec"]
@@ -459,6 +467,7 @@ def type_aware_consensus_selection_score(row):
         + 90.0 * c["constraint_coverage"]
         + 80.0 * c["objective_term_coverage"]
         + 40.0 * c["hard_gate_score"]
+        + 20.0 * c["type_aware_score"]
         - 25.0 * c["critical_missing_count"]
         - 2.0 * c["repair_feedback_count"]
         - 0.1 * c["runtime_sec"]
@@ -469,6 +478,9 @@ def _candidate_index(row):
     if row.get("candidate_index") is not None:
         return int(row.get("candidate_index") or 0)
     cid = str(row.get("candidate_id", ""))
+    match = re.search(r"(?:^|[_-])k(\d+)(?:\D|$)", cid, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
     digits = "".join(ch for ch in cid if ch.isdigit())
     return int(digits) if digits else 0
 

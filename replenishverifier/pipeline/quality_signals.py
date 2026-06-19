@@ -122,7 +122,7 @@ def _type_aware_checks(problem_type, code, result):
     missing = [f"missing_{item['id']}" for item in checks if not item["passed"]]
     passed = [item["id"] for item in checks if item["passed"]]
     feedback = [item["feedback"] for item in checks if not item["passed"]]
-    score = float(len(passed) / max(len(checks), 1))
+    score = float(len(passed) / len(checks)) if checks else 1.0
     hard_gate_failures = [item for item in missing if item in {
         "missing_inventory_balance",
         "missing_capacity_constraint",

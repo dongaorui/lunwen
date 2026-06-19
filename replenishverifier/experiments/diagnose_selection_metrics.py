@@ -1,4 +1,5 @@
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -285,6 +286,17 @@ def compute_avoidable_error_summary(main_rows, candidate_rows, methods=None):
     return result
 
 
+def _write_join_unmatched_csv(path, rows):
+    fields = ["method", "problem_id", "candidate_id", "parsed_candidate_rank", "reason"]
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field) for field in fields})
+
+
 def _write_avoidable_error_markdown(path, rows):
     header = "This is post-hoc diagnostics only and must not be used for formal selection."
     if not rows:
@@ -315,6 +327,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     error_comparison = _compare_error_types(recomputed_errors, reported_errors)
 
     diagnostics = compute_selection_diagnostics(main_rows, candidate_rows)
+    diagnostic_join_unmatched = diagnostics.get("diagnostic_join_unmatched", [])
     missed_oracle_summary = compute_missed_oracle_summary(main_rows, candidate_rows) if candidate_rows else []
     paired_method_comparison = compute_paired_method_comparison(main_rows)
     avoidable_error_summary = compute_avoidable_error_summary(main_rows, candidate_rows) if candidate_rows else []
@@ -330,6 +343,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     write_csv(out_dir / "selection_score_debug.csv", diagnostics["selection_score_debug"])
     write_csv(out_dir / "same_selection_rate.csv", diagnostics["same_selection_rate"])
     write_csv(out_dir / "candidate_rank_distribution.csv", diagnostics["candidate_rank_distribution"])
+    _write_join_unmatched_csv(out_dir / "diagnostic_join_unmatched.csv", diagnostic_join_unmatched)
     write_csv(out_dir / "missed_oracle_summary.csv", missed_oracle_summary)
     write_markdown(out_dir / "missed_oracle_summary.md", missed_oracle_summary, "Missed Oracle Summary")
     write_csv(out_dir / "paired_method_comparison.csv", paired_method_comparison)
@@ -347,6 +361,16 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "candidates_path": str(candidates_path) if candidates_path else None,
         "benchmark_path": str(benchmark_path) if benchmark_path else None,
         "status_counts": status_counts,
+        "unmatched_selected_rows": len(diagnostic_join_unmatched),
+        "unmatched_reason_counts": {
+            reason: len([row for row in diagnostic_join_unmatched if row.get("reason") == reason])
+            for reason in sorted({row.get("reason") for row in diagnostic_join_unmatched})
+        },
+        "join_note": (
+            "All selected rows matched candidate evaluations by problem_id + candidate_id/rank."
+            if not diagnostic_join_unmatched
+            else "See diagnostic_join_unmatched.csv for selected rows that could not be matched."
+        ),
         "note": "objective_correct_posthoc appears only in diagnostics and is not a formal selection signal.",
     }
     (out_dir / "diagnostic_summary.md").write_text(
@@ -359,6 +383,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "metric_comparison": metric_comparison,
         "error_type_comparison": error_comparison,
         "selection_diagnostics": diagnostics,
+        "diagnostic_join_unmatched": diagnostic_join_unmatched,
         "missed_oracle_summary": missed_oracle_summary,
         "paired_method_comparison": paired_method_comparison,
         "avoidable_error_summary": avoidable_error_summary,

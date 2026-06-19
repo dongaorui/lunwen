@@ -217,6 +217,78 @@ def test_diagnose_selection_metrics_writes_new_diagnostic_reports(tmp_path):
     assert "post-hoc diagnostics only" in (exp_dir / "diag" / "avoidable_error_summary.md").read_text(encoding="utf-8")
 
 
+def test_diagnostics_join_matches_k4_to_k7_candidate_ids(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    candidate_rows = []
+    main_rows = []
+    selected_ranks = {
+        "Direct": 4,
+        "Best-of-K": 5,
+        "ReplenishVerifier-TypeAware": 6,
+        "ReplenishVerifier-TypeAware-Consensus": 7,
+    }
+    for k in range(8):
+        candidate_rows.append(_selected("candidate", "p0", f"Qwen3-8B_k{k}"))
+    for method, k in selected_ranks.items():
+        main_rows.append(_selected(method, "p0", f"Qwen3-8B_k{k}"))
+    write_jsonl(exp_dir / "main_results.jsonl", main_rows)
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", candidate_rows)
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diagnostics")
+
+    assert result["diagnostic_join_unmatched"] == []
+    unmatched_path = exp_dir / "diagnostics" / "diagnostic_join_unmatched.csv"
+    assert unmatched_path.exists()
+    distribution = {row["method"]: row for row in result["selection_diagnostics"]["candidate_rank_distribution"]}
+    assert distribution["Direct"]["k4"] == 1
+    assert distribution["Best-of-K"]["k5"] == 1
+    assert distribution["ReplenishVerifier-TypeAware"]["k6"] == 1
+    assert distribution["ReplenishVerifier-TypeAware-Consensus"]["k7"] == 1
+    debug_text = (exp_dir / "diagnostics" / "selection_score_debug.csv").read_text(encoding="utf-8")
+    assert "Qwen3-8B_k7" in debug_text
+    summary_text = (exp_dir / "diagnostics" / "diagnostic_summary.md").read_text(encoding="utf-8")
+    assert '"unmatched_selected_rows": 0' in summary_text
+
+
+def test_diagnostics_join_can_match_by_unique_parsed_candidate_rank(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    candidate_rows = [_selected("candidate", "p0", f"Qwen3-8B_k{k}") for k in range(8)]
+    main_rows = [_selected("Direct", "p0", "alternate_model_k7")]
+    write_jsonl(exp_dir / "main_results.jsonl", main_rows)
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", candidate_rows)
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diagnostics")
+
+    assert result["diagnostic_join_unmatched"] == []
+    debug_rows = result["selection_diagnostics"]["selection_score_debug"]
+    selected_debug = [row for row in debug_rows if row["selected"]]
+    assert selected_debug[0]["candidate_id"] == "Qwen3-8B_k7"
+    assert selected_debug[0]["parsed_candidate_rank"] == 7
+
+
+def test_diagnostics_join_reports_unmatched_selected_rows(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    write_jsonl(exp_dir / "main_results.jsonl", [_selected("Direct", "p0", "Qwen3-8B_k7")])
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", [_selected("candidate", "p0", "Qwen3-8B_k0")])
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diagnostics")
+
+    unmatched = result["diagnostic_join_unmatched"]
+    assert unmatched == [{
+        "method": "Direct",
+        "problem_id": "p0",
+        "candidate_id": "Qwen3-8B_k7",
+        "parsed_candidate_rank": 7,
+        "reason": "candidate_id_not_found_for_problem",
+    }]
+    csv_text = (exp_dir / "diagnostics" / "diagnostic_join_unmatched.csv").read_text(encoding="utf-8")
+    assert "parsed_candidate_rank" in csv_text
+    assert "candidate_id_not_found_for_problem" in csv_text
+
+
 def test_diagnose_parses_reported_markdown_tables(tmp_path):
     exp_dir = tmp_path / "exp"
     exp_dir.mkdir()

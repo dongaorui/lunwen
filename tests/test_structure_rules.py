@@ -259,7 +259,7 @@ End
     assert "[capacity_constraint]" not in feedback
 
 
-def test_explicit_expected_structures_take_precedence_in_check_structures():
+def test_explicit_expected_structures_merge_with_schema_in_check_structures():
     text = """
 Minimize
 OBJ: Q_0
@@ -270,9 +270,12 @@ End
     parsed = parse_lp_text(text)
     result = check_structures(parsed, {"big_m_constraint": True}, problem_type="single_period_newsvendor")
 
-    assert result.required_structures == ["big_m_constraint"]
+    assert "big_m_constraint" in result.required_structures
+    assert "order_variable" in result.required_structures
+    assert "shortage_variable" in result.required_structures
     assert "big_m_constraint" in result.missing
     assert "order_variable" not in result.missing
+    assert "shortage_variable" in result.missing
 
 
 def test_new_structure_detectors_on_single_period_newsvendor():

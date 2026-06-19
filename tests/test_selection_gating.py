@@ -246,6 +246,49 @@ def test_type_aware_consensus_does_not_let_non_executable_consensus_win():
     assert selected[0]["execution"]["executable"] is True
 
 
+def test_type_aware_consensus_does_not_use_type_aware_pool_filter_alias():
+    rows = [
+        _row("c0", structure_score=1.0, missing=[], consensus=0.10),
+        _row("c1", structure_score=0.95, missing=["capacity_constraint"], consensus=0.99),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    type_aware = select_for_method("ReplenishVerifier-TypeAware", {"p0": rows}, _benchmark())
+    consensus = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
+
+    assert type_aware[0]["candidate_id"] == "c0"
+    assert consensus[0]["candidate_id"] == "c1"
+    assert "type_aware_pool_filter_applied" not in consensus[0]
+    assert consensus[0]["selection_components"]["consensus_score"] == 0.99
+
+
+def test_selection_treats_empty_type_aware_checklist_as_neutral():
+    rows = [
+        _row("c0", problem_type="single_period_newsvendor", structure_score=1.0, missing=[], consensus=0.2),
+        _row("c1", problem_type="single_period_newsvendor", structure_score=1.0, missing=[], consensus=0.8),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {
+            "checklist": [],
+            "score": 1.0,
+            "hard_gate_score": 1.0,
+            "hard_gate_failures": [],
+            "missing_items": [],
+        }
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark("single_period_newsvendor"))
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["selection_components"]["hard_gate_score"] == 1.0
+    assert selected[0]["selection_components"]["type_aware_score"] == 1.0
+    assert selected[0]["repair_feedback_count"] == 0.0
+
+
 def test_type_aware_selection_components_do_not_include_reference_or_oracle_fields():
     rows = [_row("c0", structure_score=1.0, missing=[])]
     rows[0]["objective_term_coverage"] = 1.0

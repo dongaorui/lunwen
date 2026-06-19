@@ -1,5 +1,6 @@
 import csv
 import random
+import re
 import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -236,7 +237,11 @@ def compute_selection_collapse_summary(main_rows, candidate_rows=None, threshold
             "n_common": row.get("n"),
             "same_selection_rate": "",
             "count": row.get("n"),
-            "detail": f"k0={row.get('k0')}, k1={row.get('k1')}, k2={row.get('k2')}, k3={row.get('k3')}, k_ge_4={row.get('k_ge_4')}",
+            "detail": ", ".join(
+                f"{key}={row.get(key)}"
+                for key in sorted(row)
+                if key.startswith("k") and row.get(key) not in {None, 0}
+            ),
         })
     if not rows:
         rows.append({
@@ -252,11 +257,24 @@ def compute_selection_collapse_summary(main_rows, candidate_rows=None, threshold
     return rows
 
 
+def parse_candidate_rank(candidate_id):
+    text = str(candidate_id or "").strip()
+    match = re.search(r"(?:^|[_-])k(\d+)(?:\D|$)", text, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def normalize_candidate_id(candidate_id):
+    text = str(candidate_id or "").strip()
+    return {"candidate_id": text, "parsed_candidate_rank": parse_candidate_rank(text)}
+
+
 def candidate_index(candidate_id):
+    rank = parse_candidate_rank(candidate_id)
+    if rank is not None:
+        return rank
     text = str(candidate_id or "")
-    marker = text.rsplit("_k", 1)
-    if len(marker) == 2 and marker[1].isdigit():
-        return int(marker[1])
     digits = "".join(ch for ch in text if ch.isdigit())
     return int(digits) if digits else 0
 
@@ -412,10 +430,43 @@ def compute_pass_at_k(candidate_rows, k_values):
     return result
 
 
+def _candidate_lookup(candidate_rows):
+    by_problem_exact = defaultdict(set)
+    by_problem_rank = defaultdict(lambda: defaultdict(list))
+    for row in candidate_rows:
+        pid = row.get("problem_id")
+        cid = normalize_candidate_id(row.get("candidate_id"))["candidate_id"]
+        rank = parse_candidate_rank(cid)
+        by_problem_exact[pid].add(cid)
+        if rank is not None:
+            by_problem_rank[pid][rank].append(cid)
+    return by_problem_exact, by_problem_rank
+
+
+def _selected_candidate_match(row, by_problem_exact, by_problem_rank):
+    pid = row.get("problem_id")
+    norm = normalize_candidate_id(row.get("candidate_id"))
+    cid = norm["candidate_id"]
+    rank = norm["parsed_candidate_rank"]
+    if pid not in by_problem_exact:
+        return False, "problem_id_not_found", None
+    if cid in by_problem_exact[pid]:
+        return True, "exact_candidate_id_match", cid
+    if rank is not None:
+        rank_matches = by_problem_rank[pid].get(rank, [])
+        if len(rank_matches) == 1:
+            return True, "candidate_rank_unique_match", rank_matches[0]
+        if len(rank_matches) > 1:
+            return False, "candidate_rank_ambiguous", None
+    return False, "candidate_id_not_found_for_problem", None
+
+
 def compute_selection_diagnostics(main_rows, candidate_rows):
     selected_by_method = defaultdict(dict)
     for row in selected_rows(main_rows):
-        selected_by_method[row.get("method_name")][row.get("problem_id")] = row.get("candidate_id")
+        method = row.get("method_name") or row.get("method") or "unknown"
+        norm = normalize_candidate_id(row.get("candidate_id"))
+        selected_by_method[method][row.get("problem_id")] = norm["candidate_id"]
     methods = sorted(selected_by_method)
     same_rows = []
     for i, method_a in enumerate(methods):
@@ -430,14 +481,41 @@ def compute_selection_diagnostics(main_rows, candidate_rows):
                 "same_selection_rate": float(same / len(common)) if common else None,
             })
     distribution = []
+    max_rank = 0
+    rank_counts_by_method = {}
     for method in methods:
         counts = Counter(candidate_index(cid) for cid in selected_by_method[method].values())
+        rank_counts_by_method[method] = counts
+        if counts:
+            max_rank = max(max_rank, max(counts))
+    for method in methods:
+        counts = rank_counts_by_method[method]
         row = {"method": method, "n": sum(counts.values())}
-        for idx in range(4):
+        for idx in range(max_rank + 1):
             row[f"k{idx}"] = counts.get(idx, 0)
-        row["k_ge_4"] = sum(count for idx, count in counts.items() if idx >= 4)
         distribution.append(row)
-    selected_keys = {(row.get("method_name"), row.get("problem_id"), row.get("candidate_id")) for row in selected_rows(main_rows)}
+
+    by_problem_exact, by_problem_rank = _candidate_lookup(candidate_rows)
+    selected_key_status = {}
+    unmatched = []
+    for row in selected_rows(main_rows):
+        method = row.get("method_name") or row.get("method") or "unknown"
+        pid = row.get("problem_id")
+        norm = normalize_candidate_id(row.get("candidate_id"))
+        matched, reason, matched_candidate_id = _selected_candidate_match(row, by_problem_exact, by_problem_rank)
+        if matched_candidate_id is not None:
+            selected_key_status[(method, pid, matched_candidate_id)] = matched
+        else:
+            selected_key_status[(method, pid, norm["candidate_id"])] = matched
+        if not matched:
+            unmatched.append({
+                "method": method,
+                "problem_id": pid,
+                "candidate_id": norm["candidate_id"],
+                "parsed_candidate_rank": norm["parsed_candidate_rank"],
+                "reason": reason,
+            })
+
     debug = []
     by_problem = defaultdict(list)
     for row in candidate_rows:
@@ -446,19 +524,26 @@ def compute_selection_diagnostics(main_rows, candidate_rows):
         for pid, rows in sorted(by_problem.items()):
             for row in sorted(rows, key=lambda item: candidate_index(item.get("candidate_id"))):
                 execution = row.get("execution") or {}
+                norm = normalize_candidate_id(row.get("candidate_id"))
                 debug.append({
                     "method": method,
                     "problem_id": pid,
-                    "candidate_id": row.get("candidate_id"),
+                    "candidate_id": norm["candidate_id"],
+                    "parsed_candidate_rank": norm["parsed_candidate_rank"],
                     "executable": bool(execution.get("executable")),
                     "solver_status": execution.get("status"),
                     "objective_correct_posthoc": row.get("objective_correct"),
                     "structure_score": row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")),
                     "consensus_score": row.get("objective_consensus_score"),
                     "selection_score": row.get("selection_score", row.get("score")),
-                    "selected": (method, pid, row.get("candidate_id")) in selected_keys,
+                    "selected": selected_key_status.get((method, pid, norm["candidate_id"]), False),
                 })
-    return {"same_selection_rate": same_rows, "candidate_rank_distribution": distribution, "selection_score_debug": debug}
+    return {
+        "same_selection_rate": same_rows,
+        "candidate_rank_distribution": distribution,
+        "selection_score_debug": debug,
+        "diagnostic_join_unmatched": unmatched,
+    }
 
 
 def bootstrap_ci_for_metric(items, metric_fn, samples=1000, seed=42):

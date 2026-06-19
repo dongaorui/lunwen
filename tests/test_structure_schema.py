@@ -56,13 +56,15 @@ def test_expected_from_schema_includes_new_structure_keys_for_all_problem_types(
             assert expected[key] is True
 
 
-def test_explicit_expected_structures_override_default_schema():
-    expected = {"big_m_constraint": True}
-    required, optional, forbidden = split_expected_structures(expected, problem_type="single_period_newsvendor")
+def test_explicit_expected_structures_merge_with_default_schema():
+    expected = {"capacity_constraint": True}
+    required, optional, forbidden = split_expected_structures(expected, problem_type="single_item_multi_period")
 
-    assert required == ["big_m_constraint"]
-    assert "inventory_balance" in optional
-    assert "big_m_constraint" not in optional
+    assert "inventory_balance" in required
+    assert "order_variable" in required
+    assert "inventory_variable" in required
+    assert "capacity_constraint" in required
+    assert "capacity_constraint" not in optional
     assert forbidden == []
 
 

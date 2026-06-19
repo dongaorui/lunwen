@@ -71,6 +71,29 @@ def test_static_validation_reports_syntax_error():
     assert result["static_validation_score"] == 0.0
 
 
+def test_type_aware_static_validation_empty_checklist_is_neutral_for_newsvendor():
+    code = '''import pulp
+
+
+def build_model():
+    prob = pulp.LpProblem("newsvendor", pulp.LpMinimize)
+    q = pulp.LpVariable("Q", lowBound=0)
+    prob += q, "total_cost"
+    prob += q >= 5, "demand_satisfaction"
+    return prob
+'''
+
+    result = compute_static_validation(code, problem_type="single_period_newsvendor")
+
+    validation = result["type_aware_static_validation"]
+    assert validation["checklist"] == []
+    assert validation["score"] == 1.0
+    assert result["type_aware_static_validation_score"] == 1.0
+    assert validation["hard_gate_failures"] == []
+    assert validation["hard_gate_score"] == 1.0
+    assert result["type_aware_static_validation_errors"] == []
+
+
 def test_type_aware_static_validation_flags_missing_capacity_for_capacity_problem():
     code = '''import pulp
 

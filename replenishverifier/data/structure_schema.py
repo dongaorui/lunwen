@@ -145,14 +145,15 @@ def split_expected_structures(expected=None, problem_type=None):
     problem-type schema is used as fallback when no explicit expected map is
     supplied, and as metadata for optional/forbidden structures when available.
     """
-    required = _truthy_expected_keys(expected)
-
     schema = None
     if problem_type is not None:
         schema = get_structure_schema(problem_type)
 
-    if not required and schema is not None:
+    if schema is not None:
         required = set(schema["required"])
+    else:
+        required = set()
+    required |= _truthy_expected_keys(expected)
 
     if schema is not None:
         optional = set(schema["optional"]) - required
