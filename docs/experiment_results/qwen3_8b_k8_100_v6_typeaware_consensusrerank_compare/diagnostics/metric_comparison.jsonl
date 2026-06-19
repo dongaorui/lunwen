@@ -1,0 +1,64 @@
+{"method": "Best-of-K", "metric": "executable_rate", "reported": 0.91, "recomputed": 0.91, "delta": 0.0, "status": "OK"}
+{"method": "Best-of-K", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "Best-of-K", "metric": "objective_accuracy", "reported": 0.75, "recomputed": 0.75, "delta": 0.0, "status": "OK"}
+{"method": "Best-of-K", "metric": "structure_completeness", "reported": 0.7552, "recomputed": 0.7552257936507933, "delta": 2.5793650793359824e-05, "status": "OK"}
+{"method": "Best-of-K", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "Best-of-K", "metric": "constraint_coverage", "reported": 0.8875, "recomputed": 0.8875, "delta": 0.0, "status": "OK"}
+{"method": "Best-of-K", "metric": "average_runtime_sec", "reported": 0.0814, "recomputed": 0.08140620609628968, "delta": 6.206096289679275e-06, "status": "OK"}
+{"method": "Best-of-K", "metric": "average_repair_feedback_count", "reported": 0.18, "recomputed": 0.18, "delta": 0.0, "status": "OK"}
+{"method": "Consensus only", "metric": "executable_rate", "reported": 0.91, "recomputed": 0.91, "delta": 0.0, "status": "OK"}
+{"method": "Consensus only", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "Consensus only", "metric": "objective_accuracy", "reported": 0.73, "recomputed": 0.73, "delta": 0.0, "status": "OK"}
+{"method": "Consensus only", "metric": "structure_completeness", "reported": 0.7509, "recomputed": 0.750894444444444, "delta": -5.55555555603604e-06, "status": "OK"}
+{"method": "Consensus only", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "Consensus only", "metric": "constraint_coverage", "reported": 0.8875, "recomputed": 0.8875, "delta": 0.0, "status": "OK"}
+{"method": "Consensus only", "metric": "average_runtime_sec", "reported": 0.0803, "recomputed": 0.080341006880044, "delta": 4.10068800440061e-05, "status": "OK"}
+{"method": "Consensus only", "metric": "average_repair_feedback_count", "reported": 0.18, "recomputed": 0.18, "delta": 0.0, "status": "OK"}
+{"method": "Direct", "metric": "executable_rate", "reported": 0.89, "recomputed": 0.89, "delta": 0.0, "status": "OK"}
+{"method": "Direct", "metric": "optimal_rate", "reported": 0.81, "recomputed": 0.81, "delta": 0.0, "status": "OK"}
+{"method": "Direct", "metric": "objective_accuracy", "reported": 0.69, "recomputed": 0.69, "delta": 0.0, "status": "OK"}
+{"method": "Direct", "metric": "structure_completeness", "reported": 0.7354, "recomputed": 0.7353994047619041, "delta": -5.952380959239889e-07, "status": "OK"}
+{"method": "Direct", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "Direct", "metric": "constraint_coverage", "reported": 0.8688, "recomputed": 0.86875, "delta": -4.999999999999449e-05, "status": "OK"}
+{"method": "Direct", "metric": "average_runtime_sec", "reported": 0.0847, "recomputed": 0.08467722187866457, "delta": -2.277812133542889e-05, "status": "OK"}
+{"method": "Direct", "metric": "average_repair_feedback_count", "reported": 0.17, "recomputed": 0.17, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "executable_rate", "reported": 0.91, "recomputed": 0.91, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "objective_accuracy", "reported": 0.74, "recomputed": 0.74, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "structure_completeness", "reported": 0.7552, "recomputed": 0.7552257936507933, "delta": 2.5793650793359824e-05, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "constraint_coverage", "reported": 0.8875, "recomputed": 0.8875, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "average_runtime_sec", "reported": 0.0855, "recomputed": 0.0855314682185417, "delta": 3.146821854169146e-05, "status": "OK"}
+{"method": "ReplenishVerifier-Full", "metric": "average_repair_feedback_count", "reported": 0.18, "recomputed": 0.18, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "executable_rate", "reported": 0.89, "recomputed": 0.89, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "objective_accuracy", "reported": 0.72, "recomputed": 0.72, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "structure_completeness", "reported": 0.7403, "recomputed": 0.740297222222222, "delta": -2.777777777906998e-06, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "constraint_coverage", "reported": 0.87, "recomputed": 0.87, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "average_runtime_sec", "reported": 0.0804, "recomputed": 0.08037188921764027, "delta": -2.8110782359730413e-05, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware", "metric": "average_repair_feedback_count", "reported": 0.16, "recomputed": 0.16, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "executable_rate", "reported": 0.89, "recomputed": 0.89, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "objective_accuracy", "reported": 0.72, "recomputed": 0.72, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "structure_completeness", "reported": 0.7403, "recomputed": 0.740297222222222, "delta": -2.777777777906998e-06, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "constraint_coverage", "reported": 0.87, "recomputed": 0.87, "delta": 0.0, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "average_runtime_sec", "reported": 0.0804, "recomputed": 0.08037188921764027, "delta": -2.8110782359730413e-05, "status": "OK"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "metric": "average_repair_feedback_count", "reported": 0.16, "recomputed": 0.16, "delta": 0.0, "status": "OK"}
+{"method": "Solver only", "metric": "executable_rate", "reported": 0.91, "recomputed": 0.91, "delta": 0.0, "status": "OK"}
+{"method": "Solver only", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "Solver only", "metric": "objective_accuracy", "reported": 0.74, "recomputed": 0.74, "delta": 0.0, "status": "OK"}
+{"method": "Solver only", "metric": "structure_completeness", "reported": 0.7508, "recomputed": 0.7508309523809519, "delta": 3.095238095185415e-05, "status": "OK"}
+{"method": "Solver only", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "Solver only", "metric": "constraint_coverage", "reported": 0.8875, "recomputed": 0.8875, "delta": 0.0, "status": "OK"}
+{"method": "Solver only", "metric": "average_runtime_sec", "reported": 0.0802, "recomputed": 0.08017485634947662, "delta": -2.5143650523376526e-05, "status": "OK"}
+{"method": "Solver only", "metric": "average_repair_feedback_count", "reported": 0.18, "recomputed": 0.18, "delta": 0.0, "status": "OK"}
+{"method": "Structure only", "metric": "executable_rate", "reported": 0.91, "recomputed": 0.91, "delta": 0.0, "status": "OK"}
+{"method": "Structure only", "metric": "optimal_rate", "reported": 0.85, "recomputed": 0.85, "delta": 0.0, "status": "OK"}
+{"method": "Structure only", "metric": "objective_accuracy", "reported": 0.74, "recomputed": 0.74, "delta": 0.0, "status": "OK"}
+{"method": "Structure only", "metric": "structure_completeness", "reported": 0.7552, "recomputed": 0.7552257936507933, "delta": 2.5793650793359824e-05, "status": "OK"}
+{"method": "Structure only", "metric": "inventory_balance_accuracy", "reported": 1.0, "recomputed": 1.0, "delta": 0.0, "status": "OK"}
+{"method": "Structure only", "metric": "constraint_coverage", "reported": 0.8875, "recomputed": 0.8875, "delta": 0.0, "status": "OK"}
+{"method": "Structure only", "metric": "average_runtime_sec", "reported": 0.0854, "recomputed": 0.08544953194912523, "delta": 4.953194912522829e-05, "status": "OK"}
+{"method": "Structure only", "metric": "average_repair_feedback_count", "reported": 0.18, "recomputed": 0.18, "delta": 0.0, "status": "OK"}
