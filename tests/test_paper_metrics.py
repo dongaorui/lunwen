@@ -1,3 +1,5 @@
+import csv
+
 from replenishverifier.experiments.build_paper_metrics import build_paper_metrics
 from replenishverifier.experiments.paper_metrics import (
     compute_selected_method_metrics,
@@ -27,6 +29,8 @@ def _row(method, pid, cid, selected=True, executable=True, status="Optimal", obj
             "structure_score": structure_score,
         },
         "objective_term_coverage": 1.0,
+        "objective_term_surface_coverage": 1.0,
+        "objective_term_lp_coefficient_coverage": 0.75,
         "runtime_sec": 0.25,
         "feedback": "",
         "code_output_format_valid": True,
@@ -47,6 +51,10 @@ def test_compute_selected_method_metrics_uses_only_selected_rows():
     assert metrics == [{
         "method": "Direct",
         "n": 2,
+        "objective_accuracy_count": 1,
+        "objective_accuracy_total": 2,
+        "structure_complete_count": 1,
+        "structure_complete_total": 2,
         "code_validity_rate": 1.0,
         "executable_rate": 1.0,
         "optimal_rate": 1.0,
@@ -62,6 +70,8 @@ def test_compute_selected_method_metrics_uses_only_selected_rows():
         "structure_completeness": 0.5,
         "inventory_balance_accuracy": 0.5,
         "constraint_coverage": 0.5,
+        "objective_term_surface_coverage": 1.0,
+        "objective_term_lp_coefficient_coverage": 0.75,
         "objective_term_coverage": 1.0,
         "average_runtime_sec": 0.25,
         "median_runtime_sec": 0.25,
@@ -152,6 +162,8 @@ def test_build_paper_metrics_writes_expected_tables(tmp_path):
         "table_objective_terms",
         "table_pass_at_k_oracle",
         "table_selection_diagnostics",
+        "table_missed_oracle_summary",
+        "table_paired_method_comparison",
         "table_error_taxonomy",
         "table_runtime_cost",
         "table_bootstrap_ci",
@@ -160,3 +172,16 @@ def test_build_paper_metrics_writes_expected_tables(tmp_path):
     for name in expected:
         assert (out_dir / f"{name}.csv").exists()
         assert (out_dir / f"{name}.md").exists()
+
+    with (out_dir / "table_objective_terms.csv").open(encoding="utf-8") as f:
+        objective_terms_rows = list(csv.DictReader(f))
+    assert {
+        "objective_term_surface_coverage",
+        "objective_term_lp_coefficient_coverage",
+        "objective_term_coverage",
+    } <= set(objective_terms_rows[0])
+
+    with (out_dir / "table_main_metrics.csv").open(encoding="utf-8") as f:
+        main_metric_rows = list(csv.DictReader(f))
+    assert main_metric_rows[0]["objective_accuracy_count"] == "1"
+    assert main_metric_rows[0]["objective_accuracy_total"] == "1"

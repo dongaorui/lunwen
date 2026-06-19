@@ -1,3 +1,4 @@
+# Python caches and build artifacts
 __pycache__/
 *.py[cod]
 *.pyo
@@ -7,11 +8,32 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 
+# Virtual environments and local config
 .env
 .venv/
 venv/
 .DS_Store
 
+# Runtime outputs and logs
 runs/
 outputs/
+logs/
 *.log
+
+# Local model/cache artifacts
+hf_cache/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# Generated datasets and candidate artifacts
+data/candidates/*.jsonl
+!data/candidates/.gitkeep
+data/generated/*.jsonl
+!data/generated/.gitkeep
+data/benchmark*.jsonl
+
+# Claude Code local worktrees
+.claude/worktrees/

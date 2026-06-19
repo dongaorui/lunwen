@@ -45,6 +45,15 @@ def rate(values, empty=None):
     return empty if not vals else float(sum(1.0 if v else 0.0 for v in vals) / len(vals))
 
 
+def truthy_count(values):
+    vals = [v for v in values if v is not None]
+    return int(sum(1 for v in vals if bool(safe_float(v) if not isinstance(v, bool) else v)))
+
+
+def observed_count(values):
+    return int(len([v for v in values if v is not None]))
+
+
 def feedback_count(row):
     if row.get("repair_feedback_count") is not None:
         return row.get("repair_feedback_count")
@@ -102,9 +111,15 @@ def compute_selected_method_metrics(rows):
     for method, items in sorted(group_selected_by_method(rows).items()):
         statuses = [_status(row) for row in items]
         rel_errors = [row.get("relative_error") for row in items]
+        objective_values = [row.get("objective_correct", row.get("objective_accuracy")) for row in items]
+        structure_values = [row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")) for row in items]
         result.append({
             "method": method,
             "n": len(items),
+            "objective_accuracy_count": truthy_count(objective_values),
+            "objective_accuracy_total": observed_count(objective_values),
+            "structure_complete_count": truthy_count([safe_float(value) == 1.0 if value is not None else None for value in structure_values]),
+            "structure_complete_total": observed_count(structure_values),
             "code_validity_rate": rate([row.get("code_output_format_valid") for row in items]),
             "executable_rate": rate([(row.get("execution") or {}).get("executable") for row in items]),
             "optimal_rate": rate([_status(row) == "optimal" for row in items]),
@@ -112,14 +127,16 @@ def compute_selected_method_metrics(rows):
             "solver_status_infeasible_rate": rate([status == "infeasible" for status in statuses]),
             "solver_status_timeout_rate": rate([status == "timeout" for status in statuses]),
             "solver_status_error_rate": rate([status in {"error", "missing", "notrun", "not_run", ""} for status in statuses]),
-            "objective_accuracy": mean([row.get("objective_correct", row.get("objective_accuracy")) for row in items]),
+            "objective_accuracy": mean(objective_values),
             "mean_relative_error": mean(rel_errors),
             "median_relative_error": median(rel_errors),
             "mean_objective_gap": mean(rel_errors),
             "median_objective_gap": median(rel_errors),
-            "structure_completeness": mean([row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")) for row in items]),
+            "structure_completeness": mean(structure_values),
             "inventory_balance_accuracy": rate([inventory_balance_hit(row) for row in items], empty=0.0),
             "constraint_coverage": mean([constraint_coverage(row) for row in items]),
+            "objective_term_surface_coverage": mean([row.get("objective_term_surface_coverage") for row in items]),
+            "objective_term_lp_coefficient_coverage": mean([row.get("objective_term_lp_coefficient_coverage") for row in items]),
             "objective_term_coverage": mean([row.get("objective_term_coverage") for row in items]),
             "average_runtime_sec": mean([row.get("runtime_sec", row.get("total_candidate_evaluation_time")) for row in items]),
             "median_runtime_sec": median([row.get("runtime_sec", row.get("total_candidate_evaluation_time")) for row in items]),
@@ -145,6 +162,127 @@ def candidate_index(candidate_id):
         return int(marker[1])
     digits = "".join(ch for ch in text if ch.isdigit())
     return int(digits) if digits else 0
+
+
+def _objective_correct_bool(row):
+    return bool(safe_float(row.get("objective_correct", row.get("objective_accuracy"))) == 1.0)
+
+
+def _missing_structure(row, structure_name):
+    structure = row.get("structure_verification") or {}
+    return structure_name in set(structure.get("missing") or [])
+
+
+def _selected_by_method_problem(rows):
+    out = defaultdict(dict)
+    for row in selected_rows(rows):
+        out[row.get("method_name") or row.get("method") or "unknown"][row.get("problem_id")] = row
+    return out
+
+
+def compute_missed_oracle_summary(main_rows, candidate_rows):
+    by_problem = defaultdict(list)
+    for row in candidate_rows:
+        by_problem[row.get("problem_id")].append(row)
+    oracle = {}
+    for pid, rows in by_problem.items():
+        objective_available = any(_objective_correct_bool(row) for row in rows)
+        structure_available = any(_is_structure_complete(row) for row in rows)
+        both_available = any(_objective_correct_bool(row) and _is_structure_complete(row) for row in rows)
+        oracle[pid] = {
+            "objective_available": objective_available,
+            "structure_available": structure_available,
+            "both_available": both_available,
+        }
+
+    result = []
+    for method, rows_by_problem in sorted(_selected_by_method_problem(main_rows).items()):
+        common = [pid for pid in rows_by_problem if pid in oracle]
+        objective_available = [pid for pid in common if oracle[pid]["objective_available"]]
+        structure_available = [pid for pid in common if oracle[pid]["structure_available"]]
+        both_available = [pid for pid in common if oracle[pid]["both_available"]]
+        missed_objective = [pid for pid in objective_available if not _objective_correct_bool(rows_by_problem[pid])]
+        missed_structure = [pid for pid in structure_available if not _is_structure_complete(rows_by_problem[pid])]
+        missed_both = [pid for pid in both_available if not (_objective_correct_bool(rows_by_problem[pid]) and _is_structure_complete(rows_by_problem[pid]))]
+        result.append({
+            "method": method,
+            "n_common": len(common),
+            "oracle_objective_available_count": len(objective_available),
+            "missed_oracle_objective_count": len(missed_objective),
+            "missed_oracle_objective_rate": float(len(missed_objective) / len(objective_available)) if objective_available else 0.0,
+            "oracle_structure_available_count": len(structure_available),
+            "missed_oracle_structure_count": len(missed_structure),
+            "missed_oracle_structure_rate": float(len(missed_structure) / len(structure_available)) if structure_available else 0.0,
+            "oracle_both_available_count": len(both_available),
+            "missed_oracle_both_count": len(missed_both),
+            "missed_oracle_both_rate": float(len(missed_both) / len(both_available)) if both_available else 0.0,
+        })
+    return result
+
+
+def compute_paired_method_comparison(rows, target_method="ReplenishVerifier-TypeAware", baseline_methods=None):
+    baseline_methods = baseline_methods or ["Direct", "Best-of-K", "ReplenishVerifier-Full"]
+    by_method = _selected_by_method_problem(rows)
+    target = by_method.get(target_method, {})
+    result = []
+    for baseline_method in baseline_methods:
+        baseline = by_method.get(baseline_method, {})
+        common = sorted(set(target) & set(baseline))
+        objective_win = objective_loss = objective_tie = 0
+        structure_win = structure_loss = structure_tie = 0
+        missing_capacity_reduction = missing_capacity_increase = 0
+        objective_mismatch_reduction = objective_mismatch_increase = 0
+        for pid in common:
+            t = target[pid]
+            b = baseline[pid]
+            t_obj = _objective_correct_bool(t)
+            b_obj = _objective_correct_bool(b)
+            if t_obj and not b_obj:
+                objective_win += 1
+            elif b_obj and not t_obj:
+                objective_loss += 1
+            else:
+                objective_tie += 1
+
+            t_struct = safe_float(t.get("structure_score", (t.get("structure_verification") or {}).get("structure_score"))) or 0.0
+            b_struct = safe_float(b.get("structure_score", (b.get("structure_verification") or {}).get("structure_score"))) or 0.0
+            if t_struct > b_struct:
+                structure_win += 1
+            elif b_struct > t_struct:
+                structure_loss += 1
+            else:
+                structure_tie += 1
+
+            t_missing_capacity = _missing_structure(t, "capacity_constraint")
+            b_missing_capacity = _missing_structure(b, "capacity_constraint")
+            if b_missing_capacity and not t_missing_capacity:
+                missing_capacity_reduction += 1
+            elif t_missing_capacity and not b_missing_capacity:
+                missing_capacity_increase += 1
+
+            t_objective_mismatch = not t_obj
+            b_objective_mismatch = not b_obj
+            if b_objective_mismatch and not t_objective_mismatch:
+                objective_mismatch_reduction += 1
+            elif t_objective_mismatch and not b_objective_mismatch:
+                objective_mismatch_increase += 1
+
+        result.append({
+            "target_method": target_method,
+            "baseline_method": baseline_method,
+            "n_common": len(common),
+            "objective_win_count": objective_win,
+            "objective_loss_count": objective_loss,
+            "objective_tie_count": objective_tie,
+            "structure_win_count": structure_win,
+            "structure_loss_count": structure_loss,
+            "structure_tie_count": structure_tie,
+            "missing_capacity_reduction_count": missing_capacity_reduction,
+            "missing_capacity_increase_count": missing_capacity_increase,
+            "objective_mismatch_reduction_count": objective_mismatch_reduction,
+            "objective_mismatch_increase_count": objective_mismatch_increase,
+        })
+    return result
 
 
 def compute_pass_at_k(candidate_rows, k_values):

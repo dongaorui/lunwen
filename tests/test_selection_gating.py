@@ -80,6 +80,69 @@ def test_generic_or_r1_does_not_apply_replenishment_critical_penalty():
     assert "critical_structure_penalty" not in selected[0]
 
 
+def test_solver_only_tie_break_ignores_structure_advantage():
+    rows = [
+        _row("c0", structure_score=1.0, missing=[]),
+        _row("c1", structure_score=0.1, missing=["capacity_constraint"]),
+    ]
+    rows[0]["static_validation_score"] = 0.2
+    rows[0]["runtime_sec"] = 5.0
+    rows[1]["static_validation_score"] = 1.0
+    rows[1]["runtime_sec"] = 1.0
+
+    selected = select_for_method("Solver-Filter", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+
+
+def test_structure_only_tie_break_ignores_consensus_advantage():
+    rows = [
+        _row("c0", structure_score=0.4, missing=["capacity_constraint"], consensus=1.0),
+        _row("c1", structure_score=0.9, missing=[], consensus=0.0),
+    ]
+    rows[0]["structure_only_score"] = 0.9
+    rows[1]["structure_only_score"] = 0.9
+
+    selected = select_for_method("Structure-Only", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+
+
+def test_type_aware_pool_filter_prefers_capacity_complete_candidate():
+    rows = [
+        _row("c0", structure_score=0.95, missing=["capacity_constraint"], consensus=1.0),
+        _row("c1", structure_score=0.70, missing=[], consensus=0.0),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["type_aware_pool_filter_applied"] is True
+    assert selected[0]["type_aware_pool_filter_fallback"] is False
+    assert selected[0]["type_aware_pool_filter_candidate_count"] == 1
+
+
+def test_type_aware_pool_filter_fallback_when_all_viable_miss_critical_structure():
+    rows = [
+        _row("c0", structure_score=0.9, missing=["capacity_constraint"], consensus=0.3),
+        _row("c1", structure_score=0.8, missing=["capacity_constraint"], consensus=0.1),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware", {"p0": rows}, _benchmark())
+
+    assert selected[0]["type_aware_pool_filter_applied"] is True
+    assert selected[0]["type_aware_pool_filter_fallback"] is True
+    assert selected[0]["type_aware_pool_filter_candidate_count"] == 2
+
+
 def test_type_aware_selection_prefers_non_k0_with_better_objective_terms_and_gates():
     rows = [
         _row("c0", structure_score=1.0, missing=[], consensus=0.2, feedback="needs repair"),

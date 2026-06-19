@@ -361,3 +361,205 @@ The user asked to continue improving ReplenishVerifier experiment code for Qwen3
 - No large dependency was introduced.
 - Formal selection changes do not use `reference_objective`, reference answers, reference LPs, reference status, objective accuracy, relative error, or oracle labels. Reference objective remains diagnostic/evaluation-only.
 - Repair remains prompt generation or candidate generation only until repaired candidates are explicitly re-evaluated through the standard pipeline.
+
+## 2026-06-18 — Paper metric and selection diagnostic upgrade
+
+### User request
+
+The user asked to upgrade ReplenishVerifier metrics to a paper-grade suite, diagnose whether method metrics are selected-candidate-specific, add `--model_label`, add objective-term coverage, pass@k/oracle/bootstrap metrics, and preserve no-reference formal selection.
+
+### Actions completed
+
+1. Added optional generation `model_label` metadata while keeping legacy candidate IDs when omitted.
+2. Added evaluation-only objective-term coverage and attached objective-term fields to candidate evaluation rows.
+3. Added paper metric aggregation primitives for selected-row metrics, solver status, objective gaps, error taxonomy, pass@k/oracle upper bounds, bootstrap CI, runtime/cost metrics, and selection diagnostics.
+4. Added `replenishverifier.experiments.diagnose_selection_metrics` for reported-vs-recomputed metric checks and selection debug outputs.
+5. Added `replenishverifier.experiments.build_paper_metrics` for paper-grade CSV/Markdown tables.
+6. Updated legacy `constraint_coverage` aggregation to be method-specific per selected candidate instead of flattening all required-rule hits across problems.
+7. Strengthened leakage audit separation between formal selection and post-hoc oracle metrics.
+
+### Verification
+
+- Focused tests:
+  - Command: `PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest tests/test_run_generation_model_label.py tests/test_objective_term_coverage.py tests/test_paper_metrics.py tests/test_diagnose_selection_metrics.py tests/test_leakage_audit.py -q`
+  - Result: `18 passed in 0.08s`
+- Full suite:
+  - Command: `PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q`
+  - Result: `117 passed, 53 warnings in 1.91s`
+- Diff/compile check:
+  - Command: `git diff --check && .venv/bin/python -m py_compile replenishverifier/llm/run_generation.py replenishverifier/experiments/objective_terms.py replenishverifier/experiments/paper_metrics.py replenishverifier/experiments/diagnose_selection_metrics.py replenishverifier/experiments/build_paper_metrics.py replenishverifier/experiments/audit_leakage.py replenishverifier/experiments/evaluation.py`
+  - Result: passed.
+- Existing-run diagnostics:
+  - Command: `.venv/bin/python -m replenishverifier.experiments.diagnose_selection_metrics --exp_dir runs/smoke_literature_driven --out_dir runs/smoke_literature_driven/selection_metric_diagnostics_metricsfix`
+  - Result: diagnostics written; smoke summary still has legacy mismatches for `constraint_coverage` because old reported summary was produced before the fixed aggregation.
+
+### Notes
+
+No LLM generation or candidate regeneration was run. The requested `data/candidates/qwen3_8b_k4_50_v3.jsonl` file was not present in this checkout, so no v3 re-evaluation was run. Formal selection remains no-reference; oracle/pass@k metrics are post-hoc evaluation-only.
+
+## 2026-06-18 — v5 TypeAware prompt, static validation, and selection
+
+### User request
+
+The user asked to implement a v5 mechanism after diagnostics showed v4 metrics were not just an aggregation bug: most formal methods selected the same candidates, mostly k0, so selection did not exploit the candidate pool. Constraints included direct modification in `/home/dongaorui/projects/lunwen`, no worktree, no agent worktree, no large model generation, no fake results, and no reference objective/objective_correct/reference LP/reference answer in formal selection.
+
+### Actions completed
+
+1. Added `type_aware_hidden_verifier` prompt mode with problem-type modeling checklists for newsvendor, multi-period, shortage, capacity, and fixed-order Big-M cases.
+2. Made `run_generation.py` accept and default to `type_aware_hidden_verifier` while preserving legacy prompt modes.
+3. Extended static validation with `type_aware_static_validation`, `type_aware_static_validation_score`, and `type_aware_static_validation_errors` derived only from candidate code/AST/pattern signals and problem type.
+4. Added `ReplenishVerifier-TypeAware` with explicit no-reference selection components: executable, optimal solver status, structure completeness, constraint coverage, objective-term coverage, type-aware hard gate score, candidate objective consensus, repair feedback count, and runtime.
+5. Wired TypeAware into main, ablation, low-resource experiment outputs and leakage audit formal method lists.
+6. Added TypeAware static validation metadata and repair requirements to structure-aware repair prompt rows, with `repair_generation_executed=False` and `is_evaluated_repair_result=False`.
+7. Strengthened leakage audit so formal selection components reject reference/oracle keys such as `reference_objective`, `objective_correct`, `relative_error`, `reference_lp`, and `objective_correct_posthoc`.
+8. Wrote design and implementation plan documents under `docs/superpowers/`.
+
+### Verification
+
+- Focused tests passed during implementation:
+  - `tests/test_prompt_modes.py`: `12 passed`
+  - `tests/test_static_validation.py`: `7 passed`
+  - `tests/test_selection_gating.py`: `6 passed`
+  - `tests/test_selection_gating.py tests/test_repair_prompt_fairness.py tests/test_strong_baselines.py`: `24 passed`
+  - `tests/test_leakage_audit.py`: `5 passed`
+- Full suite:
+  - Command: `PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q`
+  - Result: `128 passed, 53 warnings in 1.93s`
+- Diff whitespace check:
+  - Command: `git diff --check`
+  - Result: passed after trimming trailing whitespace.
+- Lightweight debug run:
+  - Command used an empty candidates file with `run_all_methods` demo fallback; no LLM generation was run.
+  - Result: `runs/debug_v5_typeaware_existing_candidates` was written and logs showed `ReplenishVerifier-TypeAware` in main methods.
+  - Demo fallback candidate IDs do not encode k0/k1/k2/k3. Distribution was: Direct selected `cand_0_syntax_error` for 15 rows; Best-of-K, Solver-Filter, TypeAware, and Full selected `cand_4_correct` for 15 rows.
+
+### Notes
+
+No worktree was created. No real LLM generation or candidate regeneration was run. No reference objective, objective correctness, relative error, reference LP, reference answer, or oracle metric was added to formal TypeAware selection.
+
+## 2026-06-19 — v5 TypeAware selection/objective/reporting hardening
+
+This interim entry was superseded later on 2026-06-19 by the stricter selectionfix scope. The generation acceptance/retry changes described in this interim entry were reverted before completion because the user clarified that this round must not modify `run_generation.py` or generation-time hard reject/retry logic. The retained work is documented in the following `v5 TypeAware selectionfix` entry.
+
+## 2026-06-19 — v5 TypeAware selectionfix
+
+### User request
+
+The user clarified that this round must only modify selection, diagnostics, metrics, and reporting. It must not modify LLM generation-time static validation, hard rejection, retry behavior, or add a `--require_type_aware_valid_code` flag. The goal was cleaner method ablations, clearer diagnostics, and more targeted TypeAware selection while preserving strict no-reference formal selection.
+
+### Actions completed
+
+1. Reverted generation-stage changes from the interim work:
+   - `replenishverifier/llm/run_generation.py` has no content diff.
+   - `tests/test_run_generation_retry.py` has no content diff.
+   - No generation-time TypeAware hard reject/retry behavior was added in this final selectionfix scope.
+2. Kept and finalized method-specific no-reference selection tie-breakers:
+   - Added `_selection_tie_break_key_for_method()` in `experiments/methods.py`.
+   - Solver-only/Solver-Filter now tie-break on solver/generic validity signals, not replenishment structure features.
+   - Structure-only methods tie-break on structure-specific signals.
+   - Consensus methods tie-break on candidate objective consensus and generic validity.
+   - TypeAware uses its TypeAware score, critical pass, objective-term coverage, constraint coverage, hard gate score, feedback count, runtime, and candidate index.
+3. Added TypeAware-only critical pool filtering:
+   - `_type_aware_candidate_pool_filter()` first ranks viable candidates without critical missing structures when available.
+   - If every viable candidate misses critical structures, it falls back and records fallback metadata.
+4. Strengthened objective-term reporting:
+   - Surface regex coverage is preserved.
+   - Parsed-LP objective coefficient coverage is added for ordering, holding, shortage, and fixed-order variable families.
+   - Final coverage uses `min(surface, lp_coefficient)` when coefficient evidence exists.
+5. Added diagnostics/reporting metrics:
+   - `compute_missed_oracle_summary()` reports post-hoc missed oracle opportunities.
+   - `compute_paired_method_comparison()` reports TypeAware vs Direct/Best-of-K/ReplenishVerifier-Full wins/losses and missing-capacity/objective-mismatch reductions.
+   - `diagnose_selection_metrics` writes `missed_oracle_summary.csv/md` and `paired_method_comparison.csv/md`.
+   - `build_paper_metrics` writes `table_missed_oracle_summary.*` and `table_paired_method_comparison.*`.
+6. Added selectionfix docs:
+   - `docs/superpowers/specs/2026-06-19-v5-typeaware-selectionfix-design.md`
+   - `docs/superpowers/plans/2026-06-19-v5-typeaware-selectionfix.md`
+
+### Verification
+
+- Generation-scope sanity:
+  - Command: `python -m pytest tests/test_run_generation_retry.py -q`
+  - Result: `2 passed in 0.41s`
+  - Command: `git diff -- replenishverifier/llm/run_generation.py tests/test_run_generation_retry.py`
+  - Result: no content diff.
+- Focused selectionfix suite:
+  - Command: `python -m pytest tests/test_selection_gating.py tests/test_diagnose_selection_metrics.py tests/test_paper_metrics.py tests/test_objective_term_coverage.py tests/test_run_generation_retry.py -q`
+  - Result: `30 passed in 0.99s`
+- Full suite:
+  - Command: `python -m pytest -q`
+  - Result: `137 passed, 52 warnings in 2.58s`
+- Diff/compile check:
+  - Command: `git diff --check; if ($?) { python -m py_compile replenishverifier/experiments/methods.py replenishverifier/experiments/objective_terms.py replenishverifier/experiments/paper_metrics.py replenishverifier/experiments/build_paper_metrics.py replenishverifier/experiments/diagnose_selection_metrics.py }`
+  - Result: passed; git emitted only line-ending warnings.
+
+### Experiment/reporting runs
+
+Requested real Qwen v5 selectionfix command could not be completed because `data/candidates/qwen3_8b_k4_50_v5_typeaware.jsonl` is absent in this checkout. Running with `--no_demo_if_empty` failed as expected with `ValueError: No candidate rows found`, so no fake Qwen result directory was produced from missing candidates.
+
+Completed smoke/reporting validation instead:
+
+- Existing debug run diagnostics:
+  - `python -m replenishverifier.experiments.diagnose_selection_metrics --exp_dir runs/debug_v5_typeaware_existing_candidates --out_dir runs/debug_v5_typeaware_existing_candidates/diagnostics_selectionfix`
+  - `python -m replenishverifier.experiments.analyze_error_types --exp_dir runs/debug_v5_typeaware_existing_candidates`
+  - `python -m replenishverifier.experiments.build_paper_metrics --exp_dir runs/debug_v5_typeaware_existing_candidates --out_dir runs/debug_v5_typeaware_existing_candidates/paper_metrics_selectionfix --k_values 1,2,4 --bootstrap_samples 1000 --seed 42`
+- Same-benchmark demo selectionfix run:
+  - `python -m replenishverifier.experiments.run_all_methods --benchmark data/generated/test.jsonl --candidates runs/debug_v5_typeaware_existing_candidates/demo_candidates.generated.jsonl --out_dir runs/debug_v5_typeaware_selectionfix_demo15 --k_values 1,2,4 --timeout 30 --no_demo_if_empty`
+  - Followed by diagnostics, error analysis, and paper metrics into `runs/debug_v5_typeaware_selectionfix_demo15/diagnostics` and `runs/debug_v5_typeaware_selectionfix_demo15/paper_metrics`.
+
+### Same-benchmark demo comparison notes
+
+Using the existing 15-problem demo candidates only, original debug had Best-of-K, Solver-Filter, Structure-Only, TypeAware, and Full all selecting the same `cand_4_correct` candidates. After selectionfix, Solver-Filter selected a different candidate family (`cand_1`, `cand_2`, `cand_3`) while Best-of-K/Structure-Only/TypeAware/Full still selected `cand_4_correct` in this demo set. This shows the method-specific solver tie-breaker reduces at least Solver-Filter sameness in smoke data, but it is not evidence for real Qwen v5 because real v5 candidates are missing locally.
+
+No real LLM generation, candidate regeneration, large fake result, or reference-objective formal selection signal was introduced. Oracle/missed-oracle and objective correctness are reported only as post-hoc diagnostics.
+
+## 2026-06-19 — Repository artifact cleanup
+
+### User request
+
+The user asked to clean the ReplenishVerifier repository by removing or untracking irrelevant process data, runtime artifacts, and old demo outputs while preserving core code, tests, papers, and curated experiment results under `docs/experiment_results/`. The user required `git rm --cached` for runtime artifacts where possible, `.gitignore` updates, audits before deleting code directories, pytest verification, and no automatic push/commit.
+
+### Actions completed
+
+1. Audited current tracked artifacts:
+   - `git status` output was very large due to pre-existing `.claude/worktrees/...` deleted entries.
+   - `git ls-files runs outputs data | Sort-Object` confirmed `runs/`, `outputs/`, root benchmark JSONL files, and generated benchmark JSONL files were tracked.
+   - Size summary: `runs` 99.27 MB, `outputs` 0.02 MB, `data/candidates` 0 MB, `data/generated` 0.29 MB, `docs/experiment_results` 256.43 MB, `references_merged_for_claude` 0.71 MB.
+2. Untracked runtime/generated artifacts without deleting local files:
+   - `git rm -r --cached runs outputs`
+   - `git rm --cached data/benchmark.jsonl data/benchmark_run.jsonl`
+   - `git rm --cached -- data/generated/*.jsonl`
+   - Preserved `data/candidates/.gitkeep` and `data/generated/.gitkeep`.
+3. Updated `.gitignore` with grouped rules for runtime outputs, logs, local model/cache artifacts, generated datasets, root benchmark JSONL files, and Claude worktrees.
+4. Audited old root benchmark references:
+   - Only `docs/code_cleanup_report.md` described `data/benchmark.jsonl` and `data/benchmark_run.jsonl` as early benchmark outputs; no core test dependency was found.
+5. Audited `replenish/` compatibility package:
+   - Precise grep found only cleanup-report references and `replenish/__init__.py` docstring mentioning old `python -m replenish...` compatibility.
+   - `README`, scripts, and tests use `replenishverifier` paths.
+   - `replenish/` was intentionally not deleted this round.
+6. Audited `references_merged_for_claude/`:
+   - Size is about 0.71 MB.
+   - It was not deleted; future cleanup can move/archive it if desired.
+7. Preserved required directories:
+   - `replenishverifier/`, `tests/`, `papers/`, `docs/experiment_results/`, `data/candidates/.gitkeep`, and `data/generated/.gitkeep` were not deleted.
+
+### Verification
+
+- Requested command with env vars:
+  - Command: `PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q`
+  - Result in this Windows shell: failed because `C:\Python314\python.exe` could not find `pytest` with user site disabled.
+- Available Python environment verification:
+  - Command: `python -m pytest -q`
+  - Result: `137 passed, 52 warnings in 2.62s`.
+
+### Staged cleanup summary
+
+`git diff --cached --name-only` summary after staging `.gitignore`:
+
+- `.gitignore`: 1 file modified.
+- `runs/`: 2273 tracked files removed from Git index.
+- `outputs/`: 13 tracked files removed from Git index.
+- `data/generated/*.jsonl`: 4 tracked files removed from Git index.
+- `data/benchmark*.jsonl`: 2 tracked files removed from Git index.
+- Other staged files: 0.
+
+No automatic commit or push was performed.

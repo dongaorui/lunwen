@@ -154,9 +154,15 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
         "reference_status": reference.get("reference_status"),
         "objective_term_verification": objective_term_result,
         "objective_term_coverage": objective_term_result.get("objective_term_coverage"),
+        "objective_term_surface_coverage": objective_term_result.get("objective_term_surface_coverage"),
+        "objective_term_lp_coefficient_coverage": objective_term_result.get("objective_term_lp_coefficient_coverage"),
         "expected_objective_terms": objective_term_result.get("expected_objective_terms", []),
         "detected_objective_terms": objective_term_result.get("detected_objective_terms", []),
         "missing_objective_terms": objective_term_result.get("missing_objective_terms", []),
+        "surface_detected_objective_terms": objective_term_result.get("surface_detected_objective_terms", []),
+        "surface_missing_objective_terms": objective_term_result.get("surface_missing_objective_terms", []),
+        "lp_detected_objective_terms": objective_term_result.get("lp_detected_objective_terms", []),
+        "lp_missing_objective_terms": objective_term_result.get("lp_missing_objective_terms", []),
         "code_output_format_valid": code_output_format_valid(generated_code),
         "static_validation": static_validation,
         **static_validation,
@@ -433,6 +439,37 @@ def _candidate_index(row):
     digits = "".join(ch for ch in cid if ch.isdigit())
     return int(digits) if digits else 0
 
+
+def _runtime_sec(row):
+    return float(row.get("runtime_sec", row.get("total_candidate_evaluation_time", 0.0)) or 0.0)
+
+
+def _static_validation_score(row):
+    return float(row.get("static_validation_score", ((row.get("static_validation") or {}).get("static_validation_score", 0.0))) or 0.0)
+
+
+def _code_validity_score(row):
+    return 1.0 if row.get("code_output_format_valid") else 0.0
+
+
+def _solver_status_score(row, allow_feasible_selection=False):
+    execution = row.get("execution") or {}
+    status = str(execution.get("status") or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if status in {"optimal", "optimum"}:
+        return 2.0
+    if allow_feasible_selection and status in {"feasible", "integer_feasible", "solution_found"}:
+        return 1.0
+    return 0.0
+
+
+def _has_objective_score(row):
+    return 1.0 if (row.get("execution") or {}).get("objective") is not None else 0.0
+
+
+def _critical_structure_pass_score(row):
+    return 1.0 if not _critical_missing_structures(row) else 0.0
+
+
 def lp_artifact_structure_signal(row):
     structure = row.get("structure_verification") or {}
     execution = row.get("execution") or {}
@@ -529,19 +566,121 @@ def _method_gated_score(row, method_name, allow_feasible_selection=False):
     return hard_selection_gate(row.get("execution") or {}, raw_score, allow_feasible_selection=allow_feasible_selection)
 
 
+def _structure_score(row):
+    return float(row.get("structure_score", ((row.get("structure_verification") or {}).get("structure_score", 0.0))) or 0.0)
+
+
+def _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=False):
+    gated = _method_gated_score(row, method_name, allow_feasible_selection=allow_feasible_selection)
+    candidate_order = -_candidate_index(row)
+    runtime = -_runtime_sec(row)
+
+    if method_name == "Best-of-K":
+        return (
+            gated,
+            _solver_status_score(row, allow_feasible_selection=allow_feasible_selection),
+            _has_objective_score(row),
+            _structure_score(row),
+            _constraint_coverage(row),
+            _code_validity_score(row),
+            _static_validation_score(row),
+            runtime,
+            candidate_order,
+        )
+
+    if method_name in {"Solver-Filter", "Solver only"}:
+        return (
+            gated,
+            _solver_status_score(row, allow_feasible_selection=allow_feasible_selection),
+            _has_objective_score(row),
+            _code_validity_score(row),
+            _static_validation_score(row),
+            runtime,
+            candidate_order,
+        )
+
+    if method_name in {"Structure-Only", "Structure only", "Solver + Structure", "Structure + Consensus", "Solver + Structure + Consensus", "Structure-Grounded Consistency"}:
+        return (
+            gated,
+            _structure_score(row),
+            _constraint_coverage(row),
+            _critical_structure_pass_score(row),
+            _rule_score(row, "inventory_balance"),
+            candidate_order,
+        )
+
+    if method_name in {"Consensus only", "OR-R1-like Voting", "Solver + Consensus"}:
+        return (
+            gated,
+            float(row.get("objective_consensus_score", 0.0) or 0.0),
+            _solver_status_score(row, allow_feasible_selection=allow_feasible_selection),
+            _has_objective_score(row),
+            _code_validity_score(row),
+            runtime,
+            candidate_order,
+        )
+
+    if method_name in {"SIRL-like LP-Stats", "OptArgus-like Audit", "OptiRepair-like Repair-Prompt"}:
+        return (
+            gated,
+            _code_validity_score(row),
+            _solver_status_score(row, allow_feasible_selection=allow_feasible_selection),
+            _has_objective_score(row),
+            runtime,
+            candidate_order,
+        )
+
+    if method_name == "ReplenishVerifier-TypeAware":
+        return (
+            gated,
+            _critical_structure_pass_score(row),
+            _objective_term_coverage(row),
+            _constraint_coverage(row),
+            _type_aware_hard_gate_score(row),
+            -_type_aware_repair_feedback_count(row),
+            -_repair_feedback_count(row),
+            runtime,
+            candidate_order,
+        )
+
+    if method_name in {"ReplenishVerifier-Full", "ReplenishVerifier-Repair", "ReplenishVerifier full"}:
+        return (
+            gated,
+            _structure_score(row),
+            _constraint_coverage(row),
+            _objective_term_coverage(row),
+            _rule_score(row, "inventory_balance"),
+            _static_validation_score(row),
+            candidate_order,
+        )
+
+    return (gated, candidate_order)
+
+
 def _selection_tie_break_key(row, method_name, allow_feasible_selection=False):
-    return (
-        _method_gated_score(row, method_name, allow_feasible_selection=allow_feasible_selection),
-        float(row.get("structure_score", ((row.get("structure_verification") or {}).get("structure_score", 0.0))) or 0.0),
-        _rule_score(row, "inventory_balance"),
-        _constraint_coverage(row),
-        _objective_term_coverage(row),
-        _type_aware_hard_gate_score(row),
-        -_type_aware_repair_feedback_count(row),
-        -_repair_feedback_count(row),
-        float(row.get("static_validation_score", ((row.get("static_validation") or {}).get("static_validation_score", 0.0))) or 0.0),
-        -_candidate_index(row),
-    )
+    return _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=allow_feasible_selection)
+
+
+def _type_aware_candidate_pool_filter(rows, allow_feasible_selection=False):
+    viable = [
+        row for row in rows
+        if _method_gated_score(row, "ReplenishVerifier-TypeAware", allow_feasible_selection=allow_feasible_selection) > 0.0
+    ]
+    metadata = {
+        "type_aware_pool_filter_applied": True,
+        "type_aware_pool_filter_fallback": False,
+        "type_aware_pool_filter_candidate_count": 0,
+    }
+    if not viable:
+        metadata["type_aware_pool_filter_fallback"] = True
+        return list(rows), metadata
+    critical_pass = [row for row in viable if not _critical_missing_structures(row)]
+    if critical_pass:
+        metadata["type_aware_pool_filter_candidate_count"] = len(critical_pass)
+        return critical_pass, metadata
+    metadata["type_aware_pool_filter_fallback"] = True
+    metadata["type_aware_pool_filter_candidate_count"] = len(viable)
+    return viable, metadata
 
 
 def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
@@ -575,6 +714,7 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
     selected = []
     for pid, reference in benchmark.items():
         rows = list(evaluated_by_problem.get(pid, []))
+        pool_metadata = {}
         if not rows:
             best = _first_or_empty(pid, reference)
         elif method_name == "Direct":
@@ -582,11 +722,16 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
         elif method_name == "Best-of-K":
             viable = [row for row in rows if _method_gated_score(row, method_name, allow_feasible_selection=allow_feasible_selection) > 0.0]
             executable = [row for row in rows if row.get("execution", {}).get("executable")]
-            best = max(viable, key=lambda row: _selection_tie_break_key(row, method_name, allow_feasible_selection=allow_feasible_selection)) if viable else (executable[0] if executable else rows[0])
+            best = max(viable, key=lambda row: _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=allow_feasible_selection)) if viable else (executable[0] if executable else rows[0])
+        elif method_name == "ReplenishVerifier-TypeAware":
+            pool, pool_metadata = _type_aware_candidate_pool_filter(rows, allow_feasible_selection=allow_feasible_selection)
+            best = max(pool, key=lambda row: _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=allow_feasible_selection))
         else:
-            best = max(rows, key=lambda row: _selection_tie_break_key(row, method_name, allow_feasible_selection=allow_feasible_selection))
+            best = max(rows, key=lambda row: _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=allow_feasible_selection))
 
         best = dict(best)
+        if method_name == "ReplenishVerifier-TypeAware":
+            best.update(pool_metadata)
         best["method_name"] = method_name
         _annotate_selected_score(best, method_name, allow_feasible_selection=allow_feasible_selection)
         if method_name == "OR-R1-like Voting":

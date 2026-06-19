@@ -4,6 +4,8 @@ from pathlib import Path
 from replenishverifier.experiments.paper_metrics import (
     add_bootstrap_ci,
     compute_error_type_summary,
+    compute_missed_oracle_summary,
+    compute_paired_method_comparison,
     compute_pass_at_k,
     compute_selected_method_metrics,
     compute_selection_diagnostics,
@@ -43,15 +45,19 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "candidate_rank_distribution": [],
         "selection_score_debug": [],
     }
+    missed_oracle = compute_missed_oracle_summary(main_rows, candidate_rows) if candidate_rows else []
+    paired_comparison = compute_paired_method_comparison(main_rows)
 
     tables = {
-        "table_main_metrics": _select_columns(metrics, ["method", "n", "code_validity_rate", "executable_rate", "optimal_rate", "objective_accuracy", "structure_completeness", "constraint_coverage", "objective_term_coverage"]),
+        "table_main_metrics": _select_columns(metrics, ["method", "n", "code_validity_rate", "executable_rate", "optimal_rate", "objective_accuracy", "objective_accuracy_count", "objective_accuracy_total", "structure_completeness", "structure_complete_count", "structure_complete_total", "constraint_coverage", "objective_term_coverage"]),
         "table_solver_status": _select_columns(metrics, ["method", "n", "solver_status_optimal_rate", "solver_status_infeasible_rate", "solver_status_timeout_rate", "solver_status_error_rate"]),
         "table_objective_gap": _select_columns(metrics, ["method", "n", "objective_accuracy", "mean_relative_error", "median_relative_error", "mean_objective_gap", "median_objective_gap"]),
         "table_structure_metrics": _select_columns(metrics, ["method", "n", "structure_completeness", "inventory_balance_accuracy", "constraint_coverage"]),
-        "table_objective_terms": _select_columns(metrics, ["method", "n", "objective_term_coverage"]),
+        "table_objective_terms": _select_columns(metrics, ["method", "n", "objective_term_surface_coverage", "objective_term_lp_coefficient_coverage", "objective_term_coverage"]),
         "table_pass_at_k_oracle": pass_at_k,
         "table_selection_diagnostics": diagnostics["candidate_rank_distribution"],
+        "table_missed_oracle_summary": missed_oracle,
+        "table_paired_method_comparison": paired_comparison,
         "table_error_taxonomy": errors,
         "table_runtime_cost": _select_columns(metrics, ["method", "n", "average_runtime_sec", "median_runtime_sec", "average_repair_feedback_count"]),
         "table_bootstrap_ci": metrics_with_ci,
@@ -65,6 +71,8 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "table_objective_terms": "Table: Objective Term Coverage",
         "table_pass_at_k_oracle": "Table: Pass@K and Oracle Upper Bounds",
         "table_selection_diagnostics": "Table: Selection Diagnostics",
+        "table_missed_oracle_summary": "Table: Missed Oracle Summary",
+        "table_paired_method_comparison": "Table: Paired Method Comparison",
         "table_error_taxonomy": "Table: Error Taxonomy",
         "table_runtime_cost": "Table: Runtime and Repair Feedback Cost",
         "table_bootstrap_ci": "Table: Bootstrap Confidence Intervals",

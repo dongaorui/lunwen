@@ -5,6 +5,8 @@ from pathlib import Path
 from replenishverifier.experiments.paper_metrics import (
     BASE_METRICS,
     compute_error_type_summary,
+    compute_missed_oracle_summary,
+    compute_paired_method_comparison,
     compute_selected_method_metrics,
     compute_selection_diagnostics,
     write_csv,
@@ -138,6 +140,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     error_comparison = _compare_error_types(recomputed_errors, reported_errors)
 
     diagnostics = compute_selection_diagnostics(main_rows, candidate_rows)
+    missed_oracle_summary = compute_missed_oracle_summary(main_rows, candidate_rows) if candidate_rows else []
+    paired_method_comparison = compute_paired_method_comparison(main_rows)
 
     write_jsonl(out_dir / "metric_comparison.jsonl", metric_comparison)
     write_csv(out_dir / "metric_comparison.csv", metric_comparison)
@@ -148,6 +152,10 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     write_csv(out_dir / "selection_score_debug.csv", diagnostics["selection_score_debug"])
     write_csv(out_dir / "same_selection_rate.csv", diagnostics["same_selection_rate"])
     write_csv(out_dir / "candidate_rank_distribution.csv", diagnostics["candidate_rank_distribution"])
+    write_csv(out_dir / "missed_oracle_summary.csv", missed_oracle_summary)
+    write_markdown(out_dir / "missed_oracle_summary.md", missed_oracle_summary, "Missed Oracle Summary")
+    write_csv(out_dir / "paired_method_comparison.csv", paired_method_comparison)
+    write_markdown(out_dir / "paired_method_comparison.md", paired_method_comparison, "Paired Method Comparison")
 
     status_counts = {}
     for row in metric_comparison + error_comparison:
@@ -169,6 +177,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "metric_comparison": metric_comparison,
         "error_type_comparison": error_comparison,
         "selection_diagnostics": diagnostics,
+        "missed_oracle_summary": missed_oracle_summary,
+        "paired_method_comparison": paired_method_comparison,
         "summary": summary,
     }
 
