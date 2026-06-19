@@ -2,21 +2,24 @@ import csv
 
 from replenishverifier.experiments.build_paper_metrics import build_paper_metrics
 from replenishverifier.experiments.paper_metrics import (
+    compute_metrics_by_problem_type,
     compute_selected_method_metrics,
     compute_error_type_summary,
     compute_pass_at_k,
+    compute_selection_collapse_summary,
     compute_selection_diagnostics,
     format_metric_value,
 )
 from replenishverifier.utils.io import write_jsonl
 
 
-def _row(method, pid, cid, selected=True, executable=True, status="Optimal", objective_correct=1.0, structure_score=1.0):
+def _row(method, pid, cid, selected=True, executable=True, status="Optimal", objective_correct=1.0, structure_score=1.0, problem_type="multi_item_capacity"):
     return {
         "method_name": method,
         "problem_id": pid,
         "candidate_id": cid,
         "selected": selected,
+        "problem_type": problem_type,
         "execution": {"executable": executable, "status": status, "objective": 10.0},
         "objective_correct": objective_correct,
         "relative_error": 0.0 if objective_correct else 0.5,
@@ -143,11 +146,43 @@ def test_compute_selection_diagnostics_outputs_same_rate_and_rank_distribution()
     assert {"method", "problem_id", "candidate_id", "objective_correct_posthoc", "selected"} <= set(debug[0])
 
 
+def test_compute_metrics_by_problem_type_groups_selected_methods_and_problem_types():
+    rows = [
+        _row("Consensus only", "p0", "model_k0", objective_correct=0.0, structure_score=0.5, problem_type="multi_item_capacity"),
+        _row("ReplenishVerifier-TypeAware-Consensus", "p1", "model_k1", objective_correct=1.0, structure_score=1.0, problem_type="multi_item_capacity"),
+        _row("ReplenishVerifier-TypeAware-Consensus", "p2", "model_k1", objective_correct=1.0, structure_score=1.0, problem_type="fixed_order_cost_big_m"),
+    ]
+
+    table = compute_metrics_by_problem_type(rows, methods=["Consensus only", "ReplenishVerifier-TypeAware-Consensus"])
+    keyed = {(row["method"], row["problem_type"]): row for row in table}
+
+    assert keyed[("Consensus only", "multi_item_capacity")]["objective_accuracy"] == 0.0
+    assert keyed[("ReplenishVerifier-TypeAware-Consensus", "multi_item_capacity")]["objective_accuracy"] == 1.0
+    assert keyed[("ReplenishVerifier-TypeAware-Consensus", "fixed_order_cost_big_m")]["constraint_coverage"] == 1.0
+
+
+def test_compute_selection_collapse_summary_reports_high_overlap_and_duplicate_metrics():
+    rows = [
+        _row("A", "p0", "model_k0", objective_correct=1.0, structure_score=1.0),
+        _row("B", "p0", "model_k0", objective_correct=1.0, structure_score=1.0),
+        _row("A", "p1", "model_k1", objective_correct=0.0, structure_score=0.5),
+        _row("B", "p1", "model_k1", objective_correct=0.0, structure_score=0.5),
+    ]
+
+    summary = compute_selection_collapse_summary(rows, threshold=0.95)
+
+    assert any(row["diagnostic_type"] == "high_same_selection_pair" and row["method_a"] == "A" and row["method_b"] == "B" for row in summary)
+    assert any(row["diagnostic_type"] == "metric_duplicate_group" and "A" in row["methods"] and "B" in row["methods"] for row in summary)
+
+
 def test_build_paper_metrics_writes_expected_tables(tmp_path):
     exp_dir = tmp_path / "exp"
     out_dir = tmp_path / "paper"
     exp_dir.mkdir()
-    main_rows = [_row("Direct", "p0", "model_k0")]
+    main_rows = [
+        _row("Direct", "p0", "model_k0"),
+        _row("ReplenishVerifier-TypeAware-Consensus", "p0", "model_k0"),
+    ]
     candidate_rows = [_row("candidate", "p0", "model_k0")]
     write_jsonl(exp_dir / "main_results.jsonl", main_rows)
     write_jsonl(exp_dir / "candidate_evaluations.jsonl", candidate_rows)
@@ -167,6 +202,8 @@ def test_build_paper_metrics_writes_expected_tables(tmp_path):
         "table_error_taxonomy",
         "table_runtime_cost",
         "table_bootstrap_ci",
+        "table_by_problem_type",
+        "table_selection_collapse",
     ]
     assert set(result["tables"]) == set(expected)
     for name in expected:
@@ -185,3 +222,11 @@ def test_build_paper_metrics_writes_expected_tables(tmp_path):
         main_metric_rows = list(csv.DictReader(f))
     assert main_metric_rows[0]["objective_accuracy_count"] == "1"
     assert main_metric_rows[0]["objective_accuracy_total"] == "1"
+
+    with (out_dir / "table_by_problem_type.csv").open(encoding="utf-8") as f:
+        by_type_rows = list(csv.DictReader(f))
+    assert any(row["method"] == "ReplenishVerifier-TypeAware-Consensus" for row in by_type_rows)
+
+    with (out_dir / "table_selection_collapse.csv").open(encoding="utf-8") as f:
+        collapse_rows = list(csv.DictReader(f))
+    assert collapse_rows

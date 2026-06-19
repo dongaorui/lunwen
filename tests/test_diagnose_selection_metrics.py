@@ -1,4 +1,9 @@
-from replenishverifier.experiments.diagnose_selection_metrics import diagnose_selection_metrics
+from replenishverifier.experiments.diagnose_selection_metrics import (
+    build_method_redundancy_report,
+    build_metric_saturation_report,
+    compute_avoidable_error_summary,
+    diagnose_selection_metrics,
+)
 from replenishverifier.experiments.paper_metrics import compute_missed_oracle_summary, compute_paired_method_comparison
 from replenishverifier.utils.io import write_jsonl
 
@@ -131,6 +136,85 @@ def test_diagnose_selection_metrics_writes_oracle_and_paired_outputs(tmp_path):
     assert (exp_dir / "diag" / "paired_method_comparison.csv").exists()
     assert result["missed_oracle_summary"]
     assert result["paired_method_comparison"]
+
+
+def test_method_redundancy_report_lists_high_overlap_and_identical_metric_groups():
+    metrics = [
+        {"method": "Solver only", "objective_accuracy": 0.5, "structure_completeness": 1.0, "constraint_coverage": 1.0},
+        {"method": "Solver-Filter", "objective_accuracy": 0.5, "structure_completeness": 1.0, "constraint_coverage": 1.0},
+        {"method": "Consensus only", "objective_accuracy": 0.5, "structure_completeness": 0.5, "constraint_coverage": 0.5},
+    ]
+    same_selection = [{"method_a": "Solver only", "method_b": "Solver-Filter", "n_common": 20, "same_count": 19, "same_selection_rate": 0.95}]
+
+    report = build_method_redundancy_report(metrics, same_selection, threshold=0.95)
+
+    assert "This report is diagnostic only and does not affect formal selection." in report
+    assert "Solver only" in report and "Solver-Filter" in report
+    assert "same_selection_rate" in report
+    assert "Metrics-identical method groups" in report
+
+
+def test_metric_saturation_report_flags_low_unique_metrics_and_overlap_pairs():
+    metrics = [
+        {"method": "A", "objective_accuracy": 0.5, "optimal_rate": 1.0, "constraint_coverage": 1.0},
+        {"method": "B", "objective_accuracy": 0.5, "optimal_rate": 1.0, "constraint_coverage": 0.5},
+        {"method": "C", "objective_accuracy": 0.5, "optimal_rate": 0.0, "constraint_coverage": 1.0},
+    ]
+    same_selection = [{"method_a": "A", "method_b": "B", "n_common": 3, "same_count": 3, "same_selection_rate": 1.0}]
+
+    report = build_metric_saturation_report(metrics, same_selection, low_unique_threshold=2)
+
+    assert "This report is diagnostic only and does not affect formal selection." in report
+    assert "objective_accuracy" in report
+    assert "unique_values" in report
+    assert "A" in report and "B" in report
+
+
+def test_compute_avoidable_error_summary_counts_posthoc_opportunities():
+    main_rows = [
+        _selected("ReplenishVerifier-TypeAware", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"]),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "m_k1", objective_correct=1.0, missing=[]),
+        _selected("Consensus only", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"]),
+    ]
+    main_rows[0]["execution"] = {"executable": False, "status": "Error", "objective": None}
+    main_rows[2]["execution"] = {"executable": True, "status": "Infeasible", "objective": 1.0}
+    candidate_rows = [
+        _selected("candidate", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"]),
+        _selected("candidate", "p0", "m_k1", objective_correct=1.0, missing=[]),
+    ]
+
+    summary = compute_avoidable_error_summary(main_rows, candidate_rows)
+    by_method = {row["method"]: row for row in summary}
+
+    assert by_method["ReplenishVerifier-TypeAware"]["objective_mismatch_with_objective_correct_available"] == 1
+    assert by_method["ReplenishVerifier-TypeAware"]["missing_capacity_with_capacity_available"] == 1
+    assert by_method["ReplenishVerifier-TypeAware"]["execution_error_with_executable_available"] == 1
+    assert by_method["Consensus only"]["solver_not_optimal_with_optimal_available"] == 1
+    assert by_method["ReplenishVerifier-TypeAware-Consensus"]["objective_mismatch_with_objective_correct_available"] == 0
+
+
+def test_diagnose_selection_metrics_writes_new_diagnostic_reports(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    main_rows = [
+        _selected("ReplenishVerifier-TypeAware", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"]),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "m_k1", objective_correct=1.0, missing=[]),
+        _selected("Consensus only", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"]),
+    ]
+    candidate_rows = [
+        _selected("candidate", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"]),
+        _selected("candidate", "p0", "m_k1", objective_correct=1.0, missing=[]),
+    ]
+    write_jsonl(exp_dir / "main_results.jsonl", main_rows)
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", candidate_rows)
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diag")
+
+    assert (exp_dir / "diag" / "method_redundancy_report.md").exists()
+    assert (exp_dir / "diag" / "metric_saturation_report.md").exists()
+    assert (exp_dir / "diag" / "avoidable_error_summary.md").exists()
+    assert "avoidable_error_summary" in result
+    assert "post-hoc diagnostics only" in (exp_dir / "diag" / "avoidable_error_summary.md").read_text(encoding="utf-8")
 
 
 def test_diagnose_parses_reported_markdown_tables(tmp_path):

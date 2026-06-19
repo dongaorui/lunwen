@@ -232,3 +232,30 @@ The fair-control interpretation is now stricter:
 - `structure_aware` repair = may use missing required structures, certificates, repair hints, and labels such as inventory balance, Big-M, fixed order cost, capacity, shortage, or binary order variables.
 
 No reference objective is used for repair prompt construction or preference construction; `reference_objective` remains evaluation-only.
+
+## 2026-06-19 — TypeAware-Consensus selection and diagnostics
+
+The project now separates concise main methods from appendix methods while preserving legacy compatibility:
+
+- Default `main_results.*` uses `MAIN_METHODS`: `Direct`, `Best-of-K`, `Solver only`, `Structure only`, `Consensus only`, `ReplenishVerifier-Full`, `ReplenishVerifier-TypeAware`, and `ReplenishVerifier-TypeAware-Consensus`.
+- `METHODS` still contains all legacy/appendix methods, and `run_all_methods --appendix_methods_in_main` restores the old full-method main table behavior.
+
+`ReplenishVerifier-TypeAware-Consensus` is the new formal TypeAware direction:
+
+- executable + Optimal remain hard-priority signals;
+- objective consensus is the dominant ranking signal;
+- critical TypeAware missing structures are safe reranking/penalty signals rather than a TypeAware-first pool filter;
+- structure completeness, constraint coverage, objective-term coverage, hard gate score, feedback count, and runtime are auxiliary;
+- selection components exclude `reference_objective`, `objective_correct`, `relative_error`, reference LP, and oracle fields.
+
+The old `ReplenishVerifier-TypeAware` remains available as a TypeAware-first ablation so the paper can explain why structure-gate-first selection is less stable.
+
+New diagnostics are explicitly separated from formal selection:
+
+- `method_redundancy_report.md` is diagnostic-only and reports high same-selection-rate pairs, metric-identical groups, objective-accuracy duplicate groups, and recommended display families.
+- `metric_saturation_report.md` is diagnostic-only and reports low-unique-value metrics plus high-overlap method pairs.
+- `avoidable_error_summary.md` is post-hoc-only and counts avoidable objective mismatch, missing capacity, non-optimal solver status, and execution errors for TypeAware, TypeAware-Consensus, and Consensus only.
+
+New paper metric helpers add `table_by_problem_type.*` and `table_selection_collapse.*`. These can explain which problem types improve and why methods collapse to the same selected candidates.
+
+Verification completed with `python -m pytest -q`: `150 passed, 52 warnings in 3.33s`. The warning count is existing PuLP deprecation warnings. No LLM generation code or candidate generation path was modified.

@@ -122,6 +122,181 @@ def _compare_error_types(recomputed, reported_rows):
     return comparisons
 
 
+def _metric_signature(row):
+    ignored = {"method", "n"}
+    return tuple(sorted((key, row.get(key)) for key in row if key not in ignored))
+
+
+def _group_by_signature(rows, signature_fn):
+    groups = {}
+    for row in rows:
+        groups.setdefault(signature_fn(row), []).append(row.get("method"))
+    return [sorted(methods) for methods in groups.values() if len(methods) > 1]
+
+
+def build_method_redundancy_report(metric_rows, same_selection_rows, threshold=0.95):
+    high_overlap = [
+        row for row in same_selection_rows
+        if row.get("same_selection_rate") is not None and float(row.get("same_selection_rate")) >= threshold
+    ]
+    identical_metric_groups = _group_by_signature(metric_rows, _metric_signature)
+    objective_groups = _group_by_signature(metric_rows, lambda row: ("objective_accuracy", row.get("objective_accuracy")))
+    objective_only_groups = [group for group in objective_groups if len(group) > 1]
+    lines = [
+        "# Method Redundancy Report",
+        "",
+        "This report is diagnostic only and does not affect formal selection.",
+        "",
+        f"## Method pairs with same_selection_rate >= {threshold:.2f}",
+        "",
+    ]
+    if high_overlap:
+        lines.extend(["| method_a | method_b | n_common | same_count | same_selection_rate |", "| --- | --- | --- | --- | --- |"])
+        for row in high_overlap:
+            lines.append(
+                f"| {row.get('method_a')} | {row.get('method_b')} | {row.get('n_common')} | "
+                f"{row.get('same_count')} | {float(row.get('same_selection_rate')):.4f} |"
+            )
+    else:
+        lines.append("No method pairs reached the threshold.")
+    lines.extend(["", "## Metrics-identical method groups", ""])
+    if identical_metric_groups:
+        for group in identical_metric_groups:
+            lines.append("- " + ", ".join(group))
+    else:
+        lines.append("No metrics-identical groups found.")
+    lines.extend(["", "## Same objective_accuracy but different selection groups", ""])
+    if objective_only_groups:
+        for group in objective_only_groups:
+            lines.append("- " + ", ".join(group))
+    else:
+        lines.append("No objective_accuracy groups found.")
+    lines.extend([
+        "",
+        "## Recommended display families",
+        "",
+        "- Solver family: Solver only, Solver-Filter",
+        "- Structure family: Structure only, Structure-Only",
+        "- Consensus family: Consensus only, OR-R1-like Voting, Solver + Consensus",
+        "- Full verifier family: ReplenishVerifier-Full, ReplenishVerifier-Repair, Structure-Grounded Consistency",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def build_metric_saturation_report(metric_rows, same_selection_rows, low_unique_threshold=2):
+    metric_names = sorted({key for row in metric_rows for key in row if key not in {"method", "n"}})
+    lines = [
+        "# Metric Saturation Report",
+        "",
+        "This report is diagnostic only and does not affect formal selection.",
+        "",
+        "## Metric unique-value counts",
+        "",
+        "| metric | unique_values | saturated | values |",
+        "| --- | --- | --- | --- |",
+    ]
+    saturated = []
+    for metric in metric_names:
+        values = sorted({row.get(metric) for row in metric_rows}, key=lambda value: str(value))
+        is_saturated = len(values) <= low_unique_threshold
+        if is_saturated:
+            saturated.append(metric)
+        lines.append(f"| {metric} | {len(values)} | {is_saturated} | {values} |")
+    lines.extend(["", "## Saturated metrics", ""])
+    lines.append(", ".join(saturated) if saturated else "No saturated metrics found.")
+    lines.extend([
+        "",
+        "## High-overlap method pairs",
+        "",
+        "High same_selection_rate can make headline metrics identical even when method names differ.",
+        "",
+    ])
+    high_overlap = [
+        row for row in same_selection_rows
+        if row.get("same_selection_rate") is not None and float(row.get("same_selection_rate")) >= 0.95
+    ]
+    if high_overlap:
+        for row in high_overlap:
+            lines.append(f"- {row.get('method_a')} / {row.get('method_b')}: same_selection_rate={float(row.get('same_selection_rate')):.4f}")
+    else:
+        lines.append("No high-overlap pairs found.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _selected_by_method_problem(rows):
+    out = {}
+    for row in rows:
+        if not row.get("selected", False):
+            continue
+        out.setdefault(row.get("method_name") or row.get("method"), {})[row.get("problem_id")] = row
+    return out
+
+
+def _local_objective_correct(row):
+    try:
+        return float(row.get("objective_correct", row.get("objective_accuracy", 0.0)) or 0.0) == 1.0
+    except (TypeError, ValueError):
+        return False
+
+
+def _local_missing(row, structure_name):
+    return structure_name in set(((row.get("structure_verification") or {}).get("missing") or []))
+
+
+def compute_avoidable_error_summary(main_rows, candidate_rows, methods=None):
+    methods = methods or ["ReplenishVerifier-TypeAware", "ReplenishVerifier-TypeAware-Consensus", "Consensus only"]
+    by_problem = {}
+    for row in candidate_rows:
+        by_problem.setdefault(row.get("problem_id"), []).append(row)
+    opportunities = {}
+    for pid, rows in by_problem.items():
+        opportunities[pid] = {
+            "objective_correct_available": any(_local_objective_correct(row) for row in rows),
+            "capacity_available": any(not _local_missing(row, "capacity_constraint") for row in rows),
+            "optimal_available": any(str((row.get("execution") or {}).get("status") or "") == "Optimal" for row in rows),
+            "executable_available": any(bool((row.get("execution") or {}).get("executable")) for row in rows),
+        }
+    selected = _selected_by_method_problem(main_rows)
+    result = []
+    for method in methods:
+        rows_by_problem = selected.get(method, {})
+        counts = {
+            "method": method,
+            "n_selected": len(rows_by_problem),
+            "objective_mismatch_with_objective_correct_available": 0,
+            "missing_capacity_with_capacity_available": 0,
+            "solver_not_optimal_with_optimal_available": 0,
+            "execution_error_with_executable_available": 0,
+        }
+        for pid, row in rows_by_problem.items():
+            opp = opportunities.get(pid, {})
+            execution = row.get("execution") or {}
+            if opp.get("objective_correct_available") and not _local_objective_correct(row):
+                counts["objective_mismatch_with_objective_correct_available"] += 1
+            if opp.get("capacity_available") and _local_missing(row, "capacity_constraint"):
+                counts["missing_capacity_with_capacity_available"] += 1
+            if opp.get("optimal_available") and str(execution.get("status") or "") != "Optimal":
+                counts["solver_not_optimal_with_optimal_available"] += 1
+            if opp.get("executable_available") and not bool(execution.get("executable")):
+                counts["execution_error_with_executable_available"] += 1
+        result.append(counts)
+    return result
+
+
+def _write_avoidable_error_markdown(path, rows):
+    header = "This is post-hoc diagnostics only and must not be used for formal selection."
+    if not rows:
+        Path(path).write_text(f"# Avoidable Error Summary\n\n{header}\n\nNo rows.\n", encoding="utf-8")
+        return
+    keys = list(rows[0].keys())
+    lines = ["# Avoidable Error Summary", "", header, "", "| " + " | ".join(keys) + " |", "| " + " | ".join(["---"] * len(keys)) + " |"]
+    for row in rows:
+        lines.append("| " + " | ".join(str(row.get(key)) for key in keys) + " |")
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=None, out_dir=None):
     exp_dir = Path(exp_dir)
     out_dir = Path(out_dir) if out_dir else exp_dir / "selection_metric_diagnostics"
@@ -142,6 +317,9 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     diagnostics = compute_selection_diagnostics(main_rows, candidate_rows)
     missed_oracle_summary = compute_missed_oracle_summary(main_rows, candidate_rows) if candidate_rows else []
     paired_method_comparison = compute_paired_method_comparison(main_rows)
+    avoidable_error_summary = compute_avoidable_error_summary(main_rows, candidate_rows) if candidate_rows else []
+    method_redundancy_report = build_method_redundancy_report(recomputed_metrics, diagnostics["same_selection_rate"])
+    metric_saturation_report = build_metric_saturation_report(recomputed_metrics, diagnostics["same_selection_rate"])
 
     write_jsonl(out_dir / "metric_comparison.jsonl", metric_comparison)
     write_csv(out_dir / "metric_comparison.csv", metric_comparison)
@@ -156,6 +334,10 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     write_markdown(out_dir / "missed_oracle_summary.md", missed_oracle_summary, "Missed Oracle Summary")
     write_csv(out_dir / "paired_method_comparison.csv", paired_method_comparison)
     write_markdown(out_dir / "paired_method_comparison.md", paired_method_comparison, "Paired Method Comparison")
+    write_csv(out_dir / "avoidable_error_summary.csv", avoidable_error_summary)
+    _write_avoidable_error_markdown(out_dir / "avoidable_error_summary.md", avoidable_error_summary)
+    (out_dir / "method_redundancy_report.md").write_text(method_redundancy_report, encoding="utf-8")
+    (out_dir / "metric_saturation_report.md").write_text(metric_saturation_report, encoding="utf-8")
 
     status_counts = {}
     for row in metric_comparison + error_comparison:
@@ -179,6 +361,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "selection_diagnostics": diagnostics,
         "missed_oracle_summary": missed_oracle_summary,
         "paired_method_comparison": paired_method_comparison,
+        "avoidable_error_summary": avoidable_error_summary,
         "summary": summary,
     }
 

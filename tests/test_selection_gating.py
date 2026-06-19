@@ -1,4 +1,4 @@
-from replenishverifier.experiments.methods import select_for_method
+from replenishverifier.experiments.methods import APPENDIX_METHODS, MAIN_METHODS, METHODS, select_for_method
 
 
 def _row(candidate_id, *, problem_type="multi_item_capacity", score=0.5, structure_score=0.5, missing=None, consensus=0.0, feedback=""):
@@ -30,6 +30,23 @@ def _row(candidate_id, *, problem_type="multi_item_capacity", score=0.5, structu
 
 def _benchmark(problem_type="multi_item_capacity"):
     return {"p0": {"id": "p0", "problem_type": problem_type}}
+
+
+def test_main_methods_are_concise_and_appendix_keeps_legacy_methods():
+    assert MAIN_METHODS == [
+        "Direct",
+        "Best-of-K",
+        "Solver only",
+        "Structure only",
+        "Consensus only",
+        "ReplenishVerifier-Full",
+        "ReplenishVerifier-TypeAware",
+        "ReplenishVerifier-TypeAware-Consensus",
+    ]
+    assert "Solver-Filter" in APPENDIX_METHODS
+    assert "OR-R1-like Voting" in APPENDIX_METHODS
+    assert "OptArgus-like Audit" in APPENDIX_METHODS
+    assert METHODS == MAIN_METHODS + APPENDIX_METHODS
 
 
 def test_direct_still_selects_first_candidate():
@@ -178,6 +195,57 @@ def test_type_aware_selection_prefers_non_k0_with_better_objective_terms_and_gat
     assert selected[0]["hard_gate_failures"] == []
 
 
+def test_type_aware_consensus_prefers_consensus_before_structure_when_structure_is_safe():
+    rows = [
+        _row("c0", structure_score=1.0, missing=[], consensus=0.20),
+        _row("c1", structure_score=0.8, missing=[], consensus=0.90),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["selection_components"]["consensus_score"] == 0.9
+    assert selected[0]["uses_reference_objective_for_selection"] is False
+
+
+def test_type_aware_consensus_uses_critical_missing_only_when_consensus_is_close():
+    rows = [
+        _row("c0", structure_score=0.95, missing=["capacity_constraint"], consensus=0.83),
+        _row("c1", structure_score=0.70, missing=[], consensus=0.82),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["selection_components"]["critical_missing_count"] == 0.0
+
+
+def test_type_aware_consensus_does_not_let_non_executable_consensus_win():
+    rows = [
+        _row("c0", structure_score=1.0, missing=[], consensus=1.0),
+        _row("c1", structure_score=0.2, missing=["capacity_constraint"], consensus=0.0),
+    ]
+    rows[0]["execution"] = {"executable": False, "status": "Error", "objective": 10.0}
+    rows[1]["execution"] = {"executable": True, "status": "Optimal", "objective": 20.0}
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["execution"]["executable"] is True
+
+
 def test_type_aware_selection_components_do_not_include_reference_or_oracle_fields():
     rows = [_row("c0", structure_score=1.0, missing=[])]
     rows[0]["objective_term_coverage"] = 1.0
@@ -187,10 +255,11 @@ def test_type_aware_selection_components_do_not_include_reference_or_oracle_fiel
     rows[0]["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
     rows[0]["type_aware_static_validation_errors"] = []
 
-    selected = select_for_method("ReplenishVerifier-TypeAware", {"p0": rows}, _benchmark())
-    component_keys = set(selected[0]["selection_components"].keys())
+    for method in ["ReplenishVerifier-TypeAware", "ReplenishVerifier-TypeAware-Consensus"]:
+        selected = select_for_method(method, {"p0": rows}, _benchmark())
+        component_keys = set(selected[0]["selection_components"].keys())
 
-    assert "reference_objective" not in component_keys
-    assert "objective_correct" not in component_keys
-    assert "relative_error" not in component_keys
-    assert "reference_lp" not in component_keys
+        assert "reference_objective" not in component_keys
+        assert "objective_correct" not in component_keys
+        assert "relative_error" not in component_keys
+        assert "reference_lp" not in component_keys

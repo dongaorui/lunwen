@@ -5,9 +5,11 @@ from replenishverifier.experiments.paper_metrics import (
     add_bootstrap_ci,
     compute_error_type_summary,
     compute_missed_oracle_summary,
+    compute_metrics_by_problem_type,
     compute_paired_method_comparison,
     compute_pass_at_k,
     compute_selected_method_metrics,
+    compute_selection_collapse_summary,
     compute_selection_diagnostics,
     write_csv,
     write_markdown,
@@ -46,7 +48,9 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "selection_score_debug": [],
     }
     missed_oracle = compute_missed_oracle_summary(main_rows, candidate_rows) if candidate_rows else []
-    paired_comparison = compute_paired_method_comparison(main_rows)
+    paired_comparison = compute_paired_method_comparison(main_rows, target_method="ReplenishVerifier-TypeAware-Consensus")
+    by_problem_type = compute_metrics_by_problem_type(main_rows)
+    selection_collapse = compute_selection_collapse_summary(main_rows, candidate_rows)
 
     tables = {
         "table_main_metrics": _select_columns(metrics, ["method", "n", "code_validity_rate", "executable_rate", "optimal_rate", "objective_accuracy", "objective_accuracy_count", "objective_accuracy_total", "structure_completeness", "structure_complete_count", "structure_complete_total", "constraint_coverage", "objective_term_coverage"]),
@@ -61,6 +65,8 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "table_error_taxonomy": errors,
         "table_runtime_cost": _select_columns(metrics, ["method", "n", "average_runtime_sec", "median_runtime_sec", "average_repair_feedback_count"]),
         "table_bootstrap_ci": metrics_with_ci,
+        "table_by_problem_type": by_problem_type,
+        "table_selection_collapse": selection_collapse,
     }
 
     titles = {
@@ -76,6 +82,8 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "table_error_taxonomy": "Table: Error Taxonomy",
         "table_runtime_cost": "Table: Runtime and Repair Feedback Cost",
         "table_bootstrap_ci": "Table: Bootstrap Confidence Intervals",
+        "table_by_problem_type": "Table: Metrics by Problem Type",
+        "table_selection_collapse": "Table: Selection Collapse Diagnostics",
     }
     for name, rows in tables.items():
         _write_table(out_dir, name, titles[name], rows)

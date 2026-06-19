@@ -563,3 +563,69 @@ The user asked to clean the ReplenishVerifier repository by removing or untracki
 - Other staged files: 0.
 
 No automatic commit or push was performed.
+
+## 2026-06-19 — TypeAware-Consensus selection, diagnostics, and paper metrics
+
+### User request
+
+The user reported that `qwen3_8b_k4_50_v5_typeaware_selectionfix` successfully separated some candidate choices but exposed several issues: TypeAware-first picked the wrong direction, selected more execution errors, reduced structure/constraint metrics, and many main-table methods remained redundant. The user required this round to avoid LLM generation changes, avoid `run_generation.py`, avoid candidate regeneration, keep old methods, add a robust `ReplenishVerifier-TypeAware-Consensus`, split main/appendix methods, add diagnostics, add paper metrics, write tests, run pytest, and not push.
+
+### Actions completed
+
+1. Added planning/design docs:
+   - `docs/superpowers/specs/2026-06-19-typeaware-consensus-diagnostics-design.md`
+   - `docs/superpowers/plans/2026-06-19-typeaware-consensus-diagnostics.md`
+2. Updated method grouping in `replenishverifier/experiments/methods.py`:
+   - `MAIN_METHODS` now contains the concise main-table set.
+   - `APPENDIX_METHODS` contains legacy/secondary methods.
+   - `METHODS = MAIN_METHODS + APPENDIX_METHODS` preserves backward compatibility.
+3. Updated `run_all_methods.py`:
+   - default `main_results.*` uses `MAIN_METHODS` only;
+   - `--appendix_methods_in_main` restores full-method main-table behavior;
+   - manifests record `main_methods`, `appendix_methods`, and `appendix_methods_in_main`.
+4. Added `ReplenishVerifier-TypeAware-Consensus`:
+   - consensus-first scoring;
+   - executable/Optimal hard-priority behavior;
+   - critical-missing structures as safe reranking/penalty rather than TypeAware-first filtering;
+   - auxiliary structure, constraint, objective-term, hard-gate, feedback, and runtime signals;
+   - no reference/oracle fields in selection components.
+5. Kept old `ReplenishVerifier-TypeAware` as TypeAware-first ablation.
+6. Added diagnostics in `diagnose_selection_metrics.py`:
+   - `method_redundancy_report.md`
+   - `metric_saturation_report.md`
+   - `avoidable_error_summary.csv/md`
+7. Added paper metrics in `paper_metrics.py` / `build_paper_metrics.py`:
+   - `table_by_problem_type.*`
+   - `table_selection_collapse.*`
+8. Added leakage-audit coverage for the new formal method.
+9. Added tests:
+   - TypeAware-Consensus behavior and no-reference components;
+   - method grouping and `--appendix_methods_in_main` behavior;
+   - redundancy/saturation/avoidable-error diagnostics;
+   - by-problem-type and selection-collapse paper metrics.
+
+### Verification
+
+- Focused tests:
+  - Command: `python -m pytest tests/test_selection_gating.py tests/test_run_all_methods_grouping.py tests/test_diagnose_selection_metrics.py tests/test_paper_metrics.py tests/test_leakage_audit.py -q`
+  - Result: `40 passed in 1.15s`
+- Full suite:
+  - Command: `python -m pytest -q`
+  - Result: `150 passed, 52 warnings in 3.33s`
+- Diff/compile check:
+  - Command: `git diff --check; if ($?) { python -m py_compile ... }`
+  - Result: passed; git printed many existing LF/CRLF warnings.
+- Existing debug diagnostics/paper metrics were generated under:
+  - `runs/debug_v5_typeaware_selectionfix_demo15/diagnostics_typeaware_consensus`
+  - `runs/debug_v5_typeaware_selectionfix_demo15/paper_metrics_typeaware_consensus`
+- New smoke/debug run with the new method:
+  - `runs/debug_typeaware_consensus_demo15`
+  - Leakage audit result: passed.
+
+### Notes
+
+- No LLM generation, candidate regeneration, or generation-time TypeAware validation/retry was performed.
+- `replenishverifier/llm/run_generation.py` was intentionally not modified.
+- The archived real result directory `docs/experiment_results/qwen3_8b_k4_50_v5_typeaware_selectionfix_compare` contains Markdown/CSV summaries but no raw `main_results.jsonl` / `candidate_evaluations.jsonl`, so the new selector could not be applied retroactively there without rerunning from raw candidates.
+- New smoke/debug outputs are for code-path validation only and should not be used as paper evidence.
+- No commit or push was performed.

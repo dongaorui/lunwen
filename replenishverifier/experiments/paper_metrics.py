@@ -155,6 +155,103 @@ def compute_error_type_summary(rows):
     return result
 
 
+DEFAULT_PAPER_METHODS = [
+    "Direct",
+    "Best-of-K",
+    "Consensus only",
+    "ReplenishVerifier-Full",
+    "ReplenishVerifier-TypeAware",
+    "ReplenishVerifier-TypeAware-Consensus",
+]
+
+
+def compute_metrics_by_problem_type(rows, methods=None):
+    methods = set(methods or DEFAULT_PAPER_METHODS)
+    grouped = defaultdict(list)
+    for row in selected_rows(rows):
+        method = row.get("method_name") or row.get("method") or "unknown"
+        if method not in methods:
+            continue
+        problem_type = row.get("problem_type") or "unknown"
+        grouped[(method, problem_type)].append(row)
+    result = []
+    for (method, problem_type), items in sorted(grouped.items()):
+        result.append({
+            "method": method,
+            "problem_type": problem_type,
+            "n": len(items),
+            "executable_rate": rate([(row.get("execution") or {}).get("executable") for row in items]),
+            "optimal_rate": rate([_status(row) == "optimal" for row in items]),
+            "objective_accuracy": mean([row.get("objective_correct", row.get("objective_accuracy")) for row in items]),
+            "structure_completeness": mean([row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")) for row in items]),
+            "constraint_coverage": mean([constraint_coverage(row) for row in items]),
+            "objective_term_coverage": mean([row.get("objective_term_coverage") for row in items]),
+        })
+    return result
+
+
+def _metric_duplicate_signature(row):
+    keys = ["objective_accuracy", "structure_completeness", "constraint_coverage", "executable_rate", "optimal_rate"]
+    return tuple((key, row.get(key)) for key in keys)
+
+
+def compute_selection_collapse_summary(main_rows, candidate_rows=None, threshold=0.95):
+    diagnostics = compute_selection_diagnostics(main_rows, candidate_rows or [])
+    rows = []
+    for row in diagnostics["same_selection_rate"]:
+        rate_value = row.get("same_selection_rate")
+        if rate_value is not None and float(rate_value) >= threshold:
+            rows.append({
+                "diagnostic_type": "high_same_selection_pair",
+                "method_a": row.get("method_a"),
+                "method_b": row.get("method_b"),
+                "methods": f"{row.get('method_a')}; {row.get('method_b')}",
+                "n_common": row.get("n_common"),
+                "same_selection_rate": rate_value,
+                "count": row.get("same_count"),
+                "detail": "Methods select the same candidate on nearly all shared problems.",
+            })
+    metric_rows = compute_selected_method_metrics(main_rows)
+    groups = defaultdict(list)
+    for row in metric_rows:
+        groups[_metric_duplicate_signature(row)].append(row.get("method"))
+    for methods in groups.values():
+        if len(methods) > 1:
+            rows.append({
+                "diagnostic_type": "metric_duplicate_group",
+                "method_a": "",
+                "method_b": "",
+                "methods": "; ".join(sorted(methods)),
+                "n_common": "",
+                "same_selection_rate": "",
+                "count": len(methods),
+                "detail": "Methods have identical headline metric values.",
+            })
+    for row in diagnostics["candidate_rank_distribution"]:
+        rows.append({
+            "diagnostic_type": "candidate_rank_distribution",
+            "method_a": row.get("method"),
+            "method_b": "",
+            "methods": row.get("method"),
+            "n_common": row.get("n"),
+            "same_selection_rate": "",
+            "count": row.get("n"),
+            "detail": f"k0={row.get('k0')}, k1={row.get('k1')}, k2={row.get('k2')}, k3={row.get('k3')}, k_ge_4={row.get('k_ge_4')}",
+        })
+    if not rows:
+        rows.append({
+            "diagnostic_type": "no_selection_collapse_detected",
+            "method_a": "",
+            "method_b": "",
+            "methods": "",
+            "n_common": "",
+            "same_selection_rate": "",
+            "count": 0,
+            "detail": "No high-overlap or duplicate-metric groups were detected at the configured threshold.",
+        })
+    return rows
+
+
 def candidate_index(candidate_id):
     text = str(candidate_id or "")
     marker = text.rsplit("_k", 1)

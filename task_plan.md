@@ -116,3 +116,30 @@ Recommended next steps:
 - Which model should be used for the first real LLM experiment: local Qwen path, Hugging Face `Qwen/Qwen3-8B`, or another model?
 - Should future planning use root files (`task_plan.md`, `findings.md`, `progress.md`) or isolated `.planning/<plan-id>/` directories?
 - Should the next session prioritize real experiments, paper writing, code cleanup/tests, or claim-risk audit?
+
+### Phase 5 — TypeAware-Consensus and selection diagnostics
+
+**Status:** complete on 2026-06-19
+
+Actions:
+
+- Kept LLM generation untouched: no `run_generation.py` change, no candidate regeneration, no generation-time TypeAware validation/retry.
+- Split default main methods from appendix methods while preserving all legacy methods through `METHODS` and `--appendix_methods_in_main`.
+- Added `ReplenishVerifier-TypeAware-Consensus` as a consensus-first, TypeAware-safe no-reference selector.
+- Kept old `ReplenishVerifier-TypeAware` as TypeAware-first ablation.
+- Added diagnostic reports for method redundancy, metric saturation, and post-hoc avoidable errors.
+- Added paper metrics tables for problem-type breakdown and selection-collapse diagnostics.
+- Added tests for method grouping, selector behavior, diagnostics, paper metrics, and leakage-audit method coverage.
+
+Verification:
+
+- Focused tests: `40 passed in 1.15s`.
+- Full suite: `150 passed, 52 warnings in 3.33s`.
+- Existing debug smoke rerun with new method: `runs/debug_typeaware_consensus_demo15`.
+- Leakage audit on the new debug smoke run passed.
+
+Notes:
+
+- `docs/experiment_results/qwen3_8b_k4_50_v5_typeaware_selectionfix_compare` contains archived Markdown/CSV diagnostics but no `main_results.jsonl` / `candidate_evaluations.jsonl`, so it could not be directly reprocessed with the new code in-place.
+- New diagnostics were generated on `runs/debug_v5_typeaware_selectionfix_demo15` and on the new debug smoke run for code-path validation only; these remain smoke/debug outputs, not paper evidence.
+- Formal selection components for the new method do not include reference/oracle fields.

@@ -25,6 +25,7 @@ FORMAL_METHODS = {
     "OptiRepair-like Repair-Prompt",
     "Structure-Only",
     "ReplenishVerifier-TypeAware",
+    "ReplenishVerifier-TypeAware-Consensus",
     "ReplenishVerifier-Full",
     "ReplenishVerifier-Repair",
 }

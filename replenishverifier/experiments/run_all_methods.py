@@ -14,6 +14,8 @@ from replenishverifier.experiments.evaluation import (
     write_json,
 )
 from replenishverifier.experiments.methods import (
+    APPENDIX_METHODS,
+    MAIN_METHODS,
     METHODS,
     build_generic_repair_prompts,
     build_repair_prompts,
@@ -156,7 +158,7 @@ def save_summary_csv(path, rows):
         writer.writerows(rows)
 
 
-def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=30, max_k=None, demo_if_empty=True, use_objective_consensus=False, allow_feasible_selection=False):
+def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=30, max_k=None, demo_if_empty=True, use_objective_consensus=False, allow_feasible_selection=False, appendix_methods_in_main=False):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     work_dir = out_dir / "candidate_runs"
@@ -192,9 +194,10 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
     all_evaluated = [row for rows in evaluated_by_problem.values() for row in rows]
     save_result_bundle(out_dir / "candidate_evaluations", all_evaluated, title="All Candidate Evaluations")
 
-    LOGGER.info("Selecting candidates for main methods: %s", ", ".join(METHODS))
+    main_methods = METHODS if appendix_methods_in_main else MAIN_METHODS
+    LOGGER.info("Selecting candidates for main methods: %s", ", ".join(main_methods))
     main_rows = []
-    for method in METHODS:
+    for method in main_methods:
         main_rows.extend(select_for_method(method, evaluated_by_problem, benchmark, allow_feasible_selection=allow_feasible_selection))
     main_summary = summarize_by_method(main_rows)
     save_result_bundle(out_dir / "main_results", main_rows, summary_rows=main_summary, title="Main Results")
@@ -226,6 +229,7 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
         "Structure-Grounded Consistency",
         "Structure-Only",
         "ReplenishVerifier-TypeAware",
+        "ReplenishVerifier-TypeAware-Consensus",
         "ReplenishVerifier-Full",
     ]
     ablation_rows = []
@@ -258,6 +262,7 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
             "OptiRepair-like Repair-Prompt",
             "Structure-Only",
             "ReplenishVerifier-TypeAware",
+            "ReplenishVerifier-TypeAware-Consensus",
             "ReplenishVerifier-Full",
         ]:
             selected_k = select_for_method(method, eval_k, benchmark, allow_feasible_selection=allow_feasible_selection)
@@ -284,6 +289,9 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
         "n_benchmark": len(benchmark_rows),
         "n_candidates": len(candidates),
         "methods": METHODS,
+        "main_methods": main_methods,
+        "appendix_methods": APPENDIX_METHODS,
+        "appendix_methods_in_main": bool(appendix_methods_in_main),
         "k_values": k_values,
         "use_objective_consensus": use_objective_consensus,
         "files": {
@@ -321,6 +329,12 @@ def main():
         default=False,
         help="Allow executable Feasible (non-Optimal) candidates through the Hard Selection Gate. Default false: only executable + Optimal candidates can be selected.",
     )
+    parser.add_argument(
+        "--appendix_methods_in_main",
+        action="store_true",
+        default=False,
+        help="Include all legacy/appendix methods in main_results instead of the concise MAIN_METHODS set.",
+    )
     args = parser.parse_args()
 
     setup_logging()
@@ -334,6 +348,7 @@ def main():
         demo_if_empty=not args.no_demo_if_empty,
         use_objective_consensus=args.use_objective_consensus,
         allow_feasible_selection=args.allow_feasible_selection,
+        appendix_methods_in_main=args.appendix_methods_in_main,
     )
 
 
