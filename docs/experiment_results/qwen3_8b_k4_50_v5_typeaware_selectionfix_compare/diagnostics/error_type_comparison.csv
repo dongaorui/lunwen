@@ -1,0 +1,114 @@
+method,error_type,reported,recomputed,delta,status
+Best-of-K,execution_error,,3,,MISSING
+Best-of-K,missing_capacity_constraint,,4,,MISSING
+Best-of-K,no_error_detected,,30,,MISSING
+Best-of-K,objective_mismatch_after_selection,,6,,MISSING
+Best-of-K,other_missing_structure,,1,,MISSING
+Best-of-K,solver_not_optimal,,6,,MISSING
+Consensus only,execution_error,,3,,MISSING
+Consensus only,missing_capacity_constraint,,4,,MISSING
+Consensus only,no_error_detected,,32,,MISSING
+Consensus only,objective_mismatch_after_selection,,4,,MISSING
+Consensus only,other_missing_structure,,1,,MISSING
+Consensus only,solver_not_optimal,,6,,MISSING
+Direct,execution_error,,5,,MISSING
+Direct,missing_capacity_constraint,,4,,MISSING
+Direct,no_error_detected,,30,,MISSING
+Direct,objective_mismatch_after_selection,,6,,MISSING
+Direct,solver_not_optimal,,5,,MISSING
+OR-R1-like Voting,execution_error,,3,,MISSING
+OR-R1-like Voting,missing_capacity_constraint,,4,,MISSING
+OR-R1-like Voting,no_error_detected,,32,,MISSING
+OR-R1-like Voting,objective_mismatch_after_selection,,4,,MISSING
+OR-R1-like Voting,other_missing_structure,,1,,MISSING
+OR-R1-like Voting,solver_not_optimal,,6,,MISSING
+OptArgus-like Audit,execution_error,,3,,MISSING
+OptArgus-like Audit,missing_capacity_constraint,,4,,MISSING
+OptArgus-like Audit,no_error_detected,,31,,MISSING
+OptArgus-like Audit,objective_mismatch_after_selection,,5,,MISSING
+OptArgus-like Audit,other_missing_structure,,1,,MISSING
+OptArgus-like Audit,solver_not_optimal,,6,,MISSING
+OptiRepair-like Repair-Prompt,execution_error,,3,,MISSING
+OptiRepair-like Repair-Prompt,missing_capacity_constraint,,4,,MISSING
+OptiRepair-like Repair-Prompt,no_error_detected,,31,,MISSING
+OptiRepair-like Repair-Prompt,objective_mismatch_after_selection,,5,,MISSING
+OptiRepair-like Repair-Prompt,other_missing_structure,,1,,MISSING
+OptiRepair-like Repair-Prompt,solver_not_optimal,,6,,MISSING
+ReplenishVerifier-Full,execution_error,,3,,MISSING
+ReplenishVerifier-Full,missing_capacity_constraint,,4,,MISSING
+ReplenishVerifier-Full,no_error_detected,,31,,MISSING
+ReplenishVerifier-Full,objective_mismatch_after_selection,,5,,MISSING
+ReplenishVerifier-Full,other_missing_structure,,1,,MISSING
+ReplenishVerifier-Full,solver_not_optimal,,6,,MISSING
+ReplenishVerifier-Repair,execution_error,,3,,MISSING
+ReplenishVerifier-Repair,missing_capacity_constraint,,4,,MISSING
+ReplenishVerifier-Repair,no_error_detected,,31,,MISSING
+ReplenishVerifier-Repair,objective_mismatch_after_selection,,5,,MISSING
+ReplenishVerifier-Repair,other_missing_structure,,1,,MISSING
+ReplenishVerifier-Repair,solver_not_optimal,,6,,MISSING
+ReplenishVerifier-TypeAware,execution_error,,5,,MISSING
+ReplenishVerifier-TypeAware,missing_capacity_constraint,,4,,MISSING
+ReplenishVerifier-TypeAware,no_error_detected,,31,,MISSING
+ReplenishVerifier-TypeAware,objective_mismatch_after_selection,,5,,MISSING
+ReplenishVerifier-TypeAware,other_missing_structure,,1,,MISSING
+ReplenishVerifier-TypeAware,solver_not_optimal,,4,,MISSING
+SIRL-like LP-Stats,execution_error,,3,,MISSING
+SIRL-like LP-Stats,missing_capacity_constraint,,4,,MISSING
+SIRL-like LP-Stats,no_error_detected,,31,,MISSING
+SIRL-like LP-Stats,objective_mismatch_after_selection,,5,,MISSING
+SIRL-like LP-Stats,other_missing_structure,,1,,MISSING
+SIRL-like LP-Stats,solver_not_optimal,,6,,MISSING
+Solver + Consensus,execution_error,,3,,MISSING
+Solver + Consensus,missing_capacity_constraint,,4,,MISSING
+Solver + Consensus,no_error_detected,,32,,MISSING
+Solver + Consensus,objective_mismatch_after_selection,,4,,MISSING
+Solver + Consensus,other_missing_structure,,1,,MISSING
+Solver + Consensus,solver_not_optimal,,6,,MISSING
+Solver + Structure,execution_error,,3,,MISSING
+Solver + Structure,missing_capacity_constraint,,4,,MISSING
+Solver + Structure,no_error_detected,,31,,MISSING
+Solver + Structure,objective_mismatch_after_selection,,5,,MISSING
+Solver + Structure,other_missing_structure,,1,,MISSING
+Solver + Structure,solver_not_optimal,,6,,MISSING
+Solver + Structure + Consensus,execution_error,,3,,MISSING
+Solver + Structure + Consensus,missing_capacity_constraint,,4,,MISSING
+Solver + Structure + Consensus,no_error_detected,,31,,MISSING
+Solver + Structure + Consensus,objective_mismatch_after_selection,,5,,MISSING
+Solver + Structure + Consensus,other_missing_structure,,1,,MISSING
+Solver + Structure + Consensus,solver_not_optimal,,6,,MISSING
+Solver only,execution_error,,3,,MISSING
+Solver only,missing_capacity_constraint,,4,,MISSING
+Solver only,no_error_detected,,31,,MISSING
+Solver only,objective_mismatch_after_selection,,5,,MISSING
+Solver only,other_missing_structure,,1,,MISSING
+Solver only,solver_not_optimal,,6,,MISSING
+Solver-Filter,execution_error,,3,,MISSING
+Solver-Filter,missing_capacity_constraint,,4,,MISSING
+Solver-Filter,no_error_detected,,31,,MISSING
+Solver-Filter,objective_mismatch_after_selection,,5,,MISSING
+Solver-Filter,other_missing_structure,,1,,MISSING
+Solver-Filter,solver_not_optimal,,6,,MISSING
+Structure + Consensus,execution_error,,3,,MISSING
+Structure + Consensus,missing_capacity_constraint,,4,,MISSING
+Structure + Consensus,no_error_detected,,31,,MISSING
+Structure + Consensus,objective_mismatch_after_selection,,5,,MISSING
+Structure + Consensus,other_missing_structure,,1,,MISSING
+Structure + Consensus,solver_not_optimal,,6,,MISSING
+Structure only,execution_error,,3,,MISSING
+Structure only,missing_capacity_constraint,,4,,MISSING
+Structure only,no_error_detected,,31,,MISSING
+Structure only,objective_mismatch_after_selection,,5,,MISSING
+Structure only,other_missing_structure,,1,,MISSING
+Structure only,solver_not_optimal,,6,,MISSING
+Structure-Grounded Consistency,execution_error,,3,,MISSING
+Structure-Grounded Consistency,missing_capacity_constraint,,4,,MISSING
+Structure-Grounded Consistency,no_error_detected,,31,,MISSING
+Structure-Grounded Consistency,objective_mismatch_after_selection,,5,,MISSING
+Structure-Grounded Consistency,other_missing_structure,,1,,MISSING
+Structure-Grounded Consistency,solver_not_optimal,,6,,MISSING
+Structure-Only,execution_error,,3,,MISSING
+Structure-Only,missing_capacity_constraint,,4,,MISSING
+Structure-Only,no_error_detected,,31,,MISSING
+Structure-Only,objective_mismatch_after_selection,,5,,MISSING
+Structure-Only,other_missing_structure,,1,,MISSING
+Structure-Only,solver_not_optimal,,6,,MISSING

@@ -1,0 +1,172 @@
+method_a,method_b,n_common,same_count,same_selection_rate
+Best-of-K,Consensus only,50,38,0.76
+Best-of-K,Direct,50,17,0.34
+Best-of-K,OR-R1-like Voting,50,38,0.76
+Best-of-K,OptArgus-like Audit,50,38,0.76
+Best-of-K,OptiRepair-like Repair-Prompt,50,38,0.76
+Best-of-K,ReplenishVerifier-Full,50,22,0.44
+Best-of-K,ReplenishVerifier-Repair,50,22,0.44
+Best-of-K,ReplenishVerifier-TypeAware,50,42,0.84
+Best-of-K,SIRL-like LP-Stats,50,37,0.74
+Best-of-K,Solver + Consensus,50,38,0.76
+Best-of-K,Solver + Structure,50,23,0.46
+Best-of-K,Solver + Structure + Consensus,50,22,0.44
+Best-of-K,Solver only,50,36,0.72
+Best-of-K,Solver-Filter,50,36,0.72
+Best-of-K,Structure + Consensus,50,22,0.44
+Best-of-K,Structure only,50,23,0.46
+Best-of-K,Structure-Grounded Consistency,50,22,0.44
+Best-of-K,Structure-Only,50,23,0.46
+Consensus only,Direct,50,12,0.24
+Consensus only,OR-R1-like Voting,50,50,1.0
+Consensus only,OptArgus-like Audit,50,48,0.96
+Consensus only,OptiRepair-like Repair-Prompt,50,48,0.96
+Consensus only,ReplenishVerifier-Full,50,11,0.22
+Consensus only,ReplenishVerifier-Repair,50,11,0.22
+Consensus only,ReplenishVerifier-TypeAware,50,42,0.84
+Consensus only,SIRL-like LP-Stats,50,47,0.94
+Consensus only,Solver + Consensus,50,50,1.0
+Consensus only,Solver + Structure,50,12,0.24
+Consensus only,Solver + Structure + Consensus,50,12,0.24
+Consensus only,Solver only,50,48,0.96
+Consensus only,Solver-Filter,50,48,0.96
+Consensus only,Structure + Consensus,50,12,0.24
+Consensus only,Structure only,50,12,0.24
+Consensus only,Structure-Grounded Consistency,50,12,0.24
+Consensus only,Structure-Only,50,12,0.24
+Direct,OR-R1-like Voting,50,12,0.24
+Direct,OptArgus-like Audit,50,11,0.22
+Direct,OptiRepair-like Repair-Prompt,50,11,0.22
+Direct,ReplenishVerifier-Full,50,41,0.82
+Direct,ReplenishVerifier-Repair,50,41,0.82
+Direct,ReplenishVerifier-TypeAware,50,11,0.22
+Direct,SIRL-like LP-Stats,50,10,0.2
+Direct,Solver + Consensus,50,12,0.24
+Direct,Solver + Structure,50,42,0.84
+Direct,Solver + Structure + Consensus,50,40,0.8
+Direct,Solver only,50,11,0.22
+Direct,Solver-Filter,50,11,0.22
+Direct,Structure + Consensus,50,40,0.8
+Direct,Structure only,50,42,0.84
+Direct,Structure-Grounded Consistency,50,40,0.8
+Direct,Structure-Only,50,42,0.84
+OR-R1-like Voting,OptArgus-like Audit,50,48,0.96
+OR-R1-like Voting,OptiRepair-like Repair-Prompt,50,48,0.96
+OR-R1-like Voting,ReplenishVerifier-Full,50,11,0.22
+OR-R1-like Voting,ReplenishVerifier-Repair,50,11,0.22
+OR-R1-like Voting,ReplenishVerifier-TypeAware,50,42,0.84
+OR-R1-like Voting,SIRL-like LP-Stats,50,47,0.94
+OR-R1-like Voting,Solver + Consensus,50,50,1.0
+OR-R1-like Voting,Solver + Structure,50,12,0.24
+OR-R1-like Voting,Solver + Structure + Consensus,50,12,0.24
+OR-R1-like Voting,Solver only,50,48,0.96
+OR-R1-like Voting,Solver-Filter,50,48,0.96
+OR-R1-like Voting,Structure + Consensus,50,12,0.24
+OR-R1-like Voting,Structure only,50,12,0.24
+OR-R1-like Voting,Structure-Grounded Consistency,50,12,0.24
+OR-R1-like Voting,Structure-Only,50,12,0.24
+OptArgus-like Audit,OptiRepair-like Repair-Prompt,50,50,1.0
+OptArgus-like Audit,ReplenishVerifier-Full,50,12,0.24
+OptArgus-like Audit,ReplenishVerifier-Repair,50,12,0.24
+OptArgus-like Audit,ReplenishVerifier-TypeAware,50,42,0.84
+OptArgus-like Audit,SIRL-like LP-Stats,50,49,0.98
+OptArgus-like Audit,Solver + Consensus,50,48,0.96
+OptArgus-like Audit,Solver + Structure,50,13,0.26
+OptArgus-like Audit,Solver + Structure + Consensus,50,13,0.26
+OptArgus-like Audit,Solver only,50,48,0.96
+OptArgus-like Audit,Solver-Filter,50,48,0.96
+OptArgus-like Audit,Structure + Consensus,50,13,0.26
+OptArgus-like Audit,Structure only,50,13,0.26
+OptArgus-like Audit,Structure-Grounded Consistency,50,13,0.26
+OptArgus-like Audit,Structure-Only,50,13,0.26
+OptiRepair-like Repair-Prompt,ReplenishVerifier-Full,50,12,0.24
+OptiRepair-like Repair-Prompt,ReplenishVerifier-Repair,50,12,0.24
+OptiRepair-like Repair-Prompt,ReplenishVerifier-TypeAware,50,42,0.84
+OptiRepair-like Repair-Prompt,SIRL-like LP-Stats,50,49,0.98
+OptiRepair-like Repair-Prompt,Solver + Consensus,50,48,0.96
+OptiRepair-like Repair-Prompt,Solver + Structure,50,13,0.26
+OptiRepair-like Repair-Prompt,Solver + Structure + Consensus,50,13,0.26
+OptiRepair-like Repair-Prompt,Solver only,50,48,0.96
+OptiRepair-like Repair-Prompt,Solver-Filter,50,48,0.96
+OptiRepair-like Repair-Prompt,Structure + Consensus,50,13,0.26
+OptiRepair-like Repair-Prompt,Structure only,50,13,0.26
+OptiRepair-like Repair-Prompt,Structure-Grounded Consistency,50,13,0.26
+OptiRepair-like Repair-Prompt,Structure-Only,50,13,0.26
+ReplenishVerifier-Full,ReplenishVerifier-Repair,50,50,1.0
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware,50,14,0.28
+ReplenishVerifier-Full,SIRL-like LP-Stats,50,11,0.22
+ReplenishVerifier-Full,Solver + Consensus,50,11,0.22
+ReplenishVerifier-Full,Solver + Structure,50,49,0.98
+ReplenishVerifier-Full,Solver + Structure + Consensus,50,47,0.94
+ReplenishVerifier-Full,Solver only,50,12,0.24
+ReplenishVerifier-Full,Solver-Filter,50,12,0.24
+ReplenishVerifier-Full,Structure + Consensus,50,47,0.94
+ReplenishVerifier-Full,Structure only,50,49,0.98
+ReplenishVerifier-Full,Structure-Grounded Consistency,50,47,0.94
+ReplenishVerifier-Full,Structure-Only,50,49,0.98
+ReplenishVerifier-Repair,ReplenishVerifier-TypeAware,50,14,0.28
+ReplenishVerifier-Repair,SIRL-like LP-Stats,50,11,0.22
+ReplenishVerifier-Repair,Solver + Consensus,50,11,0.22
+ReplenishVerifier-Repair,Solver + Structure,50,49,0.98
+ReplenishVerifier-Repair,Solver + Structure + Consensus,50,47,0.94
+ReplenishVerifier-Repair,Solver only,50,12,0.24
+ReplenishVerifier-Repair,Solver-Filter,50,12,0.24
+ReplenishVerifier-Repair,Structure + Consensus,50,47,0.94
+ReplenishVerifier-Repair,Structure only,50,49,0.98
+ReplenishVerifier-Repair,Structure-Grounded Consistency,50,47,0.94
+ReplenishVerifier-Repair,Structure-Only,50,49,0.98
+ReplenishVerifier-TypeAware,SIRL-like LP-Stats,50,41,0.82
+ReplenishVerifier-TypeAware,Solver + Consensus,50,42,0.84
+ReplenishVerifier-TypeAware,Solver + Structure,50,15,0.3
+ReplenishVerifier-TypeAware,Solver + Structure + Consensus,50,15,0.3
+ReplenishVerifier-TypeAware,Solver only,50,40,0.8
+ReplenishVerifier-TypeAware,Solver-Filter,50,40,0.8
+ReplenishVerifier-TypeAware,Structure + Consensus,50,15,0.3
+ReplenishVerifier-TypeAware,Structure only,50,15,0.3
+ReplenishVerifier-TypeAware,Structure-Grounded Consistency,50,15,0.3
+ReplenishVerifier-TypeAware,Structure-Only,50,15,0.3
+SIRL-like LP-Stats,Solver + Consensus,50,47,0.94
+SIRL-like LP-Stats,Solver + Structure,50,12,0.24
+SIRL-like LP-Stats,Solver + Structure + Consensus,50,12,0.24
+SIRL-like LP-Stats,Solver only,50,47,0.94
+SIRL-like LP-Stats,Solver-Filter,50,47,0.94
+SIRL-like LP-Stats,Structure + Consensus,50,12,0.24
+SIRL-like LP-Stats,Structure only,50,12,0.24
+SIRL-like LP-Stats,Structure-Grounded Consistency,50,12,0.24
+SIRL-like LP-Stats,Structure-Only,50,12,0.24
+Solver + Consensus,Solver + Structure,50,12,0.24
+Solver + Consensus,Solver + Structure + Consensus,50,12,0.24
+Solver + Consensus,Solver only,50,48,0.96
+Solver + Consensus,Solver-Filter,50,48,0.96
+Solver + Consensus,Structure + Consensus,50,12,0.24
+Solver + Consensus,Structure only,50,12,0.24
+Solver + Consensus,Structure-Grounded Consistency,50,12,0.24
+Solver + Consensus,Structure-Only,50,12,0.24
+Solver + Structure,Solver + Structure + Consensus,50,48,0.96
+Solver + Structure,Solver only,50,11,0.22
+Solver + Structure,Solver-Filter,50,11,0.22
+Solver + Structure,Structure + Consensus,50,48,0.96
+Solver + Structure,Structure only,50,50,1.0
+Solver + Structure,Structure-Grounded Consistency,50,48,0.96
+Solver + Structure,Structure-Only,50,50,1.0
+Solver + Structure + Consensus,Solver only,50,11,0.22
+Solver + Structure + Consensus,Solver-Filter,50,11,0.22
+Solver + Structure + Consensus,Structure + Consensus,50,50,1.0
+Solver + Structure + Consensus,Structure only,50,48,0.96
+Solver + Structure + Consensus,Structure-Grounded Consistency,50,50,1.0
+Solver + Structure + Consensus,Structure-Only,50,48,0.96
+Solver only,Solver-Filter,50,50,1.0
+Solver only,Structure + Consensus,50,11,0.22
+Solver only,Structure only,50,11,0.22
+Solver only,Structure-Grounded Consistency,50,11,0.22
+Solver only,Structure-Only,50,11,0.22
+Solver-Filter,Structure + Consensus,50,11,0.22
+Solver-Filter,Structure only,50,11,0.22
+Solver-Filter,Structure-Grounded Consistency,50,11,0.22
+Solver-Filter,Structure-Only,50,11,0.22
+Structure + Consensus,Structure only,50,48,0.96
+Structure + Consensus,Structure-Grounded Consistency,50,50,1.0
+Structure + Consensus,Structure-Only,50,48,0.96
+Structure only,Structure-Grounded Consistency,50,48,0.96
+Structure only,Structure-Only,50,50,1.0
+Structure-Grounded Consistency,Structure-Only,50,48,0.96

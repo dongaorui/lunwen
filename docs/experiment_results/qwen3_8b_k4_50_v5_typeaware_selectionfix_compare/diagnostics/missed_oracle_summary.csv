@@ -1,0 +1,20 @@
+method,n_common,oracle_objective_available_count,missed_oracle_objective_count,missed_oracle_objective_rate,oracle_structure_available_count,missed_oracle_structure_count,missed_oracle_structure_rate,oracle_both_available_count,missed_oracle_both_count,missed_oracle_both_rate
+Best-of-K,50,38,4,0.10526315789473684,0,0,0.0,0,0,0.0
+Consensus only,50,38,2,0.05263157894736842,0,0,0.0,0,0,0.0
+Direct,50,38,4,0.10526315789473684,0,0,0.0,0,0,0.0
+OR-R1-like Voting,50,38,2,0.05263157894736842,0,0,0.0,0,0,0.0
+OptArgus-like Audit,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+OptiRepair-like Repair-Prompt,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+ReplenishVerifier-Full,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+ReplenishVerifier-Repair,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+ReplenishVerifier-TypeAware,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+SIRL-like LP-Stats,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Solver + Consensus,50,38,2,0.05263157894736842,0,0,0.0,0,0,0.0
+Solver + Structure,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Solver + Structure + Consensus,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Solver only,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Solver-Filter,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Structure + Consensus,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Structure only,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Structure-Grounded Consistency,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0
+Structure-Only,50,38,3,0.07894736842105263,0,0,0.0,0,0,0.0

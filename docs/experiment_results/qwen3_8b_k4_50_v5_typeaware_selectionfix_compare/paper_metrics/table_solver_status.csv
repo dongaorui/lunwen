@@ -1,0 +1,20 @@
+method,n,solver_status_optimal_rate,solver_status_infeasible_rate,solver_status_timeout_rate,solver_status_error_rate
+Best-of-K,50,0.82,0.12,0.0,0.06
+Consensus only,50,0.82,0.12,0.0,0.06
+Direct,50,0.8,0.1,0.0,0.1
+OR-R1-like Voting,50,0.82,0.12,0.0,0.06
+OptArgus-like Audit,50,0.82,0.12,0.0,0.06
+OptiRepair-like Repair-Prompt,50,0.82,0.12,0.0,0.06
+ReplenishVerifier-Full,50,0.82,0.12,0.0,0.06
+ReplenishVerifier-Repair,50,0.82,0.12,0.0,0.06
+ReplenishVerifier-TypeAware,50,0.82,0.08,0.0,0.1
+SIRL-like LP-Stats,50,0.82,0.12,0.0,0.06
+Solver + Consensus,50,0.82,0.12,0.0,0.06
+Solver + Structure,50,0.82,0.12,0.0,0.06
+Solver + Structure + Consensus,50,0.82,0.12,0.0,0.06
+Solver only,50,0.82,0.12,0.0,0.06
+Solver-Filter,50,0.82,0.12,0.0,0.06
+Structure + Consensus,50,0.82,0.12,0.0,0.06
+Structure only,50,0.82,0.12,0.0,0.06
+Structure-Grounded Consistency,50,0.82,0.12,0.0,0.06
+Structure-Only,50,0.82,0.12,0.0,0.06
