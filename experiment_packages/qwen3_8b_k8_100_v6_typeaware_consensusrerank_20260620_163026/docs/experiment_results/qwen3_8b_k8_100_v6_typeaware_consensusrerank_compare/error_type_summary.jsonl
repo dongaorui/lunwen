@@ -1,0 +1,40 @@
+{"method": "Best-of-K", "error_type": "execution_error", "count": 9, "rate": 0.09, "total": 100}
+{"method": "Best-of-K", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Best-of-K", "error_type": "no_error_detected", "count": 63, "rate": 0.63, "total": 100}
+{"method": "Best-of-K", "error_type": "objective_mismatch_after_selection", "count": 10, "rate": 0.1, "total": 100}
+{"method": "Best-of-K", "error_type": "solver_not_optimal", "count": 6, "rate": 0.06, "total": 100}
+{"method": "Consensus only", "error_type": "execution_error", "count": 9, "rate": 0.09, "total": 100}
+{"method": "Consensus only", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Consensus only", "error_type": "no_error_detected", "count": 61, "rate": 0.61, "total": 100}
+{"method": "Consensus only", "error_type": "objective_mismatch_after_selection", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Consensus only", "error_type": "solver_not_optimal", "count": 6, "rate": 0.06, "total": 100}
+{"method": "Direct", "error_type": "execution_error", "count": 11, "rate": 0.11, "total": 100}
+{"method": "Direct", "error_type": "missing_capacity_constraint", "count": 9, "rate": 0.09, "total": 100}
+{"method": "Direct", "error_type": "no_error_detected", "count": 60, "rate": 0.6, "total": 100}
+{"method": "Direct", "error_type": "objective_mismatch_after_selection", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Direct", "error_type": "solver_not_optimal", "count": 8, "rate": 0.08, "total": 100}
+{"method": "ReplenishVerifier-Full", "error_type": "execution_error", "count": 9, "rate": 0.09, "total": 100}
+{"method": "ReplenishVerifier-Full", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "ReplenishVerifier-Full", "error_type": "no_error_detected", "count": 62, "rate": 0.62, "total": 100}
+{"method": "ReplenishVerifier-Full", "error_type": "objective_mismatch_after_selection", "count": 11, "rate": 0.11, "total": 100}
+{"method": "ReplenishVerifier-Full", "error_type": "solver_not_optimal", "count": 6, "rate": 0.06, "total": 100}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "execution_error", "count": 11, "rate": 0.11, "total": 100}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "no_error_detected", "count": 60, "rate": 0.6, "total": 100}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "objective_mismatch_after_selection", "count": 13, "rate": 0.13, "total": 100}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "solver_not_optimal", "count": 4, "rate": 0.04, "total": 100}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "execution_error", "count": 11, "rate": 0.11, "total": 100}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "no_error_detected", "count": 60, "rate": 0.6, "total": 100}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "objective_mismatch_after_selection", "count": 13, "rate": 0.13, "total": 100}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "solver_not_optimal", "count": 4, "rate": 0.04, "total": 100}
+{"method": "Solver only", "error_type": "execution_error", "count": 9, "rate": 0.09, "total": 100}
+{"method": "Solver only", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Solver only", "error_type": "no_error_detected", "count": 61, "rate": 0.61, "total": 100}
+{"method": "Solver only", "error_type": "objective_mismatch_after_selection", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Solver only", "error_type": "solver_not_optimal", "count": 6, "rate": 0.06, "total": 100}
+{"method": "Structure only", "error_type": "execution_error", "count": 9, "rate": 0.09, "total": 100}
+{"method": "Structure only", "error_type": "missing_capacity_constraint", "count": 12, "rate": 0.12, "total": 100}
+{"method": "Structure only", "error_type": "no_error_detected", "count": 62, "rate": 0.62, "total": 100}
+{"method": "Structure only", "error_type": "objective_mismatch_after_selection", "count": 11, "rate": 0.11, "total": 100}
+{"method": "Structure only", "error_type": "solver_not_optimal", "count": 6, "rate": 0.06, "total": 100}
