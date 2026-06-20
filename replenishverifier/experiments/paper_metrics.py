@@ -265,9 +265,22 @@ def parse_candidate_rank(candidate_id):
     return None
 
 
+def candidate_rank_parse_reason(candidate_id):
+    text = str(candidate_id or "").strip()
+    if not text:
+        return "empty_candidate_id"
+    if parse_candidate_rank(text) is None:
+        return "no_k_rank_pattern"
+    return "ok"
+
+
 def normalize_candidate_id(candidate_id):
     text = str(candidate_id or "").strip()
-    return {"candidate_id": text, "parsed_candidate_rank": parse_candidate_rank(text)}
+    return {
+        "candidate_id": text,
+        "parsed_candidate_rank": parse_candidate_rank(text),
+        "candidate_rank_parse_reason": candidate_rank_parse_reason(text),
+    }
 
 
 def candidate_index(candidate_id):
@@ -443,6 +456,17 @@ def _candidate_lookup(candidate_rows):
     return by_problem_exact, by_problem_rank
 
 
+def _selected_file_or_source(row):
+    return (
+        row.get("selected_file_or_source")
+        or row.get("selected_source")
+        or row.get("source")
+        or row.get("source_file")
+        or row.get("selected_file")
+        or "main_results"
+    )
+
+
 def _selected_candidate_match(row, by_problem_exact, by_problem_rank):
     pid = row.get("problem_id")
     norm = normalize_candidate_id(row.get("candidate_id"))
@@ -513,7 +537,10 @@ def compute_selection_diagnostics(main_rows, candidate_rows):
                 "problem_id": pid,
                 "candidate_id": norm["candidate_id"],
                 "parsed_candidate_rank": norm["parsed_candidate_rank"],
+                "candidate_rank_parse_reason": norm["candidate_rank_parse_reason"],
                 "reason": reason,
+                "matched_candidate_id": matched_candidate_id or "",
+                "selected_file_or_source": _selected_file_or_source(row),
             })
 
     debug = []
@@ -525,17 +552,24 @@ def compute_selection_diagnostics(main_rows, candidate_rows):
             for row in sorted(rows, key=lambda item: candidate_index(item.get("candidate_id"))):
                 execution = row.get("execution") or {}
                 norm = normalize_candidate_id(row.get("candidate_id"))
+                type_aware_validation = row.get("type_aware_static_validation") or {}
                 debug.append({
                     "method": method,
                     "problem_id": pid,
                     "candidate_id": norm["candidate_id"],
                     "parsed_candidate_rank": norm["parsed_candidate_rank"],
+                    "candidate_rank_parse_reason": norm["candidate_rank_parse_reason"],
+                    "matched_candidate_id": norm["candidate_id"],
                     "executable": bool(execution.get("executable")),
                     "solver_status": execution.get("status"),
                     "objective_correct_posthoc": row.get("objective_correct"),
                     "structure_score": row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")),
                     "consensus_score": row.get("objective_consensus_score"),
                     "selection_score": row.get("selection_score", row.get("score")),
+                    "type_aware_score": row.get("type_aware_static_validation_score", type_aware_validation.get("score")),
+                    "hard_gate_score": type_aware_validation.get("hard_gate_score"),
+                    "type_aware_hard_gate_failures": ";".join(type_aware_validation.get("hard_gate_failures") or []),
+                    "critical_missing_structures": ";".join(row.get("critical_missing_structures") or []),
                     "selected": selected_key_status.get((method, pid, norm["candidate_id"]), False),
                 })
     return {

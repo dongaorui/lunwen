@@ -287,7 +287,16 @@ def compute_avoidable_error_summary(main_rows, candidate_rows, methods=None):
 
 
 def _write_join_unmatched_csv(path, rows):
-    fields = ["method", "problem_id", "candidate_id", "parsed_candidate_rank", "reason"]
+    fields = [
+        "method",
+        "problem_id",
+        "candidate_id",
+        "parsed_candidate_rank",
+        "candidate_rank_parse_reason",
+        "reason",
+        "matched_candidate_id",
+        "selected_file_or_source",
+    ]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as f:

@@ -282,11 +282,43 @@ def test_diagnostics_join_reports_unmatched_selected_rows(tmp_path):
         "problem_id": "p0",
         "candidate_id": "Qwen3-8B_k7",
         "parsed_candidate_rank": 7,
+        "candidate_rank_parse_reason": "ok",
         "reason": "candidate_id_not_found_for_problem",
+        "matched_candidate_id": "",
+        "selected_file_or_source": "main_results",
     }]
     csv_text = (exp_dir / "diagnostics" / "diagnostic_join_unmatched.csv").read_text(encoding="utf-8")
     assert "parsed_candidate_rank" in csv_text
+    assert "candidate_rank_parse_reason" in csv_text
+    assert "selected_file_or_source" in csv_text
     assert "candidate_id_not_found_for_problem" in csv_text
+
+
+def test_diagnostic_join_unmatched_records_source_and_rank_parse_reason(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    selected = _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "Qwen3-8B_candidate_without_rank")
+    selected["selected_file_or_source"] = "custom_main_results.jsonl"
+    write_jsonl(exp_dir / "main_results.jsonl", [selected])
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", [_selected("candidate", "p0", "Qwen3-8B_k7")])
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diagnostics")
+
+    unmatched = result["diagnostic_join_unmatched"]
+    assert unmatched == [{
+        "method": "ReplenishVerifier-TypeAware-Consensus",
+        "problem_id": "p0",
+        "candidate_id": "Qwen3-8B_candidate_without_rank",
+        "parsed_candidate_rank": None,
+        "candidate_rank_parse_reason": "no_k_rank_pattern",
+        "reason": "candidate_id_not_found_for_problem",
+        "matched_candidate_id": "",
+        "selected_file_or_source": "custom_main_results.jsonl",
+    }]
+    csv_text = (exp_dir / "diagnostics" / "diagnostic_join_unmatched.csv").read_text(encoding="utf-8")
+    assert "candidate_rank_parse_reason" in csv_text
+    assert "selected_file_or_source" in csv_text
+    assert "custom_main_results.jsonl" in csv_text
 
 
 def test_diagnose_parses_reported_markdown_tables(tmp_path):
