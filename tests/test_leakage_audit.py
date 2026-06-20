@@ -46,6 +46,7 @@ def test_posthoc_oracle_metric_rows_are_allowed_when_marked_nonformal():
 def test_consensus_safe_and_hybrid_safe_are_covered_by_formal_leakage_audit():
     assert "ReplenishVerifier-ConsensusSafe" in FORMAL_METHODS
     assert "ReplenishVerifier-HybridSafe" in FORMAL_METHODS
+    assert "ReplenishVerifier-FullV2" in FORMAL_METHODS
 
 
 def test_type_aware_selection_components_reject_reference_fields():

@@ -52,7 +52,7 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
     by_problem_type = compute_metrics_by_problem_type(main_rows)
     selection_collapse = compute_selection_collapse_summary(main_rows, candidate_rows)
 
-    selector_v2_methods = {"ReplenishVerifier-ConsensusSafe", "ReplenishVerifier-HybridSafe", "ReplenishVerifier-TypeAware-Consensus", "ReplenishVerifier-Full", "Best-of-K"}
+    selector_v2_methods = {"ReplenishVerifier-ConsensusSafe", "ReplenishVerifier-HybridSafe", "ReplenishVerifier-FullV2", "ReplenishVerifier-TypeAware-Consensus", "ReplenishVerifier-Full", "Best-of-K"}
     tables = {
         "table_main_metrics": _select_columns(metrics, ["method", "n", "code_validity_rate", "executable_rate", "optimal_rate", "objective_accuracy", "objective_accuracy_count", "objective_accuracy_total", "structure_completeness", "structure_complete_count", "structure_complete_total", "constraint_coverage", "objective_term_coverage"]),
         "table_selector_v2_main": _select_columns([row for row in metrics if row.get("method") in selector_v2_methods], ["method", "n", "objective_accuracy", "structure_completeness", "constraint_coverage", "objective_term_coverage", "average_runtime_sec"]),

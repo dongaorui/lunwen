@@ -16,6 +16,7 @@ from replenishverifier.experiments.baselines import (
 from replenishverifier.experiments.objective_terms import evaluate_objective_terms
 from replenishverifier.pipeline.quality_signals import compute_static_validation
 from replenishverifier.pipeline.scoring import compute_score, hard_selection_gate, semantic_consistency_score
+from replenishverifier.selection.objective_consensus import compute_objective_consensus_features
 from replenishverifier.solver.code_executor import execute_generated_code
 from replenishverifier.verifier.feedback import generate_feedback
 from replenishverifier.verifier.lp_parser import parse_lp_file
@@ -29,6 +30,7 @@ MAIN_METHODS = [
     "Structure only",
     "Consensus only",
     "ReplenishVerifier-Full",
+    "ReplenishVerifier-FullV2",
     "ReplenishVerifier-ConsensusSafe",
     "ReplenishVerifier-HybridSafe",
     "ReplenishVerifier-TypeAware",
@@ -195,11 +197,17 @@ def annotate_consensus_scores(evaluated):
     """Attach ground-truth-free objective consensus and OR-R1-like scores."""
     for rows in evaluated.values():
         consensus_scores = compute_objective_consensus_scores(rows)
-        for row, consensus_score in zip(rows, consensus_scores):
-            row["objective_consensus_score"] = float(consensus_score)
+        consensus_features = compute_objective_consensus_features(rows)
+        for row, consensus_score, features in zip(rows, consensus_scores, consensus_features):
+            row["objective_consensus_score"] = float(features.get("objective_consensus_score", consensus_score) or 0.0)
+            row["objective_cluster_id"] = features.get("objective_cluster_id")
+            row["objective_cluster_size"] = features.get("objective_cluster_size", 0)
+            row["objective_cluster_median"] = features.get("objective_cluster_median")
+            row["distance_to_cluster_median"] = features.get("distance_to_cluster_median")
+            row["objective_density_score"] = features.get("objective_density_score", 0.0)
             row["or_r1_like_voting_score"] = or_r1_like_voting_score(
                 row.get("execution") or {},
-                consensus_score=consensus_score,
+                consensus_score=row["objective_consensus_score"],
                 code_format_valid=row.get("code_output_format_valid", False),
             )
     return evaluated
@@ -293,6 +301,7 @@ STRUCTURE_AWARE_METHODS = {
     "ReplenishVerifier-TypeAware",
     "ReplenishVerifier-ConsensusSafe",
     "ReplenishVerifier-HybridSafe",
+    "ReplenishVerifier-FullV2",
     "ReplenishVerifier-Full",
     "ReplenishVerifier-Repair",
     "ReplenishVerifier full",
@@ -638,6 +647,119 @@ def hybrid_safe_selection_score(row):
     )
 
 
+def _critical_structures_for_problem_type(problem_type):
+    mapping = {
+        "single_period_newsvendor": {"objective_term", "nonnegative_bounds"},
+        "single_item_multi_period": {"inventory_balance", "order_variable", "inventory_variable", "holding_cost"},
+        "multi_item_capacity": {"capacity_constraint", "item_indexed_order_variables", "nonnegative_bounds"},
+        "fixed_order_cost_big_m": {"binary_order_variable", "big_m_constraint", "fixed_order_cost"},
+        "single_item_multi_period_shortage": {"shortage_variable", "shortage_cost", "inventory_balance"},
+    }
+    return set(mapping.get(problem_type, {"inventory_balance"}))
+
+
+def _fullv2_missing_critical_structures(row):
+    missing = set(_required_missing_for_row(row))
+    critical = _critical_structures_for_problem_type(_row_problem_type(row))
+    aliases = {
+        "nonnegative_bounds": {"nonnegative_bounds", "bounds"},
+        "objective_term": {"objective_term", "objective_terms"},
+        "item_indexed_order_variables": {"item_indexed_order_variables", "order_variable"},
+    }
+    expanded = set(critical)
+    for key in list(critical):
+        expanded.update(aliases.get(key, set()))
+    return sorted(missing & expanded)
+
+
+def _normalized_cluster_distance(row):
+    value = row.get("distance_to_cluster_median")
+    if value is None:
+        return 1.0
+    try:
+        objective = abs(float((row.get("execution") or {}).get("objective") or 0.0))
+        return float(abs(float(value)) / max(objective, 1.0))
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def _fullv2_feature_tuple(row):
+    missing_critical = _fullv2_missing_critical_structures(row)
+    execution = row.get("execution") or {}
+    solver_ok = 1.0 if execution.get("executable") and str(execution.get("status") or "") == "Optimal" and _finite_objective_score(row) else 0.0
+    fallback = solver_ok <= 0.0
+    critical_penalty = float(len(missing_critical))
+    runtime = _runtime_sec(row)
+    candidate_rank = _candidate_index(row)
+    if fallback:
+        tuple_items = [
+            ("static_validation_score", _static_validation_score(row)),
+            ("code_validity_score", _code_validity_score(row)),
+            ("neg_critical_structure_penalty", -critical_penalty),
+            ("structure_score", _structure_score(row)),
+            ("constraint_coverage", _constraint_coverage(row)),
+            ("neg_candidate_rank", -candidate_rank),
+        ]
+    else:
+        tuple_items = [
+            ("solver_ok", solver_ok),
+            ("has_objective", _has_objective_score(row)),
+            ("objective_consensus_score", float(row.get("objective_consensus_score", 0.0) or 0.0)),
+            ("objective_cluster_size", float(row.get("objective_cluster_size", 0) or 0)),
+            ("objective_density_score", float(row.get("objective_density_score", 0.0) or 0.0)),
+            ("neg_distance_to_cluster_median_normalized", -_normalized_cluster_distance(row)),
+            ("objective_term_lp_coefficient_coverage", float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0)),
+            ("objective_term_coverage", _objective_term_coverage(row)),
+            ("neg_critical_structure_penalty", -critical_penalty),
+            ("type_aware_hard_gate_score", _type_aware_hard_gate_score(row)),
+            ("neg_type_aware_missing_critical_count", -critical_penalty),
+            ("structure_score", _structure_score(row)),
+            ("constraint_coverage", _constraint_coverage(row)),
+            ("static_validation_score", _static_validation_score(row)),
+            ("code_validity_score", _code_validity_score(row)),
+            ("neg_runtime_normalized", -runtime),
+            ("neg_candidate_rank", -candidate_rank),
+        ]
+    return tuple_items
+
+
+def fullv2_selection_components(row):
+    missing_critical = _fullv2_missing_critical_structures(row)
+    tuple_items = _fullv2_feature_tuple(row)
+    return {
+        "selector_family": "fullv2",
+        "solver_ok": tuple_items[0][1] if tuple_items and tuple_items[0][0] == "solver_ok" else 0.0,
+        "execution_success": 1.0 if (row.get("execution") or {}).get("executable") else 0.0,
+        "solver_status": (row.get("execution") or {}).get("status"),
+        "has_objective": _has_objective_score(row),
+        "objective_value": (row.get("execution") or {}).get("objective"),
+        "objective_finite": _finite_objective_score(row),
+        "objective_consensus_score": float(row.get("objective_consensus_score", 0.0) or 0.0),
+        "objective_cluster_size": int(row.get("objective_cluster_size", 0) or 0),
+        "objective_density_score": float(row.get("objective_density_score", 0.0) or 0.0),
+        "distance_to_cluster_median": row.get("distance_to_cluster_median"),
+        "structure_score": _structure_score(row),
+        "constraint_coverage": _constraint_coverage(row),
+        "objective_term_coverage": _objective_term_coverage(row),
+        "objective_term_lp_coefficient_coverage": float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0),
+        "inventory_balance_rule_score": _rule_score(row, "inventory_balance"),
+        "static_validation_score": _static_validation_score(row),
+        "code_validity_score": _code_validity_score(row),
+        "type_aware_score": _type_aware_validation_score(row),
+        "type_aware_hard_gate_score": _type_aware_hard_gate_score(row),
+        "type_aware_missing_critical_count": float(len(missing_critical)),
+        "missing_critical_structures": missing_critical,
+        "critical_structure_penalty": float(len(missing_critical)),
+        "runtime": _runtime_sec(row),
+        "candidate_rank": _candidate_index(row),
+        "score_tuple_debug": tuple_items,
+    }
+
+
+def fullv2_selection_score(row):
+    return tuple(value for _, value in _fullv2_feature_tuple(row))
+
+
 def _candidate_index(row):
     if row.get("candidate_index") is not None:
         return int(row.get("candidate_index") or 0)
@@ -780,6 +902,8 @@ def _method_raw_score(row, method_name):
         return consensus_safe_selection_score(row)
     if method_name == "ReplenishVerifier-HybridSafe":
         return hybrid_safe_selection_score(row)
+    if method_name == "ReplenishVerifier-FullV2":
+        return 1.0
     if method_name == "ReplenishVerifier-Full":
         return full_selection_score(row)
     if method_name == "ReplenishVerifier-Repair":
@@ -926,6 +1050,9 @@ def _selection_tie_break_key_for_method(row, method_name, allow_feasible_selecti
             candidate_order,
         )
 
+    if method_name == "ReplenishVerifier-FullV2":
+        return (gated,) + fullv2_selection_score(row)
+
     if method_name == "ReplenishVerifier-HybridSafe":
         components = hybrid_safe_selection_components(row)
         return (
@@ -1018,6 +1145,13 @@ def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
         best["repair_feedback_count"] = best["selection_components"]["repair_feedback_count"]
     if method_name == "ReplenishVerifier-Full":
         best["selection_components"] = full_selection_components(best)
+    if method_name == "ReplenishVerifier-FullV2":
+        best["selection_components"] = fullv2_selection_components(best)
+        best["hard_gate_failures"] = _type_aware_hard_gate_failures(best)
+        best["hard_gate_score"] = best["selection_components"]["type_aware_hard_gate_score"]
+        best["constraint_coverage"] = best["selection_components"]["constraint_coverage"]
+        best["objective_term_coverage"] = best["selection_components"]["objective_term_coverage"]
+        best["repair_feedback_count"] = best["selection_components"]["type_aware_missing_critical_count"]
     if method_name == "ReplenishVerifier-ConsensusSafe":
         best["selection_components"] = consensus_safe_selection_components(best)
         best["hard_gate_failures"] = _type_aware_hard_gate_failures(best)
@@ -1084,6 +1218,8 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by TypeAware-first no-reference score using structure completeness, constraint coverage, objective-term coverage, type-aware hard gates, candidate objective consensus, repair feedback count, and runtime; no reference objective"
         elif method_name == "ReplenishVerifier-Full":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by legacy ReplenishVerifier-Full score and structure-specific tie-breakers; no reference objective"
+        elif method_name == "ReplenishVerifier-FullV2":
+            best["selection_policy"] = "Hard Selection Gate over executable + optimal + finite-objective candidates, ranked by FullV2 tuple: objective consensus and cluster features before objective terms, critical-structure risk, type-aware/static validation, structure, constraint coverage, runtime, and candidate rank last; no reference objective"
         elif method_name == "ReplenishVerifier-ConsensusSafe":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by an independent consensus-safe v2 score over legacy Full, safety, candidate objective consensus, LP health, and critical-structure safety; no reference objective"
         elif method_name == "ReplenishVerifier-HybridSafe":

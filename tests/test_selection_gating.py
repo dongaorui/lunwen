@@ -40,6 +40,7 @@ def test_main_methods_are_concise_and_appendix_keeps_legacy_methods():
         "Structure only",
         "Consensus only",
         "ReplenishVerifier-Full",
+        "ReplenishVerifier-FullV2",
         "ReplenishVerifier-ConsensusSafe",
         "ReplenishVerifier-HybridSafe",
         "ReplenishVerifier-TypeAware",

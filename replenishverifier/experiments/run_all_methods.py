@@ -265,6 +265,7 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
             "ReplenishVerifier-TypeAware-Consensus",
             "ReplenishVerifier-ConsensusSafe",
             "ReplenishVerifier-HybridSafe",
+            "ReplenishVerifier-FullV2",
             "ReplenishVerifier-Full",
         ]:
             selected_k = select_for_method(method, eval_k, benchmark, allow_feasible_selection=allow_feasible_selection)

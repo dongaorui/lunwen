@@ -28,6 +28,7 @@ FORMAL_METHODS = {
     "ReplenishVerifier-TypeAware-Consensus",
     "ReplenishVerifier-ConsensusSafe",
     "ReplenishVerifier-HybridSafe",
+    "ReplenishVerifier-FullV2",
     "ReplenishVerifier-Full",
     "ReplenishVerifier-Repair",
 }

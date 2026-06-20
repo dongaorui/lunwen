@@ -463,6 +463,237 @@ def _write_consensus_safe_counterfactual_markdown(path, rows):
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _rank_from_candidate_id(candidate_id):
+    try:
+        from replenishverifier.experiments.paper_metrics import parse_candidate_rank
+        return parse_candidate_rank(candidate_id)
+    except Exception:
+        return None
+
+
+def _selected_method_row(selected, method, pid):
+    return selected.get(method, {}).get(pid)
+
+
+def _diag_value(row, key, component_key=None):
+    if row is None:
+        return None
+    if key in row:
+        return row.get(key)
+    components = row.get("selection_components") or {}
+    return components.get(component_key or key)
+
+
+def _diagnostic_reason(full, struct, best):
+    if not full or not struct:
+        return "only_reference_can_distinguish_posthoc"
+    same = full.get("candidate_id") == struct.get("candidate_id")
+    full_correct = _local_objective_correct(full)
+    struct_correct = _local_objective_correct(struct)
+    best_correct = _local_objective_correct(best) if best else False
+    if same and abs(float(_diag_value(full, "structure_score") or 0.0) - float(_diag_value(struct, "structure_score") or 0.0)) <= 1e-12:
+        return "same_candidate_due_to_structure_dominance"
+    if same:
+        return "same_candidate_due_to_identical_score_tuple"
+    if best_correct and not full_correct:
+        return "bestofk_selected_different_correct_candidate"
+    if struct_correct and not full_correct:
+        return "full_selected_wrong_objective"
+    if full_correct and not struct_correct:
+        return "structure_selected_wrong_objective"
+    if (_diag_value(full, "objective_consensus_score") or 0.0) != (_diag_value(struct, "objective_consensus_score") or 0.0):
+        return "objective_consensus_disagrees_with_structure"
+    if (_diag_value(full, "objective_term_coverage") or 0.0) != (_diag_value(struct, "objective_term_coverage") or 0.0):
+        return "objective_terms_disagree_with_structure"
+    if (full.get("selection_components") or {}).get("critical_structure_penalty") != (struct.get("selection_components") or {}).get("critical_structure_penalty"):
+        return "critical_structure_disagrees_with_structure"
+    return "only_reference_can_distinguish_posthoc"
+
+
+def compute_full_vs_structure_diagnosis(main_rows):
+    selected = _selected_by_method_problem(main_rows)
+    pids = sorted(set(selected.get("ReplenishVerifier-Full", {})) | set(selected.get("Structure only", {})))
+    rows = []
+    for pid in pids:
+        full = _selected_method_row(selected, "ReplenishVerifier-Full", pid)
+        struct = _selected_method_row(selected, "Structure only", pid)
+        best = _selected_method_row(selected, "Best-of-K", pid)
+        rows.append({
+            "problem_id": pid,
+            "problem_type": (full or struct or {}).get("problem_type"),
+            "full_candidate_id": (full or {}).get("candidate_id"),
+            "full_candidate_rank": _rank_from_candidate_id((full or {}).get("candidate_id")),
+            "structure_candidate_id": (struct or {}).get("candidate_id"),
+            "structure_candidate_rank": _rank_from_candidate_id((struct or {}).get("candidate_id")),
+            "same_candidate": bool(full and struct and full.get("candidate_id") == struct.get("candidate_id")),
+            "full_objective_correct_posthoc": (full or {}).get("objective_correct"),
+            "structure_objective_correct_posthoc": (struct or {}).get("objective_correct"),
+            "full_objective_value": ((full or {}).get("execution") or {}).get("objective"),
+            "structure_objective_value": ((struct or {}).get("execution") or {}).get("objective"),
+            "full_structure_score": _diag_value(full, "structure_score"),
+            "structure_structure_score": _diag_value(struct, "structure_score"),
+            "full_constraint_coverage": _diag_value(full, "constraint_coverage"),
+            "structure_constraint_coverage": _diag_value(struct, "constraint_coverage"),
+            "full_objective_consensus_score": _diag_value(full, "objective_consensus_score"),
+            "structure_objective_consensus_score": _diag_value(struct, "objective_consensus_score"),
+            "full_objective_cluster_size": _diag_value(full, "objective_cluster_size"),
+            "structure_objective_cluster_size": _diag_value(struct, "objective_cluster_size"),
+            "full_objective_term_coverage": _diag_value(full, "objective_term_coverage"),
+            "structure_objective_term_coverage": _diag_value(struct, "objective_term_coverage"),
+            "full_objective_term_lp_coefficient_coverage": _diag_value(full, "objective_term_lp_coefficient_coverage"),
+            "structure_objective_term_lp_coefficient_coverage": _diag_value(struct, "objective_term_lp_coefficient_coverage"),
+            "full_static_validation_score": _diag_value(full, "static_validation_score"),
+            "structure_static_validation_score": _diag_value(struct, "static_validation_score"),
+            "full_type_aware_score": _diag_value(full, "type_aware_score"),
+            "structure_type_aware_score": _diag_value(struct, "type_aware_score"),
+            "full_solver_status": ((full or {}).get("execution") or {}).get("status"),
+            "structure_solver_status": ((struct or {}).get("execution") or {}).get("status"),
+            "full_runtime": (full or {}).get("runtime_sec"),
+            "structure_runtime": (struct or {}).get("runtime_sec"),
+            "diagnostic_reason": _diagnostic_reason(full, struct, best),
+        })
+    return rows
+
+
+def build_full_structure_overlap_summary(rows, main_rows):
+    selected = _selected_by_method_problem(main_rows)
+    lines = ["# Full vs Structure Overlap Summary", "", "Posthoc-only diagnostics; do not use for formal selection.", ""]
+    same = sum(1 for row in rows if row.get("same_candidate"))
+    full_beats = sum(1 for row in rows if row.get("full_objective_correct_posthoc") == 1.0 and row.get("structure_objective_correct_posthoc") != 1.0)
+    structure_beats = sum(1 for row in rows if row.get("structure_objective_correct_posthoc") == 1.0 and row.get("full_objective_correct_posthoc") != 1.0)
+    both_correct = sum(1 for row in rows if row.get("full_objective_correct_posthoc") == 1.0 and row.get("structure_objective_correct_posthoc") == 1.0)
+    both_wrong = sum(1 for row in rows if row.get("full_objective_correct_posthoc") != 1.0 and row.get("structure_objective_correct_posthoc") != 1.0)
+    best = selected.get("Best-of-K", {})
+    full = selected.get("ReplenishVerifier-Full", {})
+    struct = selected.get("Structure only", {})
+    best_full = sum(1 for pid, row in best.items() if _local_objective_correct(row) and pid in full and not _local_objective_correct(full[pid]))
+    best_struct = sum(1 for pid, row in best.items() if _local_objective_correct(row) and pid in struct and not _local_objective_correct(struct[pid]))
+    for label, value in [
+        ("Full vs Structure same candidate count", same),
+        ("Full beats Structure count", full_beats),
+        ("Structure beats Full count", structure_beats),
+        ("Both correct count", both_correct),
+        ("Both wrong count", both_wrong),
+        ("Best-of-K correct while Full wrong count", best_full),
+        ("Best-of-K correct while Structure wrong count", best_struct),
+    ]:
+        lines.append(f"- {label}: {value}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _candidate_selected_flags(row, selected):
+    pid = row.get("problem_id")
+    cid = row.get("candidate_id")
+    return {
+        "selected_by_full": cid == (selected.get("ReplenishVerifier-Full", {}).get(pid) or {}).get("candidate_id"),
+        "selected_by_structure_only": cid == (selected.get("Structure only", {}).get(pid) or {}).get("candidate_id"),
+        "selected_by_fullv2": cid == (selected.get("ReplenishVerifier-FullV2", {}).get(pid) or {}).get("candidate_id"),
+        "selected_by_bestofk": cid == (selected.get("Best-of-K", {}).get(pid) or {}).get("candidate_id"),
+    }
+
+
+def compute_objective_consensus_cluster_debug(candidate_rows, main_rows):
+    selected = _selected_by_method_problem(main_rows)
+    rows = []
+    for row in candidate_rows:
+        out = {
+            "problem_id": row.get("problem_id"),
+            "candidate_id": row.get("candidate_id"),
+            "candidate_rank": _rank_from_candidate_id(row.get("candidate_id")),
+            "solver_ok": bool((row.get("execution") or {}).get("executable") and (row.get("execution") or {}).get("status") == "Optimal"),
+            "objective_value": (row.get("execution") or {}).get("objective"),
+            "objective_cluster_id": row.get("objective_cluster_id"),
+            "objective_cluster_size": row.get("objective_cluster_size"),
+            "objective_consensus_score": row.get("objective_consensus_score"),
+            "objective_density_score": row.get("objective_density_score"),
+            "objective_cluster_median": row.get("objective_cluster_median"),
+            "distance_to_cluster_median": row.get("distance_to_cluster_median"),
+        }
+        out.update(_candidate_selected_flags(row, selected))
+        rows.append(out)
+    return rows
+
+
+def compute_fullv2_debug_rows(candidate_rows, main_rows):
+    selected = _selected_by_method_problem(main_rows)
+    rows = []
+    from replenishverifier.experiments.methods import fullv2_selection_components
+    for row in candidate_rows:
+        components = row.get("selection_components") or fullv2_selection_components(row)
+        out = {
+            "problem_id": row.get("problem_id"),
+            "problem_type": row.get("problem_type"),
+            "candidate_id": row.get("candidate_id"),
+            "candidate_rank": _rank_from_candidate_id(row.get("candidate_id")),
+            "solver_ok": components.get("solver_ok"),
+            "has_objective": components.get("has_objective"),
+            "objective_value": (row.get("execution") or {}).get("objective"),
+            "objective_consensus_score": row.get("objective_consensus_score"),
+            "objective_cluster_size": row.get("objective_cluster_size"),
+            "objective_density_score": row.get("objective_density_score"),
+            "distance_to_cluster_median": row.get("distance_to_cluster_median"),
+            "objective_term_coverage": row.get("objective_term_coverage"),
+            "objective_term_lp_coefficient_coverage": row.get("objective_term_lp_coefficient_coverage"),
+            "critical_structure_penalty": components.get("critical_structure_penalty"),
+            "missing_critical_structures": ";".join(components.get("missing_critical_structures") or []),
+            "type_aware_hard_gate_score": components.get("type_aware_hard_gate_score"),
+            "type_aware_missing_critical_count": components.get("type_aware_missing_critical_count"),
+            "structure_score": row.get("structure_score"),
+            "constraint_coverage": row.get("constraint_coverage"),
+            "static_validation_score": row.get("static_validation_score"),
+            "code_validity_score": 1.0 if row.get("code_output_format_valid") else 0.0,
+            "runtime": row.get("runtime_sec"),
+            "full_score_tuple": components.get("score_tuple_debug"),
+            "structure_only_score_tuple": "structure_score,constraint_coverage,critical_structure_pass,inventory_balance,candidate_rank",
+            "bestofk_score_tuple": "solver,objective,structure,constraint,code,static,runtime,candidate_rank",
+            "posthoc_objective_correct": row.get("objective_correct"),
+            "posthoc_note": "posthoc_objective_correct is diagnostic-only",
+        }
+        out.update(_candidate_selected_flags(row, selected))
+        rows.append(out)
+    return rows
+
+
+def build_fullv2_vs_structure_summary(main_rows):
+    selected = _selected_by_method_problem(main_rows)
+    fullv2 = selected.get("ReplenishVerifier-FullV2", {})
+    struct = selected.get("Structure only", {})
+    full = selected.get("ReplenishVerifier-Full", {})
+    best = selected.get("Best-of-K", {})
+    common = sorted(set(fullv2) & set(struct))
+    same = sum(1 for pid in common if fullv2[pid].get("candidate_id") == struct[pid].get("candidate_id"))
+    def acc(rows):
+        return sum(1 for row in rows.values() if _local_objective_correct(row)) / max(len(rows), 1)
+    fullv2_beats = sum(1 for pid in common if _local_objective_correct(fullv2[pid]) and not _local_objective_correct(struct[pid]))
+    struct_beats = sum(1 for pid in common if _local_objective_correct(struct[pid]) and not _local_objective_correct(fullv2[pid]))
+    both_correct = sum(1 for pid in common if _local_objective_correct(fullv2[pid]) and _local_objective_correct(struct[pid]))
+    both_wrong = sum(1 for pid in common if not _local_objective_correct(fullv2[pid]) and not _local_objective_correct(struct[pid]))
+    best_wrong = sum(1 for pid, row in best.items() if _local_objective_correct(row) and pid in fullv2 and not _local_objective_correct(fullv2[pid]))
+    fullv2_best = sum(1 for pid, row in fullv2.items() if _local_objective_correct(row) and pid in best and not _local_objective_correct(best[pid]))
+    lines = ["# FullV2 vs Structure Summary", "", "Posthoc-only diagnostics; do not use for formal selection.", ""]
+    values = [
+        ("Full vs Structure same_selection_rate", sum(1 for pid in set(full) & set(struct) if full[pid].get("candidate_id") == struct[pid].get("candidate_id")) / max(len(set(full) & set(struct)), 1)),
+        ("FullV2 vs Structure same_selection_rate", same / max(len(common), 1)),
+        ("FullV2 vs Full same_selection_rate", sum(1 for pid in set(fullv2) & set(full) if fullv2[pid].get("candidate_id") == full[pid].get("candidate_id")) / max(len(set(fullv2) & set(full)), 1)),
+        ("FullV2 vs Best-of-K same_selection_rate", sum(1 for pid in set(fullv2) & set(best) if fullv2[pid].get("candidate_id") == best[pid].get("candidate_id")) / max(len(set(fullv2) & set(best)), 1)),
+        ("Full objective_accuracy", acc(full)),
+        ("Structure objective_accuracy", acc(struct)),
+        ("FullV2 objective_accuracy", acc(fullv2)),
+        ("Best-of-K objective_accuracy", acc(best)),
+        ("FullV2 beats Structure count", fullv2_beats),
+        ("Structure beats FullV2 count", struct_beats),
+        ("Both correct count", both_correct),
+        ("Both wrong count", both_wrong),
+        ("FullV2 wrong but Best-of-K correct count", best_wrong),
+        ("FullV2 correct but Best-of-K wrong count", fullv2_best),
+    ]
+    for label, value in values:
+        lines.append(f"- {label}: {value:.4f}" if isinstance(value, float) else f"- {label}: {value}")
+    lines.extend(["", "## Failure modes", "", "- only_reference_can_distinguish_posthoc: reported when non-reference signals are tied or inconclusive.", "- objective_consensus_misled_selection: inspect fullv2_score_debug.csv objective columns.", "- critical_structure_penalty_too_strong: inspect fullv2_critical_structure_debug.csv.", "- objective_terms_not_discriminative: inspect objective-term coverage columns.", "- candidate_pool_limited: compare against pass@k oracle table.", ""])
+    return "\n".join(lines)
+
+
 def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=None, out_dir=None):
     exp_dir = Path(exp_dir)
     out_dir = Path(out_dir) if out_dir else exp_dir / "selection_metric_diagnostics"
@@ -488,6 +719,28 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     consensus_safe_counterfactual = compute_consensus_safe_counterfactual(main_rows)
     selector_counterfactuals = compute_selector_counterfactuals(main_rows)
     selector_failure_summary = build_selector_failure_summary(selector_counterfactuals)
+    full_vs_structure_diagnosis = compute_full_vs_structure_diagnosis(main_rows)
+    full_structure_overlap_summary = build_full_structure_overlap_summary(full_vs_structure_diagnosis, main_rows)
+    objective_consensus_clusters = compute_objective_consensus_cluster_debug(candidate_rows, main_rows) if candidate_rows else []
+    fullv2_score_debug = compute_fullv2_debug_rows(candidate_rows, main_rows) if candidate_rows else []
+    fullv2_critical_structure_debug = [
+        {
+            "problem_id": row.get("problem_id"),
+            "problem_type": row.get("problem_type"),
+            "candidate_id": row.get("candidate_id"),
+            "candidate_rank": row.get("candidate_rank"),
+            "missing_critical_structures": row.get("missing_critical_structures"),
+            "critical_structure_count": row.get("type_aware_missing_critical_count"),
+            "critical_structure_penalty": row.get("critical_structure_penalty"),
+            "structure_score": row.get("structure_score"),
+            "constraint_coverage": row.get("constraint_coverage"),
+            "objective_term_coverage": row.get("objective_term_coverage"),
+            "selected_by_fullv2": row.get("selected_by_fullv2"),
+            "selected_by_structure_only": row.get("selected_by_structure_only"),
+        }
+        for row in fullv2_score_debug
+    ]
+    fullv2_vs_structure_summary = build_fullv2_vs_structure_summary(main_rows)
     method_redundancy_report = build_method_redundancy_report(recomputed_metrics, diagnostics["same_selection_rate"])
     metric_saturation_report = build_metric_saturation_report(recomputed_metrics, diagnostics["same_selection_rate"])
 
@@ -512,6 +765,13 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     write_csv(out_dir / "selector_counterfactuals.csv", selector_counterfactuals)
     _write_selector_counterfactuals_markdown(out_dir / "selector_counterfactuals.md", selector_counterfactuals)
     (out_dir / "selector_failure_summary.md").write_text(selector_failure_summary, encoding="utf-8")
+    write_csv(out_dir / "full_vs_structure_diagnosis.csv", full_vs_structure_diagnosis)
+    (out_dir / "full_structure_overlap_summary.md").write_text(full_structure_overlap_summary, encoding="utf-8")
+    write_csv(out_dir / "objective_consensus_clusters.csv", objective_consensus_clusters)
+    write_csv(out_dir / "fullv2_score_debug.csv", fullv2_score_debug)
+    write_csv(out_dir / "fullv2_critical_structure_debug.csv", fullv2_critical_structure_debug)
+    (out_dir / "fullv2_vs_structure_summary.md").write_text(fullv2_vs_structure_summary, encoding="utf-8")
+    (out_dir / "fullv2_failure_summary.md").write_text(fullv2_vs_structure_summary, encoding="utf-8")
     (out_dir / "method_redundancy_report.md").write_text(method_redundancy_report, encoding="utf-8")
     (out_dir / "metric_saturation_report.md").write_text(metric_saturation_report, encoding="utf-8")
 
@@ -552,6 +812,11 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "consensus_safe_counterfactual": consensus_safe_counterfactual,
         "selector_counterfactuals": selector_counterfactuals,
         "selector_failure_summary": selector_failure_summary,
+        "full_vs_structure_diagnosis": full_vs_structure_diagnosis,
+        "objective_consensus_clusters": objective_consensus_clusters,
+        "fullv2_score_debug": fullv2_score_debug,
+        "fullv2_critical_structure_debug": fullv2_critical_structure_debug,
+        "fullv2_vs_structure_summary": fullv2_vs_structure_summary,
         "summary": summary,
     }
 

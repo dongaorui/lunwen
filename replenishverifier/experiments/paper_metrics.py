@@ -161,6 +161,7 @@ DEFAULT_PAPER_METHODS = [
     "Best-of-K",
     "Consensus only",
     "ReplenishVerifier-Full",
+    "ReplenishVerifier-FullV2",
     "ReplenishVerifier-ConsensusSafe",
     "ReplenishVerifier-HybridSafe",
     "ReplenishVerifier-TypeAware",
