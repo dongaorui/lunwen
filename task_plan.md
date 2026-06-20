@@ -197,3 +197,27 @@ Notes:
 - Formal selection remains no-reference: no `reference_objective`, `objective_correct`, oracle, reference LP, or reference answer is used in selection components.
 - No push or commit was performed.
 - Formal selection components for the new method do not include reference/oracle fields.
+
+### Phase 8 — Executor top-level solver bypass fix
+
+**Status:** complete on 2026-06-20
+
+Actions:
+
+- Checked `replenishverifier/experiments/methods.py::evaluate_candidate` and confirmed it calls `execute_generated_code()` from `replenishverifier.solver.code_executor`.
+- Investigated `code_executor.py` and found the runner imported candidate code with `spec.loader.exec_module(mod)`, which executes top-level candidate code before calling `build_model()`.
+- Added a failing regression test showing a candidate with top-level `model = build_model(); model.solve(pulp.PULP_CBC_CMD(...))` / top-level runtime code should still be evaluated through the project solver path.
+- Fixed only the executor path: the runner now parses candidate source with `ast`, loads imports, definitions, docstring, and literal assignments needed by `build_model()`, then calls `build_model()` and `solve_pulp_model()` itself.
+- Did not modify selection, diagnostics, paper metrics, LLM generation, candidates, or experiment result logic.
+
+Verification:
+
+- RED before fix: `python -m pytest tests/test_executor_solver_fallback.py::test_execute_generated_code_ignores_top_level_candidate_solver_and_uses_project_solver -q` failed because execution imported the full candidate module and hit top-level candidate code.
+- Executor tests: `python -m pytest tests/test_executor_solver_fallback.py -q` -> `4 passed in 1.45s`.
+- Focused tests: `python -m pytest tests/test_executor_solver_fallback.py tests/test_runtime_overhead.py tests/test_strong_baselines.py -q` -> `17 passed in 2.23s`.
+- Full suite: `python -m pytest -q` -> `161 passed, 52 warnings in 4.01s`.
+
+Notes:
+
+- The old main-block test already proved `if __name__ == '__main__'` was not executed; the newly fixed gap was top-level solver/export code outside a main guard.
+- `evaluate_candidate` still calls `execute_generated_code`; the fix is intentionally centralized in the executor.

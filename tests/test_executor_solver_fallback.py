@@ -90,6 +90,35 @@ def test_execute_generated_code_ignores_main_block_solver_and_uses_project_solve
     assert result["error"] is None
 
 
+def test_execute_generated_code_ignores_top_level_candidate_solver_and_uses_project_solver(tmp_path):
+    generated_code = textwrap.dedent(
+        """
+        import pulp
+
+
+        def build_model():
+            prob = pulp.LpProblem('unit_executor_top_level', pulp.LpMinimize)
+            x = pulp.LpVariable('x', lowBound=0)
+            prob += x, 'objective'
+            prob += x >= 2, 'minimum_x'
+            return prob
+
+
+        model = build_model()
+        raise RuntimeError('executor must not run top-level candidate solver/export code')
+        status_code = model.solve(pulp.PULP_CBC_CMD(msg=False))
+        """
+    )
+
+    result = execute_generated_code(generated_code, tmp_path, candidate_id="c_top", timeout=10)
+
+    assert result["executable"] is True
+    assert result["status"] == "Optimal"
+    assert result["objective"] == 2.0
+    assert result["lp_path"] is not None
+    assert result["error"] is None
+
+
 def test_evaluate_candidate_runtime_fields_are_numeric_when_execution_or_parse_fails(tmp_path):
     candidate = {
         "problem_id": "p0",

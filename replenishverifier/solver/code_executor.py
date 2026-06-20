@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 RUNNER_CODE = r'''
-import importlib.util
+import ast
 import json
 import pathlib
 import sys
@@ -19,17 +19,46 @@ code_path = pathlib.Path(sys.argv[1])
 lp_path = pathlib.Path(sys.argv[2])
 time_limit = None if len(sys.argv) < 4 or sys.argv[3] == "" else float(sys.argv[3])
 
-try:
-    spec = importlib.util.spec_from_file_location("candidate_module", code_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
 
-    if hasattr(mod, "build_model"):
-        model = mod.build_model()
-    elif hasattr(mod, "model"):
-        model = mod.model
-    else:
-        raise RuntimeError("Candidate code must define build_model() or global variable model.")
+def _is_literal_assignment(node):
+    value = node.value if hasattr(node, "value") else None
+    if value is None:
+        return False
+    try:
+        ast.literal_eval(value)
+        return True
+    except Exception:
+        return False
+
+
+def _load_build_model_namespace(path):
+    source = path.read_text(encoding="utf-8")
+    parsed = ast.parse(source, filename=str(path))
+    safe_body = []
+    has_build_model = False
+
+    for node in parsed.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            safe_body.append(node)
+        elif isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            safe_body.append(node)
+            if isinstance(node, ast.FunctionDef) and node.name == "build_model":
+                has_build_model = True
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)) and _is_literal_assignment(node):
+            safe_body.append(node)
+
+    if not has_build_model:
+        raise RuntimeError("Candidate code must define build_model().")
+
+    module = ast.Module(body=safe_body, type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace = {"__name__": "candidate_module", "__file__": str(path)}
+    exec(compile(module, str(path), "exec"), namespace)
+    return namespace
+
+try:
+    namespace = _load_build_model_namespace(code_path)
+    model = namespace["build_model"]()
 
     if not hasattr(model, "writeLP"):
         raise RuntimeError("build_model() did not return a PuLP LpProblem-like object.")

@@ -293,3 +293,28 @@ Three k=8/100 experiment issues were fixed at the code/test level without regene
    - `hard_gate_score` remains `1.0`, `hard_gate_failures` remains empty, and `type_aware_static_validation_errors` remains empty.
 
 Verification: focused diagnostics/selection/static-validation/leakage tests passed with `53 passed`; full `python -m pytest -q` passed with `156 passed, 52 warnings`.
+
+## 2026-06-20 — Executor now avoids top-level candidate solver code
+
+`evaluate_candidate()` in `replenishverifier/experiments/methods.py` calls `execute_generated_code()`; it does not have a separate execution path. The execution bug was inside `replenishverifier/solver/code_executor.py`.
+
+Root cause:
+
+- The old executor runner used `importlib.util.spec_from_file_location()` plus `spec.loader.exec_module(mod)` to load candidate code.
+- `exec_module()` executes the entire candidate module top level before the runner can call `build_model()`.
+- Candidates with top-level `model = build_model()` followed by `model.solve(pulp.PULP_CBC_CMD(msg=False))` therefore still ran candidate-owned solver code and could fail with `PULP_CBC_CMD: Not Available` before reaching the project-owned `solve_pulp_model()` path.
+- Existing tests only covered solver calls inside `if __name__ == '__main__'`, which importlib does not execute as main; they did not cover top-level solver calls.
+
+Fix:
+
+- `execute_generated_code()` still writes and runs an isolated runner subprocess.
+- The runner now parses the candidate source with `ast`, keeps safe top-level imports, definitions, docstring, and literal assignments, requires `build_model()`, executes that filtered module namespace, calls `build_model()`, then solves/export LP through `solve_pulp_model()`.
+- This keeps executor ownership of solver selection and LP export while avoiding candidate top-level solver/export code.
+- No selection, diagnostics, paper metrics, generation, candidate data, or experiment result code was changed.
+
+Verification:
+
+- New regression test failed before the fix, then passed after it.
+- `python -m pytest tests/test_executor_solver_fallback.py -q` -> `4 passed`.
+- `python -m pytest tests/test_executor_solver_fallback.py tests/test_runtime_overhead.py tests/test_strong_baselines.py -q` -> `17 passed`.
+- `python -m pytest -q` -> `161 passed, 52 warnings`.

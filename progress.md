@@ -713,3 +713,57 @@ The user asked to fix three issues exposed by the k=8 / 100-problem v6 experimen
 - No candidates were regenerated and `replenishverifier/llm/run_generation.py` was not modified.
 - Formal selection components still do not include reference objective, objective_correct, relative_error, oracle, reference LP, or reference answer fields.
 - No git push or commit was performed.
+
+## 2026-06-20 — Executor top-level solver path fix
+
+### User request
+
+The user reported that after rerunning, `main_results` was still all zeros and `candidate_evaluations.csv` contained `status_code = model.solve(pulp.PULP_CBC_CMD(msg=False))` followed by `PULP_CBC_CMD: Not Available`. The user explicitly instructed: do not continue changing selection / diagnostics / paper_metrics; only fix the executor.
+
+### Root-cause investigation
+
+1. Checked `replenishverifier/experiments/methods.py::evaluate_candidate` and confirmed it calls:
+   - `execute_generated_code(generated_code, run_dir=Path(work_dir) / pid / cid, candidate_id=cid, timeout=timeout)`.
+2. Inspected `replenishverifier/solver/code_executor.py` and found the runner used importlib `exec_module(mod)` before retrieving `build_model()`.
+3. Confirmed why previous executor fix did not cover the observed real failure:
+   - code inside `if __name__ == '__main__'` is not executed during import and was already covered by an existing test;
+   - but top-level candidate code outside the main guard is executed by `exec_module()`, including top-level `model.solve(pulp.PULP_CBC_CMD(...))`.
+
+### Actions completed
+
+1. Added a failing regression test in `tests/test_executor_solver_fallback.py`:
+   - `test_execute_generated_code_ignores_top_level_candidate_solver_and_uses_project_solver`.
+   - RED result: failed because the executor imported the full module and hit top-level candidate code.
+2. Modified only `replenishverifier/solver/code_executor.py`:
+   - replaced full module import execution with AST-filtered namespace loading;
+   - preserved imports, definitions/classes, docstring, and literal assignments;
+   - requires `build_model()` and calls it directly;
+   - solves/export LP via project `solve_pulp_model()`.
+3. Did not modify selection, diagnostics, paper metrics, generation, candidates, or result tables.
+
+### Verification
+
+- RED before fix:
+  - `python -m pytest tests/test_executor_solver_fallback.py::test_execute_generated_code_ignores_top_level_candidate_solver_and_uses_project_solver -q`
+  - Result: failed as expected (`executable` was `False`).
+- Executor tests:
+  - `python -m pytest tests/test_executor_solver_fallback.py -q`
+  - Result: `4 passed in 1.45s`.
+- Focused tests:
+  - `python -m pytest tests/test_executor_solver_fallback.py tests/test_runtime_overhead.py tests/test_strong_baselines.py -q`
+  - Result: `17 passed in 2.23s`.
+- Full suite:
+  - `python -m pytest -q`
+  - Result: `161 passed, 52 warnings in 4.01s`.
+
+### Changed files
+
+- `replenishverifier/solver/code_executor.py`
+- `tests/test_executor_solver_fallback.py`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+### Notes
+
+No git commit or push was performed.
