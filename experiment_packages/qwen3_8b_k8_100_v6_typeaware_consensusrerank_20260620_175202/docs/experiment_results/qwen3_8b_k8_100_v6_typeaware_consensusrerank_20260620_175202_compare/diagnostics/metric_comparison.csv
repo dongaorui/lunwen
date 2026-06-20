@@ -1,0 +1,73 @@
+method,metric,reported,recomputed,delta,status
+Best-of-K,executable_rate,0.91,0.91,0.0,OK
+Best-of-K,optimal_rate,0.85,0.85,0.0,OK
+Best-of-K,objective_accuracy,0.74,0.74,0.0,OK
+Best-of-K,structure_completeness,0.7552,0.7552257936507933,2.5793650793359824e-05,OK
+Best-of-K,inventory_balance_accuracy,1.0,1.0,0.0,OK
+Best-of-K,constraint_coverage,0.8875,0.8875,0.0,OK
+Best-of-K,average_runtime_sec,0.1089,0.10887378054030705,-2.621945969294437e-05,OK
+Best-of-K,average_repair_feedback_count,0.18,0.18,0.0,OK
+Consensus only,executable_rate,0.91,0.91,0.0,OK
+Consensus only,optimal_rate,0.85,0.85,0.0,OK
+Consensus only,objective_accuracy,0.72,0.72,0.0,OK
+Consensus only,structure_completeness,0.751,0.7509722222222216,-2.7777777778403845e-05,OK
+Consensus only,inventory_balance_accuracy,1.0,1.0,0.0,OK
+Consensus only,constraint_coverage,0.8875,0.8875,0.0,OK
+Consensus only,average_runtime_sec,0.1042,0.10417382849322167,-2.617150677833302e-05,OK
+Consensus only,average_repair_feedback_count,0.18,0.18,0.0,OK
+Direct,executable_rate,0.89,0.89,0.0,OK
+Direct,optimal_rate,0.81,0.81,0.0,OK
+Direct,objective_accuracy,0.69,0.69,0.0,OK
+Direct,structure_completeness,0.7354,0.7353994047619041,-5.952380959239889e-07,OK
+Direct,inventory_balance_accuracy,1.0,1.0,0.0,OK
+Direct,constraint_coverage,0.8688,0.86875,-4.999999999999449e-05,OK
+Direct,average_runtime_sec,0.1211,0.12110946821107063,9.468211070631782e-06,OK
+Direct,average_repair_feedback_count,0.17,0.17,0.0,OK
+ReplenishVerifier-ConsensusSafe,executable_rate,0.91,0.91,0.0,OK
+ReplenishVerifier-ConsensusSafe,optimal_rate,0.85,0.85,0.0,OK
+ReplenishVerifier-ConsensusSafe,objective_accuracy,0.72,0.72,0.0,OK
+ReplenishVerifier-ConsensusSafe,structure_completeness,0.7548,0.7547972222222219,-2.7777777781290425e-06,OK
+ReplenishVerifier-ConsensusSafe,inventory_balance_accuracy,1.0,1.0,0.0,OK
+ReplenishVerifier-ConsensusSafe,constraint_coverage,0.8875,0.8875,0.0,OK
+ReplenishVerifier-ConsensusSafe,average_runtime_sec,0.1054,0.1054193360300269,1.9336030026906315e-05,OK
+ReplenishVerifier-ConsensusSafe,average_repair_feedback_count,0.18,0.18,0.0,OK
+ReplenishVerifier-Full,executable_rate,0.91,0.91,0.0,OK
+ReplenishVerifier-Full,optimal_rate,0.85,0.85,0.0,OK
+ReplenishVerifier-Full,objective_accuracy,0.72,0.72,0.0,OK
+ReplenishVerifier-Full,structure_completeness,0.7548,0.7547972222222219,-2.7777777781290425e-06,OK
+ReplenishVerifier-Full,inventory_balance_accuracy,1.0,1.0,0.0,OK
+ReplenishVerifier-Full,constraint_coverage,0.8875,0.8875,0.0,OK
+ReplenishVerifier-Full,average_runtime_sec,0.1083,0.10825933857995551,-4.06614200444827e-05,OK
+ReplenishVerifier-Full,average_repair_feedback_count,0.18,0.18,0.0,OK
+ReplenishVerifier-TypeAware,executable_rate,0.89,0.89,0.0,OK
+ReplenishVerifier-TypeAware,optimal_rate,0.85,0.85,0.0,OK
+ReplenishVerifier-TypeAware,objective_accuracy,0.72,0.72,0.0,OK
+ReplenishVerifier-TypeAware,structure_completeness,0.7403,0.740297222222222,-2.777777777906998e-06,OK
+ReplenishVerifier-TypeAware,inventory_balance_accuracy,1.0,1.0,0.0,OK
+ReplenishVerifier-TypeAware,constraint_coverage,0.87,0.87,0.0,OK
+ReplenishVerifier-TypeAware,average_runtime_sec,0.1046,0.10456207147042733,-3.792852957267001e-05,OK
+ReplenishVerifier-TypeAware,average_repair_feedback_count,0.16,0.16,0.0,OK
+ReplenishVerifier-TypeAware-Consensus,executable_rate,0.91,0.91,0.0,OK
+ReplenishVerifier-TypeAware-Consensus,optimal_rate,0.85,0.85,0.0,OK
+ReplenishVerifier-TypeAware-Consensus,objective_accuracy,0.72,0.72,0.0,OK
+ReplenishVerifier-TypeAware-Consensus,structure_completeness,0.7548,0.7547972222222219,-2.7777777781290425e-06,OK
+ReplenishVerifier-TypeAware-Consensus,inventory_balance_accuracy,1.0,1.0,0.0,OK
+ReplenishVerifier-TypeAware-Consensus,constraint_coverage,0.8875,0.8875,0.0,OK
+ReplenishVerifier-TypeAware-Consensus,average_runtime_sec,0.1054,0.1054193360300269,1.9336030026906315e-05,OK
+ReplenishVerifier-TypeAware-Consensus,average_repair_feedback_count,0.18,0.18,0.0,OK
+Solver only,executable_rate,0.91,0.91,0.0,OK
+Solver only,optimal_rate,0.85,0.85,0.0,OK
+Solver only,objective_accuracy,0.71,0.71,0.0,OK
+Solver only,structure_completeness,0.7508,0.7507579365079359,-4.206349206414828e-05,OK
+Solver only,inventory_balance_accuracy,1.0,1.0,0.0,OK
+Solver only,constraint_coverage,0.8875,0.8875,0.0,OK
+Solver only,average_runtime_sec,0.1042,0.10417848255310673,-2.1517446893271064e-05,OK
+Solver only,average_repair_feedback_count,0.18,0.18,0.0,OK
+Structure only,executable_rate,0.91,0.91,0.0,OK
+Structure only,optimal_rate,0.85,0.85,0.0,OK
+Structure only,objective_accuracy,0.74,0.74,0.0,OK
+Structure only,structure_completeness,0.7552,0.7552257936507933,2.5793650793359824e-05,OK
+Structure only,inventory_balance_accuracy,1.0,1.0,0.0,OK
+Structure only,constraint_coverage,0.8875,0.8875,0.0,OK
+Structure only,average_runtime_sec,0.1214,0.12136626958847047,-3.373041152952838e-05,OK
+Structure only,average_repair_feedback_count,0.18,0.18,0.0,OK

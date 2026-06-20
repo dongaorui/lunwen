@@ -1,0 +1,46 @@
+method,error_type,count,rate,total
+Best-of-K,execution_error,9,0.09,100
+Best-of-K,missing_capacity_constraint,12,0.12,100
+Best-of-K,no_error_detected,62,0.62,100
+Best-of-K,objective_mismatch_after_selection,11,0.11,100
+Best-of-K,solver_not_optimal,6,0.06,100
+Consensus only,execution_error,9,0.09,100
+Consensus only,missing_capacity_constraint,12,0.12,100
+Consensus only,no_error_detected,60,0.6,100
+Consensus only,objective_mismatch_after_selection,13,0.13,100
+Consensus only,solver_not_optimal,6,0.06,100
+Direct,execution_error,11,0.11,100
+Direct,missing_capacity_constraint,9,0.09,100
+Direct,no_error_detected,60,0.6,100
+Direct,objective_mismatch_after_selection,12,0.12,100
+Direct,solver_not_optimal,8,0.08,100
+ReplenishVerifier-ConsensusSafe,execution_error,9,0.09,100
+ReplenishVerifier-ConsensusSafe,missing_capacity_constraint,12,0.12,100
+ReplenishVerifier-ConsensusSafe,no_error_detected,60,0.6,100
+ReplenishVerifier-ConsensusSafe,objective_mismatch_after_selection,13,0.13,100
+ReplenishVerifier-ConsensusSafe,solver_not_optimal,6,0.06,100
+ReplenishVerifier-Full,execution_error,9,0.09,100
+ReplenishVerifier-Full,missing_capacity_constraint,12,0.12,100
+ReplenishVerifier-Full,no_error_detected,60,0.6,100
+ReplenishVerifier-Full,objective_mismatch_after_selection,13,0.13,100
+ReplenishVerifier-Full,solver_not_optimal,6,0.06,100
+ReplenishVerifier-TypeAware,execution_error,11,0.11,100
+ReplenishVerifier-TypeAware,missing_capacity_constraint,12,0.12,100
+ReplenishVerifier-TypeAware,no_error_detected,60,0.6,100
+ReplenishVerifier-TypeAware,objective_mismatch_after_selection,13,0.13,100
+ReplenishVerifier-TypeAware,solver_not_optimal,4,0.04,100
+ReplenishVerifier-TypeAware-Consensus,execution_error,9,0.09,100
+ReplenishVerifier-TypeAware-Consensus,missing_capacity_constraint,12,0.12,100
+ReplenishVerifier-TypeAware-Consensus,no_error_detected,60,0.6,100
+ReplenishVerifier-TypeAware-Consensus,objective_mismatch_after_selection,13,0.13,100
+ReplenishVerifier-TypeAware-Consensus,solver_not_optimal,6,0.06,100
+Solver only,execution_error,9,0.09,100
+Solver only,missing_capacity_constraint,12,0.12,100
+Solver only,no_error_detected,59,0.59,100
+Solver only,objective_mismatch_after_selection,14,0.14,100
+Solver only,solver_not_optimal,6,0.06,100
+Structure only,execution_error,9,0.09,100
+Structure only,missing_capacity_constraint,12,0.12,100
+Structure only,no_error_detected,62,0.62,100
+Structure only,objective_mismatch_after_selection,11,0.11,100
+Structure only,solver_not_optimal,6,0.06,100

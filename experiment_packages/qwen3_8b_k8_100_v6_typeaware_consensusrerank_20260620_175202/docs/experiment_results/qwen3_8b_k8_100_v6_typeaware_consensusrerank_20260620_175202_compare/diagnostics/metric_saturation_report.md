@@ -1,0 +1,47 @@
+# Metric Saturation Report
+
+This report is diagnostic only and does not affect formal selection.
+
+## Metric unique-value counts
+
+| metric | unique_values | saturated | values |
+| --- | --- | --- | --- |
+| average_repair_feedback_count | 3 | False | [0.16, 0.17, 0.18] |
+| average_runtime_sec | 8 | False | [0.10417382849322167, 0.10417848255310673, 0.10456207147042733, 0.1054193360300269, 0.10825933857995551, 0.10887378054030705, 0.12110946821107063, 0.12136626958847047] |
+| code_validity_rate | 1 | True | [1.0] |
+| constraint_coverage | 3 | False | [0.86875, 0.87, 0.8875] |
+| executable_rate | 2 | True | [0.89, 0.91] |
+| inventory_balance_accuracy | 1 | True | [1.0] |
+| mean_objective_gap | 6 | False | [0.0965701093092644, 0.10189908615165166, 0.10560406630396485, 0.11291288810053687, 0.1180026845344572, 0.11902872801475164] |
+| mean_relative_error | 6 | False | [0.0965701093092644, 0.10189908615165166, 0.10560406630396485, 0.11291288810053687, 0.1180026845344572, 0.11902872801475164] |
+| median_objective_gap | 1 | True | [0.0] |
+| median_relative_error | 1 | True | [0.0] |
+| median_runtime_sec | 7 | False | [0.1057431204826571, 0.10595518900663592, 0.10638485650997609, 0.10689406251185574, 0.10705197951756418, 0.12077713551116176, 0.12239870650228113] |
+| objective_accuracy | 4 | False | [0.69, 0.71, 0.72, 0.74] |
+| objective_accuracy_count | 4 | False | [69, 71, 72, 74] |
+| objective_accuracy_total | 1 | True | [100] |
+| objective_term_coverage | 1 | True | [0.9466666666666665] |
+| objective_term_lp_coefficient_coverage | 2 | True | [0.9513108614232209, 0.9523809523809523] |
+| objective_term_surface_coverage | 1 | True | [0.98] |
+| optimal_rate | 2 | True | [0.81, 0.85] |
+| solver_status_error_rate | 2 | True | [0.09, 0.11] |
+| solver_status_infeasible_rate | 3 | False | [0.04, 0.06, 0.08] |
+| solver_status_optimal_rate | 2 | True | [0.81, 0.85] |
+| solver_status_timeout_rate | 1 | True | [0.0] |
+| structure_complete_count | 1 | True | [0] |
+| structure_complete_total | 1 | True | [100] |
+| structure_completeness | 6 | False | [0.7353994047619041, 0.740297222222222, 0.7507579365079359, 0.7509722222222216, 0.7547972222222219, 0.7552257936507933] |
+
+## Saturated metrics
+
+code_validity_rate, executable_rate, inventory_balance_accuracy, median_objective_gap, median_relative_error, objective_accuracy_total, objective_term_coverage, objective_term_lp_coefficient_coverage, objective_term_surface_coverage, optimal_rate, solver_status_error_rate, solver_status_optimal_rate, solver_status_timeout_rate, structure_complete_count, structure_complete_total
+
+## High-overlap method pairs
+
+High same_selection_rate can make headline metrics identical even when method names differ.
+
+- Best-of-K / ReplenishVerifier-Full: same_selection_rate=0.9500
+- Consensus only / Solver only: same_selection_rate=0.9600
+- ReplenishVerifier-ConsensusSafe / ReplenishVerifier-TypeAware: same_selection_rate=0.9700
+- ReplenishVerifier-ConsensusSafe / ReplenishVerifier-TypeAware-Consensus: same_selection_rate=1.0000
+- ReplenishVerifier-TypeAware / ReplenishVerifier-TypeAware-Consensus: same_selection_rate=0.9700

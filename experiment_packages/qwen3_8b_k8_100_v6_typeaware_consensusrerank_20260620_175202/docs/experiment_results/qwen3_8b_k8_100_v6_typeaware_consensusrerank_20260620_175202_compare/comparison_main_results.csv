@@ -1,0 +1,10 @@
+method,previous_objective_accuracy,new_objective_accuracy,delta_objective_accuracy,previous_executable_rate,new_executable_rate,delta_executable_rate,previous_structure_completeness,new_structure_completeness,delta_structure_completeness,previous_constraint_coverage,new_constraint_coverage,delta_constraint_coverage
+Best-of-K,0.7500,0.7400,-0.0100,0.9100,0.9100,+0.0000,0.7552,0.7552,+0.0000,0.8875,0.8875,+0.0000
+Consensus only,0.7300,0.7200,-0.0100,0.9100,0.9100,+0.0000,0.7515,0.7510,-0.0005,0.8875,0.8875,+0.0000
+Direct,0.6900,0.6900,+0.0000,0.8900,0.8900,+0.0000,0.7354,0.7354,+0.0000,0.8688,0.8688,+0.0000
+ReplenishVerifier-ConsensusSafe,nan,0.7200,+nan,nan,0.9100,+nan,nan,0.7548,+nan,nan,0.8875,+nan
+ReplenishVerifier-Full,0.7400,0.7200,-0.0200,0.9100,0.9100,+0.0000,0.7552,0.7548,-0.0004,0.8875,0.8875,+0.0000
+ReplenishVerifier-TypeAware,0.7200,0.7200,+0.0000,0.8900,0.8900,+0.0000,0.7403,0.7403,+0.0000,0.8700,0.8700,+0.0000
+ReplenishVerifier-TypeAware-Consensus,0.7200,0.7200,+0.0000,0.8900,0.9100,+0.0200,0.7403,0.7548,+0.0145,0.8700,0.8875,+0.0175
+Solver only,0.7300,0.7100,-0.0200,0.9100,0.9100,+0.0000,0.7512,0.7508,-0.0004,0.8875,0.8875,+0.0000
+Structure only,0.7400,0.7400,+0.0000,0.9100,0.9100,+0.0000,0.7552,0.7552,+0.0000,0.8875,0.8875,+0.0000

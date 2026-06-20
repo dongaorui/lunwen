@@ -1,0 +1,10 @@
+method,n,solver_status_optimal_rate,solver_status_infeasible_rate,solver_status_timeout_rate,solver_status_error_rate
+Best-of-K,100,0.85,0.06,0.0,0.09
+Consensus only,100,0.85,0.06,0.0,0.09
+Direct,100,0.81,0.08,0.0,0.11
+ReplenishVerifier-ConsensusSafe,100,0.85,0.06,0.0,0.09
+ReplenishVerifier-Full,100,0.85,0.06,0.0,0.09
+ReplenishVerifier-TypeAware,100,0.85,0.04,0.0,0.11
+ReplenishVerifier-TypeAware-Consensus,100,0.85,0.06,0.0,0.09
+Solver only,100,0.85,0.06,0.0,0.09
+Structure only,100,0.85,0.06,0.0,0.09
