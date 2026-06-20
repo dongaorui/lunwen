@@ -1,8 +1,40 @@
-{"method": "Best-of-K", "error_type": "execution_error", "reported": 9, "recomputed": 100, "delta": 91, "status": "MISMATCH"}
-{"method": "Consensus only", "error_type": "execution_error", "reported": 9, "recomputed": 100, "delta": 91, "status": "MISMATCH"}
-{"method": "Direct", "error_type": "execution_error", "reported": 11, "recomputed": 100, "delta": 89, "status": "MISMATCH"}
-{"method": "ReplenishVerifier-Full", "error_type": "execution_error", "reported": 9, "recomputed": 100, "delta": 91, "status": "MISMATCH"}
-{"method": "ReplenishVerifier-TypeAware", "error_type": "execution_error", "reported": 11, "recomputed": 100, "delta": 89, "status": "MISMATCH"}
-{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "execution_error", "reported": 11, "recomputed": 100, "delta": 89, "status": "MISMATCH"}
-{"method": "Solver only", "error_type": "execution_error", "reported": 9, "recomputed": 100, "delta": 91, "status": "MISMATCH"}
-{"method": "Structure only", "error_type": "execution_error", "reported": 9, "recomputed": 100, "delta": 91, "status": "MISMATCH"}
+{"method": "Best-of-K", "error_type": "execution_error", "reported": 100, "recomputed": 9, "delta": -91, "status": "MISMATCH"}
+{"method": "Best-of-K", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Best-of-K", "error_type": "no_error_detected", "reported": null, "recomputed": 63, "delta": null, "status": "MISSING"}
+{"method": "Best-of-K", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 10, "delta": null, "status": "MISSING"}
+{"method": "Best-of-K", "error_type": "solver_not_optimal", "reported": null, "recomputed": 6, "delta": null, "status": "MISSING"}
+{"method": "Consensus only", "error_type": "execution_error", "reported": 100, "recomputed": 9, "delta": -91, "status": "MISMATCH"}
+{"method": "Consensus only", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Consensus only", "error_type": "no_error_detected", "reported": null, "recomputed": 61, "delta": null, "status": "MISSING"}
+{"method": "Consensus only", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Consensus only", "error_type": "solver_not_optimal", "reported": null, "recomputed": 6, "delta": null, "status": "MISSING"}
+{"method": "Direct", "error_type": "execution_error", "reported": 100, "recomputed": 11, "delta": -89, "status": "MISMATCH"}
+{"method": "Direct", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 9, "delta": null, "status": "MISSING"}
+{"method": "Direct", "error_type": "no_error_detected", "reported": null, "recomputed": 60, "delta": null, "status": "MISSING"}
+{"method": "Direct", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Direct", "error_type": "solver_not_optimal", "reported": null, "recomputed": 8, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-Full", "error_type": "execution_error", "reported": 100, "recomputed": 9, "delta": -91, "status": "MISMATCH"}
+{"method": "ReplenishVerifier-Full", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-Full", "error_type": "no_error_detected", "reported": null, "recomputed": 62, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-Full", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 11, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-Full", "error_type": "solver_not_optimal", "reported": null, "recomputed": 6, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "execution_error", "reported": 100, "recomputed": 11, "delta": -89, "status": "MISMATCH"}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "no_error_detected", "reported": null, "recomputed": 60, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 13, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware", "error_type": "solver_not_optimal", "reported": null, "recomputed": 4, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "execution_error", "reported": 100, "recomputed": 11, "delta": -89, "status": "MISMATCH"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "no_error_detected", "reported": null, "recomputed": 60, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 13, "delta": null, "status": "MISSING"}
+{"method": "ReplenishVerifier-TypeAware-Consensus", "error_type": "solver_not_optimal", "reported": null, "recomputed": 4, "delta": null, "status": "MISSING"}
+{"method": "Solver only", "error_type": "execution_error", "reported": 100, "recomputed": 9, "delta": -91, "status": "MISMATCH"}
+{"method": "Solver only", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Solver only", "error_type": "no_error_detected", "reported": null, "recomputed": 61, "delta": null, "status": "MISSING"}
+{"method": "Solver only", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Solver only", "error_type": "solver_not_optimal", "reported": null, "recomputed": 6, "delta": null, "status": "MISSING"}
+{"method": "Structure only", "error_type": "execution_error", "reported": 100, "recomputed": 9, "delta": -91, "status": "MISMATCH"}
+{"method": "Structure only", "error_type": "missing_capacity_constraint", "reported": null, "recomputed": 12, "delta": null, "status": "MISSING"}
+{"method": "Structure only", "error_type": "no_error_detected", "reported": null, "recomputed": 62, "delta": null, "status": "MISSING"}
+{"method": "Structure only", "error_type": "objective_mismatch_after_selection", "reported": null, "recomputed": 11, "delta": null, "status": "MISSING"}
+{"method": "Structure only", "error_type": "solver_not_optimal", "reported": null, "recomputed": 6, "delta": null, "status": "MISSING"}

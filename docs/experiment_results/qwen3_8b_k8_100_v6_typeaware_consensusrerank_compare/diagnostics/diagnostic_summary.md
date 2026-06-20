@@ -7,7 +7,8 @@
   "benchmark_path": "data/generated/test_100_v6.jsonl",
   "status_counts": {
     "OK": 64,
-    "MISMATCH": 8
+    "MISMATCH": 8,
+    "MISSING": 32
   },
   "unmatched_selected_rows": 0,
   "unmatched_reason_counts": {},

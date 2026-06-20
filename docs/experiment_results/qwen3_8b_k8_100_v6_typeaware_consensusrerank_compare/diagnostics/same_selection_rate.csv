@@ -1,29 +1,29 @@
 method_a,method_b,n_common,same_count,same_selection_rate
-Best-of-K,Consensus only,100,13,0.13
-Best-of-K,Direct,100,100,1.0
-Best-of-K,ReplenishVerifier-Full,100,99,0.99
-Best-of-K,ReplenishVerifier-TypeAware,100,13,0.13
-Best-of-K,ReplenishVerifier-TypeAware-Consensus,100,13,0.13
-Best-of-K,Solver only,100,13,0.13
-Best-of-K,Structure only,100,100,1.0
-Consensus only,Direct,100,13,0.13
-Consensus only,ReplenishVerifier-Full,100,13,0.13
-Consensus only,ReplenishVerifier-TypeAware,100,99,0.99
-Consensus only,ReplenishVerifier-TypeAware-Consensus,100,99,0.99
-Consensus only,Solver only,100,98,0.98
-Consensus only,Structure only,100,13,0.13
-Direct,ReplenishVerifier-Full,100,99,0.99
+Best-of-K,Consensus only,100,74,0.74
+Best-of-K,Direct,100,25,0.25
+Best-of-K,ReplenishVerifier-Full,100,33,0.33
+Best-of-K,ReplenishVerifier-TypeAware,100,84,0.84
+Best-of-K,ReplenishVerifier-TypeAware-Consensus,100,84,0.84
+Best-of-K,Solver only,100,76,0.76
+Best-of-K,Structure only,100,34,0.34
+Consensus only,Direct,100,14,0.14
+Consensus only,ReplenishVerifier-Full,100,18,0.18
+Consensus only,ReplenishVerifier-TypeAware,100,86,0.86
+Consensus only,ReplenishVerifier-TypeAware-Consensus,100,86,0.86
+Consensus only,Solver only,100,96,0.96
+Consensus only,Structure only,100,17,0.17
+Direct,ReplenishVerifier-Full,100,80,0.8
 Direct,ReplenishVerifier-TypeAware,100,13,0.13
 Direct,ReplenishVerifier-TypeAware-Consensus,100,13,0.13
-Direct,Solver only,100,13,0.13
-Direct,Structure only,100,100,1.0
-ReplenishVerifier-Full,ReplenishVerifier-TypeAware,100,13,0.13
-ReplenishVerifier-Full,ReplenishVerifier-TypeAware-Consensus,100,13,0.13
-ReplenishVerifier-Full,Solver only,100,13,0.13
+Direct,Solver only,100,14,0.14
+Direct,Structure only,100,81,0.81
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware,100,22,0.22
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware-Consensus,100,22,0.22
+ReplenishVerifier-Full,Solver only,100,18,0.18
 ReplenishVerifier-Full,Structure only,100,99,0.99
 ReplenishVerifier-TypeAware,ReplenishVerifier-TypeAware-Consensus,100,100,1.0
-ReplenishVerifier-TypeAware,Solver only,100,97,0.97
-ReplenishVerifier-TypeAware,Structure only,100,13,0.13
-ReplenishVerifier-TypeAware-Consensus,Solver only,100,97,0.97
-ReplenishVerifier-TypeAware-Consensus,Structure only,100,13,0.13
-Solver only,Structure only,100,13,0.13
+ReplenishVerifier-TypeAware,Solver only,100,82,0.82
+ReplenishVerifier-TypeAware,Structure only,100,21,0.21
+ReplenishVerifier-TypeAware-Consensus,Solver only,100,82,0.82
+ReplenishVerifier-TypeAware-Consensus,Structure only,100,21,0.21
+Solver only,Structure only,100,17,0.17
