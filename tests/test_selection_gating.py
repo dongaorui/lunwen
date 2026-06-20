@@ -41,6 +41,7 @@ def test_main_methods_are_concise_and_appendix_keeps_legacy_methods():
         "Consensus only",
         "ReplenishVerifier-Full",
         "ReplenishVerifier-ConsensusSafe",
+        "ReplenishVerifier-HybridSafe",
         "ReplenishVerifier-TypeAware",
         "ReplenishVerifier-TypeAware-Consensus",
     ]
@@ -84,7 +85,7 @@ def test_structure_aware_selection_penalizes_critical_missing_structure_over_con
     assert selected[0]["critical_structure_penalty"]["passed"] is True
 
 
-def test_full_can_select_different_candidate_from_structure_only_when_structure_ties():
+def test_hybrid_safe_can_select_different_candidate_from_structure_only_when_structure_ties():
     rows = [
         _row("c0", score=0.80, structure_score=0.80, missing=[], consensus=0.10),
         _row("c1", score=0.80, structure_score=0.80, missing=[], consensus=0.90),
@@ -105,12 +106,12 @@ def test_full_can_select_different_candidate_from_structure_only_when_structure_
     rows[1]["static_validation_score"] = 1.0
 
     structure_only = select_for_method("Structure only", {"p0": rows}, _benchmark())
-    full = select_for_method("ReplenishVerifier-Full", {"p0": rows}, _benchmark())
+    hybrid = select_for_method("ReplenishVerifier-HybridSafe", {"p0": rows}, _benchmark())
 
     assert structure_only[0]["candidate_id"] == "c0"
-    assert full[0]["candidate_id"] == "c1"
-    assert full[0]["selection_components"]["consensus_score"] == 0.90
-    assert full[0]["selection_components"].keys().isdisjoint({
+    assert hybrid[0]["candidate_id"] == "c1"
+    assert hybrid[0]["selection_components"]["consensus_score"] == 0.90
+    assert hybrid[0]["selection_components"].keys().isdisjoint({
         "reference_objective",
         "objective_correct",
         "relative_error",

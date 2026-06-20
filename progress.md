@@ -979,3 +979,73 @@ If ConsensusSafe does not exceed Best-of-K on the real run, inspect:
 ### Notes
 
 No candidates were regenerated. `replenishverifier/llm/run_generation.py` was not modified. No git commit or push was performed yet for this ConsensusSafe work.
+
+## 2026-06-20 — Selector diagnostics repair for TypeAware-Consensus and Full
+
+### User request
+
+The user approved方案一: keep existing methods and interfaces, repair `ReplenishVerifier-TypeAware-Consensus` and `ReplenishVerifier-Full` no-reference ranking, add synthetic tests, rerun the current k=8/100 package without regenerating candidates, and report diagnostics/leakage/pytest/results.
+
+### Actions completed
+
+1. Restored planning context and inspected selector/diagnostics code.
+2. Wrote approved design and plan:
+   - `docs/superpowers/specs/2026-06-20-selector-diagnostics-repair-design.md`
+   - `docs/superpowers/plans/2026-06-20-selector-diagnostics-repair.md`
+3. Added RED tests in `tests/test_selection_gating.py`:
+   - TypeAware selects a high TypeAware-score isolated objective candidate, while TypeAware-Consensus selects a majority objective-consensus cluster candidate.
+   - Structure only selects candidate A under equal structure score, while Full selects candidate B using non-reference consensus/solver/static/type-aware/LP-health quality.
+4. Implemented selector changes in `replenishverifier/experiments/methods.py`:
+   - Added `_finite_objective_score()`.
+   - Extended `type_aware_consensus_selection_components()` with `consensus_cluster_support`, `finite_objective`, `lp_health_score`, code validity, and static validation.
+   - Changed TypeAware-Consensus scoring/tie-break to prioritize consensus-cluster support after viability.
+   - Added `full_selection_components()` and `full_selection_score()`.
+   - Routed `ReplenishVerifier-Full` through the new structure tie-window composite selector and annotated selected rows with components.
+5. Decompressed existing package candidates from `.jsonl.gz` to `.jsonl` using `gzip -dc`; this was input conversion only, not candidate regeneration.
+6. Re-ran package experiment:
+   - `runs/qwen3_8b_k8_100_v6_typeaware_selectorfix`
+7. Re-ran diagnostics, error analysis, leakage audit, and paper metrics:
+   - `runs/qwen3_8b_k8_100_v6_typeaware_selectorfix/diagnostics`
+   - `experiment_packages/qwen3_8b_k8_100_v6_typeaware_consensusrerank_20260620_163026/docs/experiment_results/qwen3_8b_k8_100_v6_typeaware_selectorfix_compare/paper_metrics`
+
+### Verification
+
+- RED state:
+  - New tests failed before implementation as expected (`consensus_cluster_support` missing; Full selected row lacked `selection_components`).
+- Focused tests:
+  - `python -m pytest tests/test_selection_gating.py -q` -> `23 passed in 0.35s`.
+  - `python -m pytest tests/test_selection_gating.py tests/test_diagnose_selection_metrics.py tests/test_paper_metrics.py tests/test_leakage_audit.py tests/test_run_all_methods_grouping.py -q` -> `56 passed in 1.62s`.
+  - `python -m py_compile replenishverifier/experiments/methods.py` passed.
+- Full suite:
+  - `python -m pytest -q` -> `174 passed, 52 warnings in 5.93s`.
+- Leakage audit:
+  - `LEAKAGE AUDIT PASSED: no reference_objective usage detected in formal selection scores.`
+
+### Rerun results
+
+Main objective_accuracy from `runs/qwen3_8b_k8_100_v6_typeaware_selectorfix/main_results.md`:
+
+- Best-of-K: `0.7400`
+- Consensus only: `0.7200`
+- Direct: `0.6900`
+- ReplenishVerifier-ConsensusSafe: `0.7200`
+- ReplenishVerifier-Full: `0.7200`
+- ReplenishVerifier-TypeAware: `0.7200`
+- ReplenishVerifier-TypeAware-Consensus: `0.7200`
+- Solver only: `0.7100`
+- Structure only: `0.7400`
+
+Redundancy results from `same_selection_rate.csv` / `method_redundancy_report.md`:
+
+- `ReplenishVerifier-TypeAware` vs `ReplenishVerifier-TypeAware-Consensus`: `0.9600`.
+- `ReplenishVerifier-Full` vs `Structure only`: `0.2200`.
+- `ReplenishVerifier-ConsensusSafe` vs `ReplenishVerifier-TypeAware-Consensus`: `1.0000`.
+
+Diagnostics:
+
+- `diagnostic_join_unmatched.csv` was generated and has zero unmatched selected rows beyond the header.
+- The MISSING semantics are separated into metric comparison MISSING and join-unmatched diagnostics; the join file explicitly reports candidate-rank parse reason and unmatched reason when applicable.
+
+### Notes
+
+No candidate generation was run. `replenishverifier/llm/run_generation.py` was not modified. Formal selection still avoids reference objective, objective correctness, oracle, reference LP, and reference answers. The real rerun did not improve objective accuracy over Best-of-K or Structure only; the main success is legality/explainability and removal of the Full-vs-Structure-only collapse.

@@ -1,0 +1,10 @@
+method,n,structure_completeness,inventory_balance_accuracy,constraint_coverage
+Best-of-K,100,0.7552257936507937,1.0,0.8875
+Consensus only,100,0.7510888888888888,1.0,0.8875
+Direct,100,0.7353994047619048,1.0,0.86875
+ReplenishVerifier-ConsensusSafe,100,0.7547972222222222,1.0,0.8875
+ReplenishVerifier-Full,100,0.7547972222222222,1.0,0.8875
+ReplenishVerifier-TypeAware,100,0.7402972222222222,1.0,0.87
+ReplenishVerifier-TypeAware-Consensus,100,0.7547972222222222,1.0,0.8875
+Solver only,100,0.7510888888888888,1.0,0.8875
+Structure only,100,0.7552257936507937,1.0,0.8875

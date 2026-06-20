@@ -193,6 +193,43 @@ def test_compute_avoidable_error_summary_counts_posthoc_opportunities():
     assert by_method["ReplenishVerifier-TypeAware-Consensus"]["objective_mismatch_with_objective_correct_available"] == 0
 
 
+def test_diagnose_selection_metrics_writes_selector_counterfactuals_and_failure_summary(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    best = _selected("Best-of-K", "p0", "m_k1", objective_correct=1.0, missing=[])
+    hybrid = _selected("ReplenishVerifier-HybridSafe", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"])
+    hybrid["selection_components"] = {
+        "selector_family": "hybrid_safe",
+        "method_vote_count": 3.0,
+        "consensus_score": 0.9,
+        "critical_missing_count": 1.0,
+        "constraint_coverage": 0.5,
+        "structure_completeness": 0.5,
+    }
+    best["selection_components"] = {
+        "selector_family": "best_of_k",
+        "method_vote_count": 1.0,
+        "consensus_score": 0.2,
+        "critical_missing_count": 0.0,
+        "constraint_coverage": 1.0,
+        "structure_completeness": 1.0,
+    }
+    write_jsonl(exp_dir / "main_results.jsonl", [best, hybrid])
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", [dict(best, method_name=None), dict(hybrid, method_name=None)])
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diag")
+
+    assert (exp_dir / "diag" / "selector_counterfactuals.csv").exists()
+    assert (exp_dir / "diag" / "selector_counterfactuals.md").exists()
+    assert (exp_dir / "diag" / "selector_failure_summary.md").exists()
+    assert result["selector_counterfactuals"][0]["target_method"] == "ReplenishVerifier-HybridSafe"
+    assert result["selector_counterfactuals"][0]["posthoc_only"] is True
+    text = (exp_dir / "diag" / "selector_failure_summary.md").read_text(encoding="utf-8")
+    assert "posthoc_only" in text
+    assert "critical penalty" in text or "structure" in text
+
+
+
 def test_diagnose_selection_metrics_writes_consensus_safe_counterfactual(tmp_path):
     exp_dir = tmp_path / "exp"
     exp_dir.mkdir()

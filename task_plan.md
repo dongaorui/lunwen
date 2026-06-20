@@ -281,3 +281,48 @@ Notes:
 - Running the exact requested command failed honestly with `ValueError: No benchmark rows found: data/generated/test_100_v6.jsonl`; no fake result was generated.
 - No candidates were regenerated and `replenishverifier/llm/run_generation.py` was not modified.
 - To rerun on the Xshell environment that contains the files, use the commands recorded in `progress.md`.
+
+### Phase 11 — Selector diagnostics repair for TypeAware-Consensus and Full
+
+**Status:** complete on 2026-06-20
+
+Actions:
+
+- Saved the approved design at `docs/superpowers/specs/2026-06-20-selector-diagnostics-repair-design.md`.
+- Saved the implementation plan at `docs/superpowers/plans/2026-06-20-selector-diagnostics-repair.md`.
+- Added RED synthetic selector tests proving:
+  - `ReplenishVerifier-TypeAware` can choose a high TypeAware-score isolated-objective candidate while `ReplenishVerifier-TypeAware-Consensus` chooses a majority objective-consensus cluster candidate.
+  - `Structure only` can choose the first candidate under a structure tie while `ReplenishVerifier-Full` chooses a different candidate using non-reference quality signals.
+- Reworked `ReplenishVerifier-TypeAware-Consensus` to expose and rank by no-reference consensus-cluster support with finite objective, LP health, structure/coverage, type-aware/static validation, and critical-missing penalties.
+- Reworked `ReplenishVerifier-Full` to use a structure tie-window plus candidate objective consensus, solver/finite-objective, LP health, constraint coverage, objective-term coverage, type-aware/static validation, and critical-structure safety.
+- Did not modify `replenishverifier/llm/run_generation.py`.
+- Did not regenerate candidates; decompressed the existing package `.jsonl.gz` candidates only to run evaluation.
+- Re-ran the package experiment into `runs/qwen3_8b_k8_100_v6_typeaware_selectorfix`.
+- Rebuilt diagnostics, error analysis, leakage audit, and paper metrics.
+
+Verification:
+
+- New RED tests failed before implementation, then passed after implementation.
+- `python -m pytest tests/test_selection_gating.py -q` -> `23 passed in 0.35s`.
+- Focused selector/diagnostic/leakage suite -> `56 passed in 1.62s`.
+- Full suite: `python -m pytest -q` -> `174 passed, 52 warnings in 5.93s`.
+- `python -m py_compile replenishverifier/experiments/methods.py` passed.
+- Leakage audit on `runs/qwen3_8b_k8_100_v6_typeaware_selectorfix` passed.
+
+Real rerun summary:
+
+- `Best-of-K` objective_accuracy: `0.7400`.
+- `Structure only` objective_accuracy: `0.7400`.
+- `ReplenishVerifier-Full` objective_accuracy: `0.7200`.
+- `ReplenishVerifier-TypeAware` objective_accuracy: `0.7200`.
+- `ReplenishVerifier-TypeAware-Consensus` objective_accuracy: `0.7200`.
+- `ReplenishVerifier-Full` vs `Structure only` same_selection_rate: `0.2200`.
+- `ReplenishVerifier-TypeAware` vs `ReplenishVerifier-TypeAware-Consensus` same_selection_rate: `0.9600`.
+
+Notes:
+
+- The repair successfully prevents `Full` from degenerating into `Structure only` by construction.
+- `TypeAware-Consensus` is no longer identical to `TypeAware`, but remains highly overlapping on the real run.
+- `TypeAware-Consensus` and `ConsensusSafe` are identical on this run (`same_selection_rate=1.0000`), which should be reported as a remaining redundancy if discussed.
+- `diagnostic_join_unmatched.csv` was generated and contains no unmatched selected rows.
+- Formal selector components remain no-reference; post-hoc correctness appears only in diagnostics/evaluation.

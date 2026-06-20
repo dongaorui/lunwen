@@ -147,8 +147,9 @@ def test_compute_selection_diagnostics_outputs_same_rate_and_rank_distribution()
     assert {"method", "problem_id", "candidate_id", "objective_correct_posthoc", "selected"} <= set(debug[0])
 
 
-def test_default_paper_methods_include_consensus_safe():
+def test_default_paper_methods_include_consensus_safe_and_hybrid_safe():
     assert "ReplenishVerifier-ConsensusSafe" in DEFAULT_PAPER_METHODS
+    assert "ReplenishVerifier-HybridSafe" in DEFAULT_PAPER_METHODS
 
 
 def test_compute_metrics_by_problem_type_groups_selected_methods_and_problem_types():
@@ -209,6 +210,7 @@ def test_build_paper_metrics_writes_expected_tables(tmp_path):
         "table_bootstrap_ci",
         "table_by_problem_type",
         "table_selection_collapse",
+        "table_selector_v2_main",
     ]
     assert set(result["tables"]) == set(expected)
     for name in expected:

@@ -326,6 +326,90 @@ def _component(row, key):
     return _selection_components(row).get(key)
 
 
+def compute_selector_counterfactuals(main_rows, target_methods=None, baseline_method="Best-of-K"):
+    target_methods = target_methods or ["ReplenishVerifier-HybridSafe", "ReplenishVerifier-ConsensusSafe", "ReplenishVerifier-TypeAware-Consensus"]
+    selected = _selected_by_method_problem(main_rows)
+    baseline = selected.get(baseline_method, {})
+    rows = []
+    for target_method in target_methods:
+        target = selected.get(target_method, {})
+        for pid in sorted(set(target) & set(baseline)):
+            t = target[pid]
+            b = baseline[pid]
+            if t.get("candidate_id") == b.get("candidate_id"):
+                continue
+            tc = _selection_components(t)
+            bc = _selection_components(b)
+            t_correct = 1.0 if _local_objective_correct(t) else 0.0
+            b_correct = 1.0 if _local_objective_correct(b) else 0.0
+            rows.append({
+                "target_method": target_method,
+                "baseline_method": baseline_method,
+                "problem_id": pid,
+                "target_candidate_id": t.get("candidate_id"),
+                "baseline_candidate_id": b.get("candidate_id"),
+                "target_objective_correct_posthoc_only": t_correct,
+                "baseline_objective_correct_posthoc_only": b_correct,
+                "objective_delta_posthoc_only": t_correct - b_correct,
+                "target_selector_family": tc.get("selector_family"),
+                "target_method_vote_count": tc.get("method_vote_count"),
+                "target_consensus_score": tc.get("consensus_score"),
+                "baseline_consensus_score": bc.get("consensus_score"),
+                "target_critical_missing_count": tc.get("critical_missing_count"),
+                "baseline_critical_missing_count": bc.get("critical_missing_count"),
+                "target_structure": tc.get("structure_completeness"),
+                "baseline_structure": bc.get("structure_completeness"),
+                "target_constraint_coverage": tc.get("constraint_coverage"),
+                "baseline_constraint_coverage": bc.get("constraint_coverage"),
+                "posthoc_only": True,
+            })
+    return rows
+
+
+def build_selector_failure_summary(counterfactual_rows):
+    lines = [
+        "# Selector Failure Summary",
+        "",
+        "This report is posthoc_only diagnostics and must not be used for formal selection.",
+        "",
+    ]
+    if not counterfactual_rows:
+        lines.append("No selector counterfactual failures were found.")
+        return "\n".join(lines) + "\n"
+    buckets = {
+        "objective consensus misled": 0,
+        "structure misled": 0,
+        "critical penalty misled": 0,
+        "selector votes misled": 0,
+        "non-reference signals could not distinguish": 0,
+    }
+    for row in counterfactual_rows:
+        if float(row.get("objective_delta_posthoc_only") or 0.0) >= 0.0:
+            continue
+        if (row.get("target_consensus_score") or 0.0) > (row.get("baseline_consensus_score") or 0.0):
+            buckets["objective consensus misled"] += 1
+        elif (row.get("target_structure") or 0.0) > (row.get("baseline_structure") or 0.0):
+            buckets["structure misled"] += 1
+        elif (row.get("target_critical_missing_count") or 0.0) < (row.get("baseline_critical_missing_count") or 0.0):
+            buckets["critical penalty misled"] += 1
+        elif (row.get("target_method_vote_count") or 0.0) > 0.0:
+            buckets["selector votes misled"] += 1
+        else:
+            buckets["non-reference signals could not distinguish"] += 1
+    lines.extend(["| failure_mode | count |", "| --- | --- |"])
+    for key, value in buckets.items():
+        lines.append(f"| {key} | {value} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _write_selector_counterfactuals_markdown(path, rows):
+    write_markdown(path, rows, "Selector Counterfactuals")
+    text = Path(path).read_text(encoding="utf-8")
+    Path(path).write_text(text + "\nThis table is posthoc_only diagnostics and must not be used for formal selection.\n", encoding="utf-8")
+
+
+
 def compute_consensus_safe_counterfactual(main_rows):
     """Post-hoc Best-of-K vs ConsensusSafe diagnostic rows.
 
@@ -402,6 +486,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     paired_method_comparison = compute_paired_method_comparison(main_rows)
     avoidable_error_summary = compute_avoidable_error_summary(main_rows, candidate_rows) if candidate_rows else []
     consensus_safe_counterfactual = compute_consensus_safe_counterfactual(main_rows)
+    selector_counterfactuals = compute_selector_counterfactuals(main_rows)
+    selector_failure_summary = build_selector_failure_summary(selector_counterfactuals)
     method_redundancy_report = build_method_redundancy_report(recomputed_metrics, diagnostics["same_selection_rate"])
     metric_saturation_report = build_metric_saturation_report(recomputed_metrics, diagnostics["same_selection_rate"])
 
@@ -423,6 +509,9 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     _write_avoidable_error_markdown(out_dir / "avoidable_error_summary.md", avoidable_error_summary)
     write_csv(out_dir / "consensus_safe_counterfactual.csv", consensus_safe_counterfactual)
     _write_consensus_safe_counterfactual_markdown(out_dir / "consensus_safe_counterfactual.md", consensus_safe_counterfactual)
+    write_csv(out_dir / "selector_counterfactuals.csv", selector_counterfactuals)
+    _write_selector_counterfactuals_markdown(out_dir / "selector_counterfactuals.md", selector_counterfactuals)
+    (out_dir / "selector_failure_summary.md").write_text(selector_failure_summary, encoding="utf-8")
     (out_dir / "method_redundancy_report.md").write_text(method_redundancy_report, encoding="utf-8")
     (out_dir / "metric_saturation_report.md").write_text(metric_saturation_report, encoding="utf-8")
 
@@ -461,6 +550,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "paired_method_comparison": paired_method_comparison,
         "avoidable_error_summary": avoidable_error_summary,
         "consensus_safe_counterfactual": consensus_safe_counterfactual,
+        "selector_counterfactuals": selector_counterfactuals,
+        "selector_failure_summary": selector_failure_summary,
         "summary": summary,
     }
 

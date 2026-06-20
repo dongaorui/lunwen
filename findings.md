@@ -353,6 +353,27 @@ Real k=8/100 status:
 
 No candidates were regenerated and `replenishverifier/llm/run_generation.py` was not modified.
 
+## 2026-06-20 — Selector diagnostics repair findings
+
+Root cause:
+
+- `ReplenishVerifier-TypeAware-Consensus` had consensus in the score, but did not expose or explicitly prioritize consensus-cluster support as the first formal ranking concept after viability; TypeAware/structure/hard-gate signals could still keep it close to `ReplenishVerifier-TypeAware`.
+- `ReplenishVerifier-Full` used a structure-heavy raw score and structure-heavy tie-breakers, so it could collapse to `Structure only` even though it was intended to combine multiple non-reference signals.
+
+Fix contract:
+
+- `ReplenishVerifier-TypeAware-Consensus` now records `consensus_cluster_support`, `finite_objective`, `lp_health_score`, code/static validity, critical-missing counts, and existing structure/type-aware coverage in `selection_components`.
+- `ReplenishVerifier-Full` now records `selection_components` and uses a structure tie-window before candidate objective consensus, solver/finite objective, LP health, constraint coverage, objective-term coverage, type-aware/static validation, and critical-structure safety.
+- Both selectors still avoid `reference_objective`, `objective_correct`, oracle, reference LP, and reference answers in formal ranking.
+
+Rerun observations on `runs/qwen3_8b_k8_100_v6_typeaware_selectorfix`:
+
+- `Full` no longer degenerates into `Structure only`: same_selection_rate is `0.2200`.
+- `TypeAware-Consensus` no longer exactly aliases `TypeAware`: same_selection_rate is `0.9600`, still high but not forced to 1.0.
+- `TypeAware-Consensus` and `ConsensusSafe` are identical in this run (`1.0000`), so method redundancy remains for that pair.
+- `diagnostic_join_unmatched.csv` exists and is empty apart from the header, so selected/candidate joins matched cleanly.
+- Leakage audit passed.
+
 `evaluate_candidate()` in `replenishverifier/experiments/methods.py` calls `execute_generated_code()`; it does not have a separate execution path. The execution bug was inside `replenishverifier/solver/code_executor.py`.
 
 Root cause:

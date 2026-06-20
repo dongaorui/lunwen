@@ -52,8 +52,10 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
     by_problem_type = compute_metrics_by_problem_type(main_rows)
     selection_collapse = compute_selection_collapse_summary(main_rows, candidate_rows)
 
+    selector_v2_methods = {"ReplenishVerifier-ConsensusSafe", "ReplenishVerifier-HybridSafe", "ReplenishVerifier-TypeAware-Consensus", "ReplenishVerifier-Full", "Best-of-K"}
     tables = {
         "table_main_metrics": _select_columns(metrics, ["method", "n", "code_validity_rate", "executable_rate", "optimal_rate", "objective_accuracy", "objective_accuracy_count", "objective_accuracy_total", "structure_completeness", "structure_complete_count", "structure_complete_total", "constraint_coverage", "objective_term_coverage"]),
+        "table_selector_v2_main": _select_columns([row for row in metrics if row.get("method") in selector_v2_methods], ["method", "n", "objective_accuracy", "structure_completeness", "constraint_coverage", "objective_term_coverage", "average_runtime_sec"]),
         "table_solver_status": _select_columns(metrics, ["method", "n", "solver_status_optimal_rate", "solver_status_infeasible_rate", "solver_status_timeout_rate", "solver_status_error_rate"]),
         "table_objective_gap": _select_columns(metrics, ["method", "n", "objective_accuracy", "mean_relative_error", "median_relative_error", "mean_objective_gap", "median_objective_gap"]),
         "table_structure_metrics": _select_columns(metrics, ["method", "n", "structure_completeness", "inventory_balance_accuracy", "constraint_coverage"]),
@@ -71,6 +73,7 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
 
     titles = {
         "table_main_metrics": "Table: Main Paper Metrics",
+        "table_selector_v2_main": "Table: Selector V2 Main Metrics",
         "table_solver_status": "Table: Solver Status Metrics",
         "table_objective_gap": "Table: Objective Accuracy and Gap",
         "table_structure_metrics": "Table: Structure Metrics",

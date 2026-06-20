@@ -162,6 +162,7 @@ DEFAULT_PAPER_METHODS = [
     "Consensus only",
     "ReplenishVerifier-Full",
     "ReplenishVerifier-ConsensusSafe",
+    "ReplenishVerifier-HybridSafe",
     "ReplenishVerifier-TypeAware",
     "ReplenishVerifier-TypeAware-Consensus",
 ]
