@@ -84,6 +84,42 @@ def test_structure_aware_selection_penalizes_critical_missing_structure_over_con
     assert selected[0]["critical_structure_penalty"]["passed"] is True
 
 
+def test_full_can_select_different_candidate_from_structure_only_when_structure_ties():
+    rows = [
+        _row("c0", score=0.80, structure_score=0.80, missing=[], consensus=0.10),
+        _row("c1", score=0.80, structure_score=0.80, missing=[], consensus=0.90),
+    ]
+    rows[0]["execution"] = {"executable": True, "status": "Optimal", "objective": 100.0, "lp_path": "a.lp"}
+    rows[1]["execution"] = {"executable": True, "status": "Optimal", "objective": 42.0, "lp_path": "b.lp"}
+    rows[0]["objective_term_coverage"] = 0.6
+    rows[1]["objective_term_coverage"] = 1.0
+    rows[0]["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 1, "variables_count": 2}
+    rows[1]["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 4, "variables_count": 4}
+    rows[0]["type_aware_static_validation"] = {"score": 0.7, "hard_gate_score": 0.7, "hard_gate_failures": ["weak"], "missing_items": ["weak"]}
+    rows[1]["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+    rows[0]["type_aware_static_validation_errors"] = ["weak"]
+    rows[1]["type_aware_static_validation_errors"] = []
+    rows[0]["code_output_format_valid"] = False
+    rows[1]["code_output_format_valid"] = True
+    rows[0]["static_validation_score"] = 0.5
+    rows[1]["static_validation_score"] = 1.0
+
+    structure_only = select_for_method("Structure only", {"p0": rows}, _benchmark())
+    full = select_for_method("ReplenishVerifier-Full", {"p0": rows}, _benchmark())
+
+    assert structure_only[0]["candidate_id"] == "c0"
+    assert full[0]["candidate_id"] == "c1"
+    assert full[0]["selection_components"]["consensus_score"] == 0.90
+    assert full[0]["selection_components"].keys().isdisjoint({
+        "reference_objective",
+        "objective_correct",
+        "relative_error",
+        "oracle",
+        "reference_lp",
+        "reference_answer",
+    })
+
+
 def test_generic_or_r1_does_not_apply_replenishment_critical_penalty():
     rows = [
         _row("c0", structure_score=0.1, missing=["capacity_constraint"], consensus=1.0),
@@ -342,6 +378,58 @@ def test_type_aware_consensus_does_not_use_type_aware_pool_filter_alias():
     assert consensus[0]["candidate_id"] == "c1"
     assert "type_aware_pool_filter_applied" not in consensus[0]
     assert consensus[0]["selection_components"]["consensus_score"] == 0.99
+
+
+def test_type_aware_consensus_prefers_majority_objective_cluster_over_isolated_typeaware_score():
+    rows = [
+        _row("c0", structure_score=1.0, missing=[], consensus=1 / 3),
+        _row("c1", structure_score=0.92, missing=[], consensus=2 / 3),
+        _row("c2", structure_score=0.90, missing=[], consensus=2 / 3),
+    ]
+    rows[0]["execution"]["objective"] = 100.0
+    rows[1]["execution"]["objective"] = 42.0
+    rows[2]["execution"]["objective"] = 42.000001
+    rows[0]["objective_term_coverage"] = 1.0
+    rows[1]["objective_term_coverage"] = 0.9
+    rows[2]["objective_term_coverage"] = 0.88
+    rows[0]["type_aware_static_validation"] = {
+        "score": 1.0,
+        "hard_gate_score": 1.0,
+        "hard_gate_failures": [],
+        "missing_items": [],
+    }
+    rows[1]["type_aware_static_validation"] = {
+        "score": 0.92,
+        "hard_gate_score": 1.0,
+        "hard_gate_failures": [],
+        "missing_items": [],
+    }
+    rows[2]["type_aware_static_validation"] = {
+        "score": 0.90,
+        "hard_gate_score": 1.0,
+        "hard_gate_failures": [],
+        "missing_items": [],
+    }
+    for row in rows:
+        row["type_aware_static_validation_errors"] = []
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["code_output_format_valid"] = True
+        row["static_validation_score"] = 1.0
+
+    type_aware = select_for_method("ReplenishVerifier-TypeAware", {"p0": rows}, _benchmark())
+    consensus = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
+
+    assert type_aware[0]["candidate_id"] == "c0"
+    assert consensus[0]["candidate_id"] in {"c1", "c2"}
+    assert consensus[0]["selection_components"]["consensus_cluster_support"] == 2 / 3
+    assert consensus[0]["selection_components"].keys().isdisjoint({
+        "reference_objective",
+        "objective_correct",
+        "relative_error",
+        "oracle",
+        "reference_lp",
+        "reference_answer",
+    })
 
 
 def test_selection_treats_empty_type_aware_checklist_as_neutral():

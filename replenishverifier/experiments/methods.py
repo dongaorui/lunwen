@@ -454,25 +454,35 @@ def type_aware_selection_score(row):
 def type_aware_consensus_selection_components(row):
     base = type_aware_selection_components(row)
     critical_missing = _critical_missing_structures(row)
+    cluster_support = float(row.get("objective_consensus_score", base.get("consensus_score", 0.0)) or 0.0)
+    base["finite_objective"] = _finite_objective_score(row)
+    base["lp_health_score"] = _lp_health_score(row)
+    base["code_validity_score"] = _code_validity_score(row)
+    base["static_validation_score"] = _static_validation_score(row)
     base["critical_missing_count"] = float(len(critical_missing))
     base["critical_structure_pass"] = 1.0 if not critical_missing else 0.0
     base["critical_missing_structures"] = critical_missing
-    base["consensus_bucket"] = round(base["consensus_score"] / 0.05) * 0.05
+    base["consensus_cluster_support"] = cluster_support
+    base["consensus_bucket"] = round(cluster_support / 0.05) * 0.05
     return base
 
 
 def type_aware_consensus_selection_score(row):
     c = type_aware_consensus_selection_components(row)
     return float(
-        10000.0 * c["executable"]
-        + 5000.0 * c["solver_optimal"]
-        + 1000.0 * c["consensus_score"]
-        + 120.0 * c["structure_completeness"]
-        + 90.0 * c["constraint_coverage"]
-        + 80.0 * c["objective_term_coverage"]
-        + 40.0 * c["hard_gate_score"]
-        + 20.0 * c["type_aware_score"]
-        - 25.0 * c["critical_missing_count"]
+        100000.0 * c["executable"]
+        + 50000.0 * c["solver_optimal"]
+        + 10000.0 * c["finite_objective"]
+        + 5000.0 * c["consensus_cluster_support"]
+        + 350.0 * c["lp_health_score"]
+        + 250.0 * c["structure_completeness"]
+        + 200.0 * c["constraint_coverage"]
+        + 150.0 * c["objective_term_coverage"]
+        + 80.0 * c["hard_gate_score"]
+        + 40.0 * c["type_aware_score"]
+        + 20.0 * c["code_validity_score"]
+        + 10.0 * c["static_validation_score"]
+        - 120.0 * c["critical_missing_count"]
         - 2.0 * c["repair_feedback_count"]
         - 0.1 * c["runtime_sec"]
     )
@@ -486,6 +496,71 @@ def _lp_health_score(row):
     constraints = 1.0 if int(stats.get("constraints_count") or 0) > 0 else 0.0
     variables = 1.0 if int(stats.get("variables_count") or 0) > 0 else 0.0
     return float((objective + constraints + variables) / 3.0)
+
+
+def full_selection_components(row):
+    execution = row.get("execution") or {}
+    status = str(execution.get("status") or "")
+    executable = 1.0 if execution.get("executable") else 0.0
+    solver_optimal = 1.0 if status == "Optimal" else 0.0
+    critical_missing = _critical_missing_structures(row)
+    structure = _structure_score(row)
+    constraint = _constraint_coverage(row)
+    objective_terms = _objective_term_coverage(row)
+    consensus = float(row.get("objective_consensus_score", 0.0) or 0.0)
+    lp_health = _lp_health_score(row)
+    type_aware_score = _type_aware_validation_score(row)
+    hard_gate_score = _type_aware_hard_gate_score(row)
+    static_score = _static_validation_score(row)
+    code_score = _code_validity_score(row)
+    finite_objective = _finite_objective_score(row)
+    return {
+        "executable": executable,
+        "solver_optimal": solver_optimal,
+        "finite_objective": finite_objective,
+        "structure_completeness": structure,
+        "structure_tie_bucket": round(structure / 0.05) * 0.05,
+        "constraint_coverage": constraint,
+        "objective_term_coverage": objective_terms,
+        "consensus_score": consensus,
+        "lp_health_score": lp_health,
+        "type_aware_score": type_aware_score,
+        "hard_gate_score": hard_gate_score,
+        "static_validation_score": static_score,
+        "code_validity_score": code_score,
+        "critical_missing_count": float(len(critical_missing)),
+        "critical_structure_pass": 1.0 if not critical_missing else 0.0,
+        "critical_missing_structures": critical_missing,
+        "repair_feedback_count": float(_type_aware_repair_feedback_count(row)),
+        "runtime_sec": _runtime_sec(row),
+    }
+
+
+def full_selection_score(row):
+    c = full_selection_components(row)
+    within_structure_bucket_quality = float(
+        0.30 * c["consensus_score"]
+        + 0.18 * c["solver_optimal"]
+        + 0.12 * c["finite_objective"]
+        + 0.12 * c["lp_health_score"]
+        + 0.10 * c["constraint_coverage"]
+        + 0.08 * c["objective_term_coverage"]
+        + 0.04 * c["hard_gate_score"]
+        + 0.03 * c["type_aware_score"]
+        + 0.02 * c["static_validation_score"]
+        + 0.01 * c["code_validity_score"]
+    )
+    return float(
+        100000.0 * c["executable"]
+        + 50000.0 * c["solver_optimal"]
+        + 10000.0 * c["finite_objective"]
+        + 2000.0 * c["structure_tie_bucket"]
+        + 1000.0 * within_structure_bucket_quality
+        + 300.0 * c["structure_completeness"]
+        - 250.0 * c["critical_missing_count"]
+        - 2.0 * c["repair_feedback_count"]
+        - 0.1 * c["runtime_sec"]
+    )
 
 
 def consensus_safe_selection_components(row):
@@ -557,6 +632,19 @@ def _solver_status_score(row, allow_feasible_selection=False):
 
 def _has_objective_score(row):
     return 1.0 if (row.get("execution") or {}).get("objective") is not None else 0.0
+
+
+def _finite_objective_score(row):
+    objective = (row.get("execution") or {}).get("objective")
+    if objective is None:
+        return 0.0
+    try:
+        value = float(objective)
+    except (TypeError, ValueError):
+        return 0.0
+    if value != value or value in {float("inf"), float("-inf")}:
+        return 0.0
+    return 1.0
 
 
 def _critical_structure_pass_score(row):
@@ -649,7 +737,9 @@ def _method_raw_score(row, method_name):
         return type_aware_consensus_selection_score(row)
     if method_name == "ReplenishVerifier-ConsensusSafe":
         return consensus_safe_selection_score(row)
-    if method_name in {"ReplenishVerifier-Full", "ReplenishVerifier-Repair"}:
+    if method_name == "ReplenishVerifier-Full":
+        return full_selection_score(row)
+    if method_name == "ReplenishVerifier-Repair":
         return row.get("raw_inference_score", row.get("score", 0.0))
     if method_name in {"Direct", "Best-of-K"}:
         return 1.0
@@ -744,14 +834,20 @@ def _selection_tie_break_key_for_method(row, method_name, allow_feasible_selecti
         components = type_aware_consensus_selection_components(row)
         return (
             gated,
-            components["consensus_score"],
+            components["solver_optimal"],
+            components["finite_objective"],
+            components["consensus_cluster_support"],
             components["consensus_bucket"],
+            components["lp_health_score"],
             components["critical_structure_pass"],
             -components["critical_missing_count"],
             components["constraint_coverage"],
             components["objective_term_coverage"],
             components["structure_completeness"],
             components["hard_gate_score"],
+            components["type_aware_score"],
+            components["code_validity_score"],
+            components["static_validation_score"],
             -components["repair_feedback_count"],
             runtime,
             candidate_order,
@@ -776,7 +872,28 @@ def _selection_tie_break_key_for_method(row, method_name, allow_feasible_selecti
             candidate_order,
         )
 
-    if method_name in {"ReplenishVerifier-Full", "ReplenishVerifier-Repair", "ReplenishVerifier full"}:
+    if method_name in {"ReplenishVerifier-Full", "ReplenishVerifier full"}:
+        components = full_selection_components(row)
+        return (
+            gated,
+            components["structure_tie_bucket"],
+            components["consensus_score"],
+            components["solver_optimal"],
+            components["finite_objective"],
+            components["lp_health_score"],
+            components["constraint_coverage"],
+            components["objective_term_coverage"],
+            components["hard_gate_score"],
+            components["type_aware_score"],
+            components["static_validation_score"],
+            components["code_validity_score"],
+            components["structure_completeness"],
+            components["critical_structure_pass"],
+            -components["critical_missing_count"],
+            candidate_order,
+        )
+
+    if method_name == "ReplenishVerifier-Repair":
         return (
             gated,
             _structure_score(row),
@@ -847,6 +964,13 @@ def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
         best["constraint_coverage"] = best["selection_components"]["constraint_coverage"]
         best["objective_term_coverage"] = best["selection_components"]["objective_term_coverage"]
         best["repair_feedback_count"] = best["selection_components"]["repair_feedback_count"]
+    if method_name == "ReplenishVerifier-Full":
+        best["selection_components"] = full_selection_components(best)
+        best["hard_gate_failures"] = _type_aware_hard_gate_failures(best)
+        best["hard_gate_score"] = best["selection_components"]["hard_gate_score"]
+        best["constraint_coverage"] = best["selection_components"]["constraint_coverage"]
+        best["objective_term_coverage"] = best["selection_components"]["objective_term_coverage"]
+        best["repair_feedback_count"] = best["selection_components"]["repair_feedback_count"]
     if method_name == "ReplenishVerifier-ConsensusSafe":
         best["selection_components"] = consensus_safe_selection_components(best)
         best["hard_gate_failures"] = _type_aware_hard_gate_failures(best)
@@ -904,6 +1028,8 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
             best["selection_policy"] = "Hard Selection Gate over replenishment structure-grounded consistency: executable code + optimal solver status + required LP structure coverage + LP artifact key structures + candidate objective consensus; no reference objective"
         elif method_name == "ReplenishVerifier-TypeAware":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by TypeAware-first no-reference score using structure completeness, constraint coverage, objective-term coverage, type-aware hard gates, candidate objective consensus, repair feedback count, and runtime; no reference objective"
+        elif method_name == "ReplenishVerifier-Full":
+            best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by structure-first tie-window with candidate objective consensus, LP health, constraint coverage, objective-term coverage, type-aware/static validation, and critical-structure safety; no reference objective"
         elif method_name == "ReplenishVerifier-ConsensusSafe":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by candidate objective consensus with LP artifact health and replenishment structure/type-aware safety reranking; no reference objective"
         elif method_name == "ReplenishVerifier-TypeAware-Consensus":
