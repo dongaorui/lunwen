@@ -1,0 +1,56 @@
+method_a,method_b,n_common,same_count,same_selection_rate
+Best-of-K,Consensus only,100,57,0.57
+Best-of-K,Direct,100,18,0.18
+Best-of-K,ReplenishVerifier-ConsensusSafe,100,80,0.8
+Best-of-K,ReplenishVerifier-Full,100,42,0.42
+Best-of-K,ReplenishVerifier-FullV2,100,42,0.42
+Best-of-K,ReplenishVerifier-HybridSafe,100,80,0.8
+Best-of-K,ReplenishVerifier-TypeAware,100,78,0.78
+Best-of-K,ReplenishVerifier-TypeAware-Consensus,100,80,0.8
+Best-of-K,Solver only,100,55,0.55
+Best-of-K,Structure only,100,43,0.43
+Consensus only,Direct,100,11,0.11
+Consensus only,ReplenishVerifier-ConsensusSafe,100,62,0.62
+Consensus only,ReplenishVerifier-Full,100,15,0.15
+Consensus only,ReplenishVerifier-FullV2,100,15,0.15
+Consensus only,ReplenishVerifier-HybridSafe,100,62,0.62
+Consensus only,ReplenishVerifier-TypeAware,100,59,0.59
+Consensus only,ReplenishVerifier-TypeAware-Consensus,100,62,0.62
+Consensus only,Solver only,100,92,0.92
+Consensus only,Structure only,100,15,0.15
+Direct,ReplenishVerifier-ConsensusSafe,100,8,0.08
+Direct,ReplenishVerifier-Full,100,51,0.51
+Direct,ReplenishVerifier-FullV2,100,51,0.51
+Direct,ReplenishVerifier-HybridSafe,100,8,0.08
+Direct,ReplenishVerifier-TypeAware,100,7,0.07
+Direct,ReplenishVerifier-TypeAware-Consensus,100,8,0.08
+Direct,Solver only,100,12,0.12
+Direct,Structure only,100,54,0.54
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-Full,100,39,0.39
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-FullV2,100,39,0.39
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-HybridSafe,100,100,1.0
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-TypeAware,100,94,0.94
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-TypeAware-Consensus,100,100,1.0
+ReplenishVerifier-ConsensusSafe,Solver only,100,58,0.58
+ReplenishVerifier-ConsensusSafe,Structure only,100,39,0.39
+ReplenishVerifier-Full,ReplenishVerifier-FullV2,100,100,1.0
+ReplenishVerifier-Full,ReplenishVerifier-HybridSafe,100,39,0.39
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware,100,37,0.37
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware-Consensus,100,39,0.39
+ReplenishVerifier-Full,Solver only,100,15,0.15
+ReplenishVerifier-Full,Structure only,100,96,0.96
+ReplenishVerifier-FullV2,ReplenishVerifier-HybridSafe,100,39,0.39
+ReplenishVerifier-FullV2,ReplenishVerifier-TypeAware,100,37,0.37
+ReplenishVerifier-FullV2,ReplenishVerifier-TypeAware-Consensus,100,39,0.39
+ReplenishVerifier-FullV2,Solver only,100,15,0.15
+ReplenishVerifier-FullV2,Structure only,100,96,0.96
+ReplenishVerifier-HybridSafe,ReplenishVerifier-TypeAware,100,94,0.94
+ReplenishVerifier-HybridSafe,ReplenishVerifier-TypeAware-Consensus,100,100,1.0
+ReplenishVerifier-HybridSafe,Solver only,100,58,0.58
+ReplenishVerifier-HybridSafe,Structure only,100,39,0.39
+ReplenishVerifier-TypeAware,ReplenishVerifier-TypeAware-Consensus,100,94,0.94
+ReplenishVerifier-TypeAware,Solver only,100,53,0.53
+ReplenishVerifier-TypeAware,Structure only,100,37,0.37
+ReplenishVerifier-TypeAware-Consensus,Solver only,100,58,0.58
+ReplenishVerifier-TypeAware-Consensus,Structure only,100,39,0.39
+Solver only,Structure only,100,15,0.15
