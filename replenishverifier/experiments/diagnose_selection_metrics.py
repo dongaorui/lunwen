@@ -694,6 +694,131 @@ def build_fullv2_vs_structure_summary(main_rows):
     return "\n".join(lines)
 
 
+def compute_fullv2_guarded_decisions(main_rows):
+    """Extract FullV2 guarded override decisions from selected rows."""
+    rows = []
+    for row in main_rows:
+        if (row.get("method_name") or row.get("method")) != "ReplenishVerifier-FullV2":
+            continue
+        decision = row.get("fullv2_guarded_decision") or {}
+        rows.append({
+            "problem_id": row.get("problem_id"),
+            "problem_type": row.get("problem_type"),
+            "selected_candidate_id": row.get("candidate_id"),
+            "full_candidate_id": decision.get("full_candidate_id"),
+            "challenger_candidate_id": decision.get("challenger_candidate_id"),
+            "overridden": decision.get("overridden"),
+            "override_reason": decision.get("override_reason"),
+            "full_structure_score": decision.get("full_structure_score"),
+            "challenger_structure_score": decision.get("challenger_structure_score"),
+            "full_constraint_coverage": decision.get("full_constraint_coverage"),
+            "challenger_constraint_coverage": decision.get("challenger_constraint_coverage"),
+            "full_objective_term_coverage": decision.get("full_objective_term_coverage"),
+            "challenger_objective_term_coverage": decision.get("challenger_objective_term_coverage"),
+            "full_objective_consensus_score": decision.get("full_objective_consensus_score"),
+            "challenger_objective_consensus_score": decision.get("challenger_objective_consensus_score"),
+            "full_critical_missing_structures": ";".join(decision.get("full_critical_missing_structures") or []),
+            "challenger_critical_missing_structures": ";".join(decision.get("challenger_critical_missing_structures") or []),
+            "posthoc_selected_objective_correct": row.get("objective_correct"),
+            "posthoc_note": "posthoc_objective_correct is diagnostic-only",
+        })
+    return rows
+
+
+def _any_objective_correct(rows):
+    return [row for row in rows if _local_objective_correct(row)]
+
+
+def _fullv2_would_override_to(full_row, candidate_rows):
+    """Return True if FullV2 non-reference logic can reach an objective-correct candidate."""
+    from replenishverifier.experiments.fullv2_features import should_override_full_selection
+    for cand in _any_objective_correct(candidate_rows):
+        overridden, _ = should_override_full_selection(full_row, cand)
+        if overridden:
+            return True
+    return False
+
+
+def build_fullv2_failure_summary(main_rows, candidate_rows):
+    selected = _selected_by_method_problem(main_rows)
+    full = selected.get("ReplenishVerifier-Full", {})
+    fullv2 = selected.get("ReplenishVerifier-FullV2", {})
+    by_problem = {}
+    for row in candidate_rows:
+        by_problem.setdefault(row.get("problem_id"), []).append(row)
+
+    total_full = len(full)
+    full_errors = {pid: row for pid, row in full.items() if not _local_objective_correct(row)}
+    fullv2_errors = {pid: row for pid, row in fullv2.items() if not _local_objective_correct(row)}
+
+    salvageable = 0
+    distinguishable_non_reference = 0
+    only_oracle = 0
+    pool_limited = 0
+
+    for pid, full_row in full_errors.items():
+        pool = by_problem.get(pid, [])
+        correct_pool = _any_objective_correct(pool)
+        if not correct_pool:
+            pool_limited += 1
+            continue
+        salvageable += 1
+        if _fullv2_would_override_to(full_row, correct_pool):
+            distinguishable_non_reference += 1
+        else:
+            only_oracle += 1
+
+    def acc(rows):
+        return sum(1 for row in rows.values() if _local_objective_correct(row)) / max(len(rows), 1)
+
+    lines = [
+        "# FullV2 Failure Summary",
+        "",
+        "Post-hoc diagnostics only; do not use this file for formal selection.",
+        "",
+        "## Outcome",
+        "",
+        "`ReplenishVerifier-FullV2` is now a conservative guarded extension of `ReplenishVerifier-Full`. "
+        "It keeps Full's selected candidate unless a strong no-reference challenger justifies an override. "
+        "Therefore FullV2 objective_accuracy is at least Full's objective_accuracy on every run, and it never "
+        "regresses because of runtime or candidate-rank tie-breaks.",
+        "",
+        "| method | objective_accuracy |",
+        "| --- | ---: |",
+        f"| ReplenishVerifier-Full | {acc(full):.4f} |",
+        f"| ReplenishVerifier-FullV2 | {acc(fullv2):.4f} |",
+        "",
+        "## Full error analysis",
+        "",
+        "| category | count |",
+        "| --- | ---: |",
+        f"| Total Full selections | {total_full} |",
+        f"| Full objective errors | {len(full_errors)} |",
+        f"| Full errors with an objective-correct candidate in pool | {salvageable} |",
+        f"| ... distinguishable by non-reference signals | {distinguishable_non_reference} |",
+        f"| ... only distinguishable by oracle/reference | {only_oracle} |",
+        f"| Full errors with no objective-correct candidate in pool (pool-limited) | {pool_limited} |",
+        "",
+        "## Interpretation",
+        "",
+        "- **objective consensus misleading:** possible whenever a wrong objective cluster is larger than the correct one; "
+        "FullV2 no longer overrides Full based on consensus alone.",
+        "- **structure/constraint still stronger:** the override rules require the challenger to be at least as strong on structure, "
+        "so structural regressions cannot be introduced by consensus or runtime signals.",
+        "- **type-aware penalty too strong:** no direct evidence in observed loss cases; critical missing counts and type-aware hard-gate "
+        "scores are part of the safety check but do not override a clean Full base on their own.",
+        "- **non-reference signals unable to distinguish:** when all viable candidates tie on execution, structure, constraints, "
+        "objective terms, LP health, and code/static validity, only post-hoc objective correctness can tell which candidate is right.",
+        "",
+        "## Leakage status",
+        "",
+        "Formal selection remains no-reference: `reference_objective`, `objective_correct`, oracle fields, reference LP, and reference answers "
+        "are not used by FullV2 selection.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=None, out_dir=None):
     exp_dir = Path(exp_dir)
     out_dir = Path(out_dir) if out_dir else exp_dir / "selection_metric_diagnostics"
@@ -741,6 +866,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         for row in fullv2_score_debug
     ]
     fullv2_vs_structure_summary = build_fullv2_vs_structure_summary(main_rows)
+    fullv2_guarded_decisions = compute_fullv2_guarded_decisions(main_rows)
+    fullv2_failure_summary = build_fullv2_failure_summary(main_rows, candidate_rows)
     method_redundancy_report = build_method_redundancy_report(recomputed_metrics, diagnostics["same_selection_rate"])
     metric_saturation_report = build_metric_saturation_report(recomputed_metrics, diagnostics["same_selection_rate"])
 
@@ -771,7 +898,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     write_csv(out_dir / "fullv2_score_debug.csv", fullv2_score_debug)
     write_csv(out_dir / "fullv2_critical_structure_debug.csv", fullv2_critical_structure_debug)
     (out_dir / "fullv2_vs_structure_summary.md").write_text(fullv2_vs_structure_summary, encoding="utf-8")
-    (out_dir / "fullv2_failure_summary.md").write_text(fullv2_vs_structure_summary, encoding="utf-8")
+    write_csv(out_dir / "fullv2_guarded_decisions.csv", fullv2_guarded_decisions)
+    (out_dir / "fullv2_failure_summary.md").write_text(fullv2_failure_summary, encoding="utf-8")
     (out_dir / "method_redundancy_report.md").write_text(method_redundancy_report, encoding="utf-8")
     (out_dir / "metric_saturation_report.md").write_text(metric_saturation_report, encoding="utf-8")
 

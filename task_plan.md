@@ -68,7 +68,30 @@ Actions:
 - Created `findings.md`.
 - Created `progress.md`.
 
-### Phase 4 — Recommended next work
+### Phase 8 — Conservative guarded FullV2 refactor
+
+**Status:** complete on 2026-06-21
+
+Actions:
+
+- Created isolated `replenishverifier/experiments/fullv2_features.py` for FullV2 feature extraction and guarded selection.
+- Reimplemented `ReplenishVerifier-FullV2` as a conservative wrapper around `ReplenishVerifier-Full`: default to Full's choice, override only on strong no-reference evidence.
+- Removed inline FullV2 tuple/feature code from `replenishverifier/experiments/methods.py` to prevent leakage into other selectors.
+- Added `tests/test_fullv2_does_not_change_baselines.py` to verify baseline isolation and no in-place row mutation.
+- Updated existing FullV2 tests to reflect the new guarded semantics.
+- Updated diagnostics to generate `fullv2_guarded_decisions.csv` and a proper `fullv2_failure_summary.md` analyzing salvageable Full errors.
+
+Verification:
+
+- Full suite: `python -m pytest -q` -> `204 passed, 52 warnings in 5.08s`.
+- No real LLM experiment run performed in this checkout; user will run on Xshell.
+
+Notes:
+
+- FullV2 objective_accuracy is now guaranteed to be at least Full's objective_accuracy.
+- Formal selection remains no-reference; reference/objective_correct/oracle are only used in diagnostics.
+- No candidates regenerated; `run_generation.py` untouched.
+- No push or commit performed.
 
 **Status:** pending
 

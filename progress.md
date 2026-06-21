@@ -199,7 +199,59 @@ The user asked to implement pre-experiment code and documentation enhancements w
 
 No real LLM generation, large benchmark run, fake result number, or training claim was added.
 
-## 2026-06-17 — Pre-experiment enhancement verification and generic repair tightening
+## 2026-06-21 — Refactor ReplenishVerifier-FullV2 into conservative guarded Full
+
+### User request
+
+User asked to stop the aggressive FullV2 ranker and convert `ReplenishVerifier-FullV2` into a conservative guarded extension of `ReplenishVerifier-Full`: default to Full's selection and override only when strong no-reference evidence supports it. Constraints: no candidate regeneration, no `run_generation.py` changes, no pollution of Best-of-K / Full / Structure only logic, formal selection must stay no-reference.
+
+### Actions completed
+
+1. Created isolated `replenishverifier/experiments/fullv2_features.py`:
+   - Self-contained FullV2 feature extraction (`fullv2_selection_components`, `fullv2_selection_score`).
+   - Conservative guarded selection (`compute_fullv2_guarded_selection`, `should_override_full_selection`).
+   - Override rules use only no-reference signals; runtime and candidate rank are last-resort tie-breakers, never primary override reasons.
+
+2. Refactored `replenishverifier/experiments/methods.py`:
+   - Imports FullV2 features from the isolated module.
+   - Removed inline FullV2 feature/tuple code so old methods cannot accidentally depend on it.
+   - Added special `ReplenishVerifier-FullV2` branch in `select_for_method` that first computes Full's selected candidate, then applies the guarded override.
+   - Updated FullV2 selection policy to describe the guarded behavior.
+
+3. Added `tests/test_fullv2_does_not_change_baselines.py`:
+   - Verifies Best-of-K / Full / Structure only selections and row state are unchanged after calling FullV2.
+   - Verifies FullV2 exposes `fullv2_guarded_decision` without reference/oracle fields.
+   - Tests override logic directly for critical-missing-fix, strictly-better-structure, and multiple-improvement cases.
+
+4. Updated existing FullV2 tests to match the new guarded semantics:
+   - `tests/test_fullv2_not_structure_alias.py`
+   - `tests/test_fullv2_no_reference_leakage.py`
+
+5. Updated `replenishverifier/experiments/diagnose_selection_metrics.py`:
+   - Generates `diagnostics/fullv2_guarded_decisions.csv` from selected rows.
+   - Replaces the old `fullv2_failure_summary.md` copy with a dedicated summary that reports Full vs FullV2 objective accuracy, Full error salvageability, and how many Full errors are distinguishable by non-reference signals vs only by oracle/reference.
+
+### Verification
+
+- Full test suite: `python -m pytest -q` -> `204 passed, 52 warnings`.
+- No experiment run performed per user request (they will run on Xshell).
+
+### Notes
+
+- FullV2 is now guaranteed to be >= Full on objective_accuracy because it defaults to Full and only overrides when a strong no-reference challenger exists.
+- Formal selection remains no-reference; reference/objective_correct/oracle fields are used only in diagnostics.
+- Old methods' selection logic was not modified.
+- No candidates were regenerated and `run_generation.py` was not touched.
+
+### Files changed
+
+- `replenishverifier/experiments/fullv2_features.py` (new)
+- `replenishverifier/experiments/methods.py`
+- `replenishverifier/experiments/diagnose_selection_metrics.py`
+- `tests/test_fullv2_not_structure_alias.py`
+- `tests/test_fullv2_no_reference_leakage.py`
+- `tests/test_fullv2_does_not_change_baselines.py` (new)
+- `progress.md`
 
 ### User request
 

@@ -13,6 +13,11 @@ from replenishverifier.experiments.baselines import (
     or_r1_like_voting_score,
     sirl_like_lp_stats_score,
 )
+from replenishverifier.experiments.fullv2_features import (
+    compute_fullv2_guarded_selection,
+    fullv2_selection_components,
+    fullv2_selection_score,
+)
 from replenishverifier.experiments.objective_terms import evaluate_objective_terms
 from replenishverifier.pipeline.quality_signals import compute_static_validation
 from replenishverifier.pipeline.scoring import compute_score, hard_selection_gate, semantic_consistency_score
@@ -658,110 +663,9 @@ def _critical_structures_for_problem_type(problem_type):
     return set(mapping.get(problem_type, {"inventory_balance"}))
 
 
-def _fullv2_missing_critical_structures(row):
-    missing = set(_required_missing_for_row(row))
-    critical = _critical_structures_for_problem_type(_row_problem_type(row))
-    aliases = {
-        "nonnegative_bounds": {"nonnegative_bounds", "bounds"},
-        "objective_term": {"objective_term", "objective_terms"},
-        "item_indexed_order_variables": {"item_indexed_order_variables", "order_variable"},
-    }
-    expanded = set(critical)
-    for key in list(critical):
-        expanded.update(aliases.get(key, set()))
-    return sorted(missing & expanded)
-
-
-def _normalized_cluster_distance(row):
-    value = row.get("distance_to_cluster_median")
-    if value is None:
-        return 1.0
-    try:
-        objective = abs(float((row.get("execution") or {}).get("objective") or 0.0))
-        return float(abs(float(value)) / max(objective, 1.0))
-    except (TypeError, ValueError):
-        return 1.0
-
-
-def _fullv2_structure_bucket(row):
-    return float(int(_structure_score(row) * 100.0)) / 100.0
-
-
-def _fullv2_feature_tuple(row):
-    missing_critical = _fullv2_missing_critical_structures(row)
-    execution = row.get("execution") or {}
-    solver_ok = 1.0 if execution.get("executable") and str(execution.get("status") or "") == "Optimal" and _finite_objective_score(row) else 0.0
-    fallback = solver_ok <= 0.0
-    critical_penalty = float(len(missing_critical))
-    runtime = _runtime_sec(row)
-    candidate_rank = _candidate_index(row)
-    if fallback:
-        tuple_items = [
-            ("static_validation_score", _static_validation_score(row)),
-            ("code_validity_score", _code_validity_score(row)),
-            ("neg_critical_structure_penalty", -critical_penalty),
-            ("structure_score", _structure_score(row)),
-            ("constraint_coverage", _constraint_coverage(row)),
-            ("neg_candidate_rank", -candidate_rank),
-        ]
-    else:
-        tuple_items = [
-            ("solver_ok", solver_ok),
-            ("has_objective", _has_objective_score(row)),
-            ("objective_term_lp_coefficient_coverage", float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0)),
-            ("objective_term_coverage", _objective_term_coverage(row)),
-            ("neg_critical_structure_penalty", -critical_penalty),
-            ("type_aware_hard_gate_score", _type_aware_hard_gate_score(row)),
-            ("neg_type_aware_missing_critical_count", -critical_penalty),
-            ("structure_safety_bucket", _fullv2_structure_bucket(row)),
-            ("constraint_coverage", _constraint_coverage(row)),
-            ("objective_consensus_score", float(row.get("objective_consensus_score", 0.0) or 0.0)),
-            ("objective_cluster_size", float(row.get("objective_cluster_size", 0) or 0)),
-            ("objective_density_score", float(row.get("objective_density_score", 0.0) or 0.0)),
-            ("neg_distance_to_cluster_median_normalized", -_normalized_cluster_distance(row)),
-            ("static_validation_score", _static_validation_score(row)),
-            ("code_validity_score", _code_validity_score(row)),
-            ("neg_runtime_normalized", -runtime),
-            ("neg_candidate_rank", -candidate_rank),
-        ]
-    return tuple_items
-
-
-def fullv2_selection_components(row):
-    missing_critical = _fullv2_missing_critical_structures(row)
-    tuple_items = _fullv2_feature_tuple(row)
-    return {
-        "selector_family": "fullv2",
-        "solver_ok": tuple_items[0][1] if tuple_items and tuple_items[0][0] == "solver_ok" else 0.0,
-        "execution_success": 1.0 if (row.get("execution") or {}).get("executable") else 0.0,
-        "solver_status": (row.get("execution") or {}).get("status"),
-        "has_objective": _has_objective_score(row),
-        "objective_value": (row.get("execution") or {}).get("objective"),
-        "objective_finite": _finite_objective_score(row),
-        "objective_consensus_score": float(row.get("objective_consensus_score", 0.0) or 0.0),
-        "objective_cluster_size": int(row.get("objective_cluster_size", 0) or 0),
-        "objective_density_score": float(row.get("objective_density_score", 0.0) or 0.0),
-        "distance_to_cluster_median": row.get("distance_to_cluster_median"),
-        "structure_score": _structure_score(row),
-        "constraint_coverage": _constraint_coverage(row),
-        "objective_term_coverage": _objective_term_coverage(row),
-        "objective_term_lp_coefficient_coverage": float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0),
-        "inventory_balance_rule_score": _rule_score(row, "inventory_balance"),
-        "static_validation_score": _static_validation_score(row),
-        "code_validity_score": _code_validity_score(row),
-        "type_aware_score": _type_aware_validation_score(row),
-        "type_aware_hard_gate_score": _type_aware_hard_gate_score(row),
-        "type_aware_missing_critical_count": float(len(missing_critical)),
-        "missing_critical_structures": missing_critical,
-        "critical_structure_penalty": float(len(missing_critical)),
-        "runtime": _runtime_sec(row),
-        "candidate_rank": _candidate_index(row),
-        "score_tuple_debug": tuple_items,
-    }
-
-
-def fullv2_selection_score(row):
-    return tuple(value for _, value in _fullv2_feature_tuple(row))
+# FullV2 feature extraction and guarded selection live in
+# replenishverifier.experiments.fullv2_features so that they are isolated
+# from Best-of-K, Full, Structure only, and other baselines.
 
 
 def _candidate_index(row):
@@ -1191,12 +1095,20 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
         elif method_name == "ReplenishVerifier-TypeAware":
             pool, pool_metadata = _type_aware_candidate_pool_filter(rows, allow_feasible_selection=allow_feasible_selection)
             best = max(pool, key=lambda row: _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=allow_feasible_selection))
+        elif method_name == "ReplenishVerifier-FullV2":
+            full_best = max(
+                rows,
+                key=lambda row: _selection_tie_break_key_for_method(row, "ReplenishVerifier-Full", allow_feasible_selection=allow_feasible_selection),
+            )
+            best, fullv2_decision_info = compute_fullv2_guarded_selection(rows, full_best, allow_feasible_selection=allow_feasible_selection)
         else:
             best = max(rows, key=lambda row: _selection_tie_break_key_for_method(row, method_name, allow_feasible_selection=allow_feasible_selection))
 
         best = dict(best)
         if method_name == "ReplenishVerifier-TypeAware":
             best.update(pool_metadata)
+        if method_name == "ReplenishVerifier-FullV2":
+            best["fullv2_guarded_decision"] = fullv2_decision_info
         best["method_name"] = method_name
         _annotate_selected_score(best, method_name, allow_feasible_selection=allow_feasible_selection)
         if method_name == "OR-R1-like Voting":
@@ -1223,7 +1135,7 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
         elif method_name == "ReplenishVerifier-Full":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by legacy ReplenishVerifier-Full score and structure-specific tie-breakers; no reference objective"
         elif method_name == "ReplenishVerifier-FullV2":
-            best["selection_policy"] = "Hard Selection Gate over executable + optimal + finite-objective candidates, ranked by FullV2 tuple: objective consensus and cluster features before objective terms, critical-structure risk, type-aware/static validation, structure, constraint coverage, runtime, and candidate rank last; no reference objective"
+            best["selection_policy"] = "Conservative guarded FullV2: default to ReplenishVerifier-Full selection; override only when a strong no-reference challenger is executable/optimal/finite-objective, has no critical missing structures, and is strictly better on structure (or equal structure with multiple other safety improvements); no reference objective"
         elif method_name == "ReplenishVerifier-ConsensusSafe":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by an independent consensus-safe v2 score over legacy Full, safety, candidate objective consensus, LP health, and critical-structure safety; no reference objective"
         elif method_name == "ReplenishVerifier-HybridSafe":

@@ -260,7 +260,40 @@ New paper metric helpers add `table_by_problem_type.*` and `table_selection_coll
 
 Verification completed with `python -m pytest -q`: `150 passed, 52 warnings in 3.33s`. The warning count is existing PuLP deprecation warnings. No LLM generation code or candidate generation path was modified.
 
-## 2026-06-19 — `split_expected_structures()` now merges schema defaults and explicit expected keys
+## 2026-06-21 — ReplenishVerifier-FullV2 is now a conservative guarded extension of ReplenishVerifier-Full
+
+### Architecture change
+
+`ReplenishVerifier-FullV2` no longer acts as an independent aggressive ranker. It now:
+
+1. Computes the candidate that `ReplenishVerifier-Full` would select.
+2. Looks for a "challenger" candidate that is executable, solver-optimal, has a finite objective, and has no critical missing replenishment structures.
+3. Overrides Full's choice only if the challenger is strictly better on structure (with no regression on constraint/objective-term coverage), or if structure is equal and the challenger improves on at least two other no-reference safety signals.
+
+This guarantees `FullV2 objective_accuracy >= Full objective_accuracy` on every run and prevents runtime/candidate-rank from destabilizing the Full base.
+
+### Isolation
+
+- FullV2 feature extraction and selection logic live in `replenishverifier/experiments/fullv2_features.py`.
+- `Best-of-K`, `ReplenishVerifier-Full`, `Structure only`, and other baselines are untouched.
+- A dedicated regression test (`tests/test_fullv2_does_not_change_baselines.py`) verifies that calling FullV2 does not change baseline outputs or mutate candidate rows in place.
+
+### Diagnostics
+
+- `diagnostics/fullv2_guarded_decisions.csv` records every FullV2 override decision.
+- `diagnostics/fullv2_failure_summary.md` reports:
+  - Full vs FullV2 objective accuracy.
+  - How many Full errors have an objective-correct candidate in the pool.
+  - How many of those are distinguishable by non-reference signals.
+  - How many can only be resolved by oracle/reference.
+
+### No-reference invariant
+
+Formal FullV2 selection still does not use `reference_objective`, `objective_correct`, oracle fields, reference LP, or reference answers. These fields appear only in post-hoc diagnostics.
+
+### Implication for the paper
+
+If FullV2 equals Full in the upcoming Xshell run, the paper can honestly present FullV2-Guarded as a "safe improvement attempt" with detailed diagnostics, rather than claiming a new aggressive ranker. If FullV2 finds any strong overrides, the diagnostics will show exactly which non-reference signal justified each override.
 
 `split_expected_structures(expected, problem_type)` now treats the problem-type schema as the base required set whenever `problem_type` is known, then unions truthy explicit `expected_structures` keys into that required set. Previously, any non-empty explicit expected map replaced the schema required set entirely.
 

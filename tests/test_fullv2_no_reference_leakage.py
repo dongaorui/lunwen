@@ -40,7 +40,9 @@ def test_fullv2_does_not_read_reference_fields_and_empty_typeaware_is_neutral():
     selected_a = select_for_method("ReplenishVerifier-FullV2", {"p0": rows_a}, _benchmark())[0]
     selected_b = select_for_method("ReplenishVerifier-FullV2", {"p0": rows_b}, _benchmark())[0]
 
-    assert selected_a["candidate_id"] == selected_b["candidate_id"] == "c1"
+    # FullV2 defaults to Full here; the important invariant is that the
+    # presence of reference fields does not change the selection.
+    assert selected_a["candidate_id"] == selected_b["candidate_id"] == "c0"
     components = selected_a["selection_components"]
     assert components["type_aware_score"] == 1.0
     assert components["type_aware_hard_gate_score"] == 1.0

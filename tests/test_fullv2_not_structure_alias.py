@@ -49,7 +49,7 @@ def _select(method, rows):
     return select_for_method(method, {"p0": rows}, _benchmark())[0]
 
 
-def test_fullv2_is_registered_and_not_structure_alias_when_consensus_disagrees():
+def test_fullv2_defaults_to_full_when_challenger_evidence_is_weak():
     assert "ReplenishVerifier-FullV2" in MAIN_METHODS
     rows = [
         _row("c0", objective=100.0, structure=1.0, consensus=0.125, objective_terms=0.5, lp_terms=0.5),
@@ -61,7 +61,9 @@ def test_fullv2_is_registered_and_not_structure_alias_when_consensus_disagrees()
     fullv2 = _select("ReplenishVerifier-FullV2", rows)
 
     assert structure["candidate_id"] == "c0"
-    assert fullv2["candidate_id"] in {"c1", "c2"}
+    # FullV2 is now a conservative guarded Full: it defaults to Full's choice
+    # unless a strong no-reference challenger justifies an override.
+    assert fullv2["candidate_id"] == "c0"
     assert fullv2["selection_components"]["selector_family"] == "fullv2"
     assert "score_tuple_debug" in fullv2["selection_components"]
 
@@ -101,7 +103,7 @@ def test_fullv2_does_not_let_wrong_majority_consensus_override_stronger_structur
     })
 
 
-def test_fullv2_can_use_consensus_when_structure_difference_is_small():
+def test_fullv2_does_not_override_on_consensus_alone_when_structure_is_weaker():
     rows = [
         _row("c0", objective=116.0, structure=0.857, consensus=0.125, objective_terms=1.0, lp_terms=1.0),
         _row("c1", objective=150.0, structure=0.855, consensus=0.875, objective_terms=1.0, lp_terms=1.0),
@@ -110,4 +112,6 @@ def test_fullv2_can_use_consensus_when_structure_difference_is_small():
 
     selected = _select("ReplenishVerifier-FullV2", rows)
 
-    assert selected["candidate_id"] in {"c1", "c2"}
+    # FullV2 keeps Full's choice because the consensus-backed challenger has
+    # slightly weaker structure and only one dimension (consensus) improves.
+    assert selected["candidate_id"] == "c0"
