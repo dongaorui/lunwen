@@ -18,6 +18,7 @@ from replenishverifier.experiments.methods import (
     MAIN_METHODS,
     METHODS,
     build_generic_repair_prompts,
+    build_non_reference_repair_prompts,
     build_repair_prompts,
     evaluate_all_candidates,
     select_for_method,
@@ -212,6 +213,11 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
     save_summary_csv(out_dir / "generic_repair_prompts.csv", generic_repair_prompts)
     save_markdown_table(out_dir / "generic_repair_prompts.md", generic_repair_prompts[:50], title="Generic Repair Prompts")
 
+    non_reference_repair_prompts = build_non_reference_repair_prompts(all_evaluated)
+    write_jsonl(out_dir / "non_reference_repair_prompts.jsonl", non_reference_repair_prompts)
+    save_summary_csv(out_dir / "non_reference_repair_prompts.csv", non_reference_repair_prompts)
+    save_markdown_table(out_dir / "non_reference_repair_prompts.md", non_reference_repair_prompts[:50], title="Non-Reference Candidate-Quality Repair Prompts")
+
     LOGGER.info("Running ablation study")
     ablation_methods = [
         "Direct",
@@ -231,6 +237,7 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
         "ReplenishVerifier-TypeAware",
         "ReplenishVerifier-TypeAware-Consensus",
         "ReplenishVerifier-Full",
+        "ReplenishVerifier-FullV2-CandidatePoolAware",
     ]
     ablation_rows = []
     for method in ablation_methods:
@@ -305,6 +312,7 @@ def run_experiments(benchmark_path, candidates_path, out_dir, k_values, timeout=
             "difficulty_results": str(out_dir / "difficulty_results.jsonl"),
             "repair_prompts": str(out_dir / "repair_prompts.jsonl"),
             "generic_repair_prompts": str(out_dir / "generic_repair_prompts.jsonl"),
+            "non_reference_repair_prompts": str(out_dir / "non_reference_repair_prompts.jsonl"),
         },
     }
     write_json(out_dir / "manifest.json", manifest)

@@ -2,6 +2,7 @@ from replenishverifier.experiments.diagnose_selection_metrics import (
     build_method_redundancy_report,
     build_metric_saturation_report,
     compute_avoidable_error_summary,
+    compute_method_selection_clusters,
     diagnose_selection_metrics,
 )
 from replenishverifier.experiments.paper_metrics import compute_missed_oracle_summary, compute_paired_method_comparison
@@ -168,6 +169,43 @@ def test_metric_saturation_report_flags_low_unique_metrics_and_overlap_pairs():
     assert "objective_accuracy" in report
     assert "unique_values" in report
     assert "A" in report and "B" in report
+
+
+def test_method_selection_clusters_labels_alias_like_pairs_and_recommendations():
+    metrics = [
+        {"method": "A", "objective_accuracy": 0.82},
+        {"method": "B", "objective_accuracy": 0.82},
+        {"method": "C", "objective_accuracy": 0.83},
+    ]
+    same_selection = [
+        {"method_a": "A", "method_b": "B", "n_common": 100, "same_count": 100, "same_selection_rate": 1.0},
+        {"method_a": "A", "method_b": "C", "n_common": 100, "same_count": 100, "same_selection_rate": 1.0},
+    ]
+
+    rows = compute_method_selection_clusters(metrics, same_selection)
+    by_pair = {(row["method_a"], row["method_b"]): row for row in rows}
+
+    assert by_pair[("A", "B")]["recommendation"] == "alias_like_same_selection"
+    assert by_pair[("A", "B")]["objective_accuracy_a"] == 0.82
+    assert by_pair[("A", "B")]["objective_accuracy_b"] == 0.82
+    assert by_pair[("A", "C")]["recommendation"] == "same_selection_but_metric_difference_check_needed"
+
+
+def test_diagnose_selection_metrics_writes_method_selection_clusters(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    main_rows = [
+        _selected("A", "p0", "m_k0", objective_correct=1.0),
+        _selected("B", "p0", "m_k0", objective_correct=1.0),
+    ]
+    candidate_rows = [dict(main_rows[0], method_name=None)]
+    write_jsonl(exp_dir / "main_results.jsonl", main_rows)
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", candidate_rows)
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diag")
+
+    assert (exp_dir / "diag" / "method_selection_clusters.csv").exists()
+    assert result["method_selection_clusters"][0]["recommendation"] == "alias_like_same_selection"
 
 
 def test_compute_avoidable_error_summary_counts_posthoc_opportunities():

@@ -166,6 +166,7 @@ DEFAULT_PAPER_METHODS = [
     "ReplenishVerifier-HybridSafe",
     "ReplenishVerifier-TypeAware",
     "ReplenishVerifier-TypeAware-Consensus",
+    "ReplenishVerifier-FullV2-CandidatePoolAware",
 ]
 
 
@@ -425,20 +426,31 @@ def compute_pass_at_k(candidate_rows, k_values):
         objective_hits = []
         structure_hits = []
         both_hits = []
+        best_structure_scores = []
         for rows in by_problem.values():
             top = sorted(rows, key=lambda row: candidate_index(row.get("candidate_id")))[:k]
             has_obj = any(bool(safe_float(row.get("objective_correct", 0.0))) for row in top)
             has_struct = any(_is_structure_complete(row) for row in top)
+            best_structure = max(
+                [safe_float(row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score"))) or 0.0 for row in top],
+                default=0.0,
+            )
             objective_hits.append(has_obj)
             structure_hits.append(has_struct)
             both_hits.append(has_obj and has_struct)
+            best_structure_scores.append(best_structure)
+        strict_structure_rate = rate(structure_hits)
         result.append({
             "k": k,
             "pass_at_k_objective": rate(objective_hits),
-            "pass_at_k_structure": rate(structure_hits),
+            "pass_at_k_structure": strict_structure_rate,
+            "pass_at_k_structure_semantics": "strict_structure_score_equals_1",
             "pass_at_k_both": rate(both_hits),
             "oracle_objective_accuracy_at_k": rate(objective_hits),
-            "oracle_structure_completeness_at_k": rate(structure_hits),
+            "oracle_structure_completeness_at_k": strict_structure_rate,
+            "oracle_structure_strict_complete_at_k": strict_structure_rate,
+            "oracle_structure_mean_best_score_at_k": mean(best_structure_scores),
+            "oracle_structure_best_score_semantics": "mean_best_structure_score_among_top_k",
             "oracle_both_success_at_k": rate(both_hits),
             "uses_reference_for_oracle_metrics": True,
             "formal_selection_metric": False,

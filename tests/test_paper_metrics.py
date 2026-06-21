@@ -118,8 +118,27 @@ def test_compute_pass_at_k_reports_oracle_upper_bounds():
     assert by_k[1]["pass_at_k_objective"] == 0.0
     assert by_k[2]["pass_at_k_objective"] == 0.5
     assert by_k[2]["oracle_structure_completeness_at_k"] == 1.0
+    assert by_k[2]["oracle_structure_strict_complete_at_k"] == 1.0
+    assert by_k[2]["oracle_structure_mean_best_score_at_k"] == 1.0
+    assert by_k[2]["pass_at_k_structure_semantics"] == "strict_structure_score_equals_1"
     assert by_k[2]["uses_reference_for_oracle_metrics"] is True
     assert by_k[2]["formal_selection_metric"] is False
+
+
+def test_compute_pass_at_k_distinguishes_strict_structure_pass_from_mean_best_structure_score():
+    candidate_rows = [
+        _row("candidate", "p0", "m_k0", objective_correct=0.0, structure_score=0.8),
+        _row("candidate", "p0", "m_k1", objective_correct=0.0, structure_score=0.9),
+        _row("candidate", "p1", "m_k0", objective_correct=0.0, structure_score=0.6),
+        _row("candidate", "p1", "m_k1", objective_correct=0.0, structure_score=0.7),
+    ]
+
+    rows = compute_pass_at_k(candidate_rows, [2])
+
+    assert rows[0]["pass_at_k_structure"] == 0.0
+    assert rows[0]["oracle_structure_strict_complete_at_k"] == 0.0
+    assert rows[0]["oracle_structure_mean_best_score_at_k"] == 0.8
+    assert rows[0]["oracle_structure_best_score_semantics"] == "mean_best_structure_score_among_top_k"
 
 
 def test_compute_selection_diagnostics_outputs_same_rate_and_rank_distribution():

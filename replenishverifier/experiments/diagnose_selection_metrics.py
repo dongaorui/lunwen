@@ -135,6 +135,34 @@ def _group_by_signature(rows, signature_fn):
     return [sorted(methods) for methods in groups.values() if len(methods) > 1]
 
 
+def compute_method_selection_clusters(metric_rows, same_selection_rows):
+    metrics_by_method = {row.get("method"): row for row in metric_rows}
+    result = []
+    for row in same_selection_rows:
+        method_a = row.get("method_a")
+        method_b = row.get("method_b")
+        acc_a = (metrics_by_method.get(method_a) or {}).get("objective_accuracy")
+        acc_b = (metrics_by_method.get(method_b) or {}).get("objective_accuracy")
+        same_rate = row.get("same_selection_rate")
+        recommendation = "distinct_selection"
+        if same_rate is not None and float(same_rate) == 1.0:
+            if acc_a == acc_b:
+                recommendation = "alias_like_same_selection"
+            else:
+                recommendation = "same_selection_but_metric_difference_check_needed"
+        elif same_rate is not None and float(same_rate) >= 0.95:
+            recommendation = "high_overlap_consider_merge_explanation"
+        result.append({
+            "method_a": method_a,
+            "method_b": method_b,
+            "same_selection_rate": same_rate,
+            "objective_accuracy_a": acc_a,
+            "objective_accuracy_b": acc_b,
+            "recommendation": recommendation,
+        })
+    return result
+
+
 def build_method_redundancy_report(metric_rows, same_selection_rows, threshold=0.95):
     high_overlap = [
         row for row in same_selection_rows
@@ -143,6 +171,8 @@ def build_method_redundancy_report(metric_rows, same_selection_rows, threshold=0
     identical_metric_groups = _group_by_signature(metric_rows, _metric_signature)
     objective_groups = _group_by_signature(metric_rows, lambda row: ("objective_accuracy", row.get("objective_accuracy")))
     objective_only_groups = [group for group in objective_groups if len(group) > 1]
+    clusters = compute_method_selection_clusters(metric_rows, same_selection_rows)
+    alias_like = [row for row in clusters if row.get("recommendation") == "alias_like_same_selection"]
     lines = [
         "# Method Redundancy Report",
         "",
@@ -172,14 +202,23 @@ def build_method_redundancy_report(metric_rows, same_selection_rows, threshold=0
             lines.append("- " + ", ".join(group))
     else:
         lines.append("No objective_accuracy groups found.")
+    lines.extend(["", "## Alias-like same-selection pairs", ""])
+    if alias_like:
+        lines.extend(["| method_a | method_b | same_selection_rate | objective_accuracy | recommendation |", "| --- | --- | ---: | ---: | --- |"])
+        for row in alias_like:
+            lines.append(
+                f"| {row.get('method_a')} | {row.get('method_b')} | {float(row.get('same_selection_rate')):.4f} | "
+                f"{row.get('objective_accuracy_a')} | {row.get('recommendation')} |"
+            )
+    else:
+        lines.append("No exact alias-like same-selection pairs found.")
     lines.extend([
         "",
         "## Recommended display families",
         "",
-        "- Solver family: Solver only, Solver-Filter",
-        "- Structure family: Structure only, Structure-Only",
-        "- Consensus family: Consensus only, OR-R1-like Voting, Solver + Consensus",
-        "- Full verifier family: ReplenishVerifier-Full, ReplenishVerifier-Repair, Structure-Grounded Consistency",
+        "- Main table: Direct, Best-of-K, Consensus only, ReplenishVerifier-Full, ReplenishVerifier-ConsensusSafe/HybridSafe family representative, ReplenishVerifier-TypeAware-Consensus when not alias-like.",
+        "- Appendix ablations: Solver-only variants, Structure-only variants, TypeAware, FullV2-Guarded, FullV2-CandidatePoolAware, repair-prompt variants.",
+        "- Merge explanation: methods marked alias_like_same_selection should be explained together rather than over-claimed as independent gains.",
         "",
     ])
     return "\n".join(lines)
@@ -868,6 +907,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     fullv2_vs_structure_summary = build_fullv2_vs_structure_summary(main_rows)
     fullv2_guarded_decisions = compute_fullv2_guarded_decisions(main_rows)
     fullv2_failure_summary = build_fullv2_failure_summary(main_rows, candidate_rows)
+    method_selection_clusters = compute_method_selection_clusters(recomputed_metrics, diagnostics["same_selection_rate"])
     method_redundancy_report = build_method_redundancy_report(recomputed_metrics, diagnostics["same_selection_rate"])
     metric_saturation_report = build_metric_saturation_report(recomputed_metrics, diagnostics["same_selection_rate"])
 
@@ -879,6 +919,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     write_markdown(out_dir / "error_type_comparison.md", error_comparison, "Error Type Comparison")
     write_csv(out_dir / "selection_score_debug.csv", diagnostics["selection_score_debug"])
     write_csv(out_dir / "same_selection_rate.csv", diagnostics["same_selection_rate"])
+    write_csv(out_dir / "method_selection_clusters.csv", method_selection_clusters)
     write_csv(out_dir / "candidate_rank_distribution.csv", diagnostics["candidate_rank_distribution"])
     _write_join_unmatched_csv(out_dir / "diagnostic_join_unmatched.csv", diagnostic_join_unmatched)
     write_csv(out_dir / "missed_oracle_summary.csv", missed_oracle_summary)
@@ -933,6 +974,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "metric_comparison": metric_comparison,
         "error_type_comparison": error_comparison,
         "selection_diagnostics": diagnostics,
+        "method_selection_clusters": method_selection_clusters,
         "diagnostic_join_unmatched": diagnostic_join_unmatched,
         "missed_oracle_summary": missed_oracle_summary,
         "paired_method_comparison": paired_method_comparison,

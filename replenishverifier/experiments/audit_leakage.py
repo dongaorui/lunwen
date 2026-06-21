@@ -31,6 +31,7 @@ FORMAL_METHODS = {
     "ReplenishVerifier-FullV2",
     "ReplenishVerifier-Full",
     "ReplenishVerifier-Repair",
+    "ReplenishVerifier-FullV2-CandidatePoolAware",
 }
 
 FORBIDDEN_POLICY_PHRASES = [

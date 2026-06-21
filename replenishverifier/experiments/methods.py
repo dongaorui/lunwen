@@ -55,6 +55,7 @@ APPENDIX_METHODS = [
     "OptiRepair-like Repair-Prompt",
     "Structure-Only",
     "ReplenishVerifier-Repair",
+    "ReplenishVerifier-FullV2-CandidatePoolAware",
 ]
 
 METHODS = MAIN_METHODS + APPENDIX_METHODS
@@ -652,6 +653,91 @@ def hybrid_safe_selection_score(row):
     )
 
 
+def _schema_coverage(row):
+    structure = row.get("structure_verification") or {}
+    required = structure.get("required_structures") or []
+    missing = set(structure.get("missing") or [])
+    if not required:
+        return _structure_score(row)
+    return float(len([name for name in required if name not in missing]) / max(len(required), 1))
+
+
+def _capacity_constraint_detected(row):
+    structure = row.get("structure_verification") or {}
+    if _row_problem_type(row) != "multi_item_capacity":
+        return 1.0
+    if "capacity_constraint" in set(structure.get("missing") or []):
+        return 0.0
+    detected = structure.get("detected") or {}
+    if "capacity_constraint" in detected:
+        return 1.0 if detected.get("capacity_constraint") else 0.0
+    return 1.0
+
+
+def _variable_role_alignment(row):
+    validation = _type_aware_validation(row)
+    if validation:
+        return _type_aware_validation_score(row)
+    return _static_validation_score(row)
+
+
+def _candidate_diversity_index(row):
+    generation_config = row.get("generation_config") or {}
+    value = row.get("candidate_index", generation_config.get("candidate_index"))
+    try:
+        return float(value if value is not None else _candidate_index(row))
+    except (TypeError, ValueError):
+        return float(_candidate_index(row))
+
+
+def candidate_pool_aware_selection_components(row):
+    execution = row.get("execution") or {}
+    critical_missing = _critical_missing_structures(row)
+    return {
+        "selector_family": "fullv2_candidate_pool_aware",
+        "solver_ok": 1.0 if execution.get("executable") and str(execution.get("status") or "") == "Optimal" else 0.0,
+        "finite_objective": _finite_objective_score(row),
+        "objective_consensus_score": float(row.get("objective_consensus_score", 0.0) or 0.0),
+        "structure_score": _structure_score(row),
+        "constraint_coverage": _constraint_coverage(row),
+        "capacity_constraint_detected": _capacity_constraint_detected(row),
+        "objective_term_coverage": _objective_term_coverage(row),
+        "lp_coefficient_sanity": float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0),
+        "variable_role_alignment": _variable_role_alignment(row),
+        "problem_type_schema_coverage": _schema_coverage(row),
+        "static_validation_score": _static_validation_score(row),
+        "type_aware_hard_gate": _type_aware_hard_gate_score(row),
+        "lp_health_score": _lp_health_score(row),
+        "code_validity_score": _code_validity_score(row),
+        "critical_missing_count": float(len(critical_missing)),
+        "candidate_diversity_index": _candidate_diversity_index(row),
+        "runtime_sec": _runtime_sec(row),
+    }
+
+
+def candidate_pool_aware_selection_score(row):
+    c = candidate_pool_aware_selection_components(row)
+    return float(
+        100000.0 * c["solver_ok"]
+        + 50000.0 * c["finite_objective"]
+        + 6000.0 * c["objective_consensus_score"]
+        + 1600.0 * c["structure_score"]
+        + 1400.0 * c["constraint_coverage"]
+        + 900.0 * c["capacity_constraint_detected"]
+        + 800.0 * c["objective_term_coverage"]
+        + 600.0 * c["lp_coefficient_sanity"]
+        + 500.0 * c["variable_role_alignment"]
+        + 500.0 * c["problem_type_schema_coverage"]
+        + 300.0 * c["type_aware_hard_gate"]
+        + 220.0 * c["lp_health_score"]
+        + 100.0 * c["static_validation_score"]
+        + 80.0 * c["code_validity_score"]
+        - 2000.0 * c["critical_missing_count"]
+        - 0.01 * c["candidate_diversity_index"]
+        - 0.001 * c["runtime_sec"]
+    )
+
+
 def _critical_structures_for_problem_type(problem_type):
     mapping = {
         "single_period_newsvendor": {"objective_term", "nonnegative_bounds"},
@@ -810,6 +896,8 @@ def _method_raw_score(row, method_name):
         return consensus_safe_selection_score(row)
     if method_name == "ReplenishVerifier-HybridSafe":
         return hybrid_safe_selection_score(row)
+    if method_name == "ReplenishVerifier-FullV2-CandidatePoolAware":
+        return candidate_pool_aware_selection_score(row)
     if method_name == "ReplenishVerifier-FullV2":
         return 1.0
     if method_name == "ReplenishVerifier-Full":
@@ -961,6 +1049,29 @@ def _selection_tie_break_key_for_method(row, method_name, allow_feasible_selecti
     if method_name == "ReplenishVerifier-FullV2":
         return (gated,) + fullv2_selection_score(row)
 
+    if method_name == "ReplenishVerifier-FullV2-CandidatePoolAware":
+        components = candidate_pool_aware_selection_components(row)
+        return (
+            gated,
+            components["solver_ok"],
+            components["finite_objective"],
+            components["objective_consensus_score"],
+            components["structure_score"],
+            components["constraint_coverage"],
+            components["capacity_constraint_detected"],
+            components["objective_term_coverage"],
+            components["lp_coefficient_sanity"],
+            components["variable_role_alignment"],
+            components["problem_type_schema_coverage"],
+            components["type_aware_hard_gate"],
+            components["lp_health_score"],
+            components["static_validation_score"],
+            components["code_validity_score"],
+            -components["critical_missing_count"],
+            -components["candidate_diversity_index"],
+            -components["runtime_sec"],
+        )
+
     if method_name == "ReplenishVerifier-HybridSafe":
         components = hybrid_safe_selection_components(row)
         return (
@@ -1074,6 +1185,12 @@ def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
         best["constraint_coverage"] = best["selection_components"]["constraint_coverage"]
         best["objective_term_coverage"] = best["selection_components"]["objective_term_coverage"]
         best["repair_feedback_count"] = best["selection_components"]["repair_feedback_count"]
+    if method_name == "ReplenishVerifier-FullV2-CandidatePoolAware":
+        best["selection_components"] = candidate_pool_aware_selection_components(best)
+        best["hard_gate_score"] = best["selection_components"]["type_aware_hard_gate"]
+        best["constraint_coverage"] = best["selection_components"]["constraint_coverage"]
+        best["objective_term_coverage"] = best["selection_components"]["objective_term_coverage"]
+        best["repair_feedback_count"] = best["selection_components"]["critical_missing_count"]
     if penalty["enabled"]:
         best["critical_structure_penalty"] = penalty
     return best
@@ -1140,6 +1257,8 @@ def select_for_method(method_name, evaluated_by_problem, benchmark, allow_feasib
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by an independent consensus-safe v2 score over legacy Full, safety, candidate objective consensus, LP health, and critical-structure safety; no reference objective"
         elif method_name == "ReplenishVerifier-HybridSafe":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked by HybridSafe method-vote and no-reference quality signals from Full, consensus, LP health, structure, type-aware/static validation, and critical-structure safety; no reference objective"
+        elif method_name == "ReplenishVerifier-FullV2-CandidatePoolAware":
+            best["selection_policy"] = "Experimental appendix ablation: Hard Selection Gate over executable + optimal candidates, ranked by candidate-pool-aware no-reference semantic signals including finite objective, objective consensus, structure score, constraint coverage, capacity detection, objective-term coverage, LP coefficient sanity, variable-role alignment, problem-type schema coverage, static/type-aware validation, and candidate diversity index; no reference objective"
         elif method_name == "ReplenishVerifier-TypeAware-Consensus":
             best["selection_policy"] = "Hard Selection Gate over executable + optimal candidates, ranked consensus-first with TypeAware-safe reranking over critical missing structures, structure completeness, constraint coverage, objective-term coverage, type-aware hard gates, repair feedback count, and runtime; no reference objective"
         elif method_name in REWARD_ABLATION_METHODS:
@@ -1257,6 +1376,56 @@ def build_generic_repair_prompts(rows):
             f"Generic feedback:\n{feedback}\n"
         )
         prompts.append(_base_repair_prompt_row(row, "generic", [], feedback, repair_prompt))
+    return prompts
+
+
+def _non_reference_repair_needed(row):
+    if not ((row.get("execution") or {}).get("executable") and str((row.get("execution") or {}).get("status") or "") == "Optimal"):
+        return True
+    if _objective_term_coverage(row) < 1.0:
+        return True
+    if float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0) < 1.0:
+        return True
+    if _constraint_coverage(row) < 1.0:
+        return True
+    if _lp_health_score(row) < 1.0:
+        return True
+    if _type_aware_hard_gate_score(row) < 1.0:
+        return True
+    if _static_validation_errors(row):
+        return True
+    return False
+
+
+def build_non_reference_repair_prompts(rows):
+    """Build candidate-pool-quality repair prompts using only non-reference signals."""
+    prompts = []
+    for row in rows:
+        if not _non_reference_repair_needed(row):
+            continue
+        feedback_items = [
+            f"- Execution/solver status: executable={bool((row.get('execution') or {}).get('executable'))}, status={(row.get('execution') or {}).get('status')}.",
+            f"- Objective term coverage signal: {_objective_term_coverage(row):.4f}.",
+            f"- LP coefficient sanity signal: {float(row.get('objective_term_lp_coefficient_coverage', 0.0) or 0.0):.4f}.",
+            f"- Constraint coverage signal: {_constraint_coverage(row):.4f}.",
+            f"- LP artifact health signal: {_lp_health_score(row):.4f}.",
+            f"- Static validation score: {_static_validation_score(row):.4f}.",
+            f"- Type-aware hard-gate score: {_type_aware_hard_gate_score(row):.4f}.",
+        ]
+        feedback = "\n".join(feedback_items)
+        repair_prompt = (
+            "You are improving a generated PuLP optimization model using non-reference candidate-quality signals only.\n"
+            "Do not use ground-truth answers or post-hoc correctness labels.\n"
+            "Revise the code so the model is executable, solver-optimal, structurally complete, and has a healthier LP artifact.\n\n"
+            f"Problem ID: {row.get('problem_id')}\n"
+            f"Candidate ID: {row.get('candidate_id')}\n\n"
+            f"Non-reference feedback:\n{feedback}\n\n"
+            "Focus on objective term completeness, LP artifact constraints/variables, coefficient sanity, named constraints, and role-aligned variables.\n"
+            "Return only raw Python source code with import pulp on the first line.\n"
+        )
+        out = _base_repair_prompt_row(row, "non_reference_quality", [], feedback, repair_prompt)
+        out["non_reference_repair"] = True
+        prompts.append(out)
     return prompts
 
 

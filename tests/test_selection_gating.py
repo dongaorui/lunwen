@@ -49,6 +49,8 @@ def test_main_methods_are_concise_and_appendix_keeps_legacy_methods():
     assert "Solver-Filter" in APPENDIX_METHODS
     assert "OR-R1-like Voting" in APPENDIX_METHODS
     assert "OptArgus-like Audit" in APPENDIX_METHODS
+    assert "ReplenishVerifier-FullV2-CandidatePoolAware" in APPENDIX_METHODS
+    assert "ReplenishVerifier-FullV2-CandidatePoolAware" not in MAIN_METHODS
     assert METHODS == MAIN_METHODS + APPENDIX_METHODS
 
 
@@ -232,6 +234,43 @@ def test_type_aware_selection_prefers_non_k0_with_better_objective_terms_and_gat
     assert selected[0]["uses_reference_objective_for_selection"] is False
     assert selected[0]["selection_components"]["objective_term_coverage"] == 1.0
     assert selected[0]["hard_gate_failures"] == []
+
+
+def test_candidate_pool_aware_is_appendix_ablation_and_uses_no_reference_components():
+    rows = [
+        _row("c0", score=0.90, structure_score=0.90, missing=[], consensus=0.20),
+        _row("c1", score=0.80, structure_score=0.88, missing=[], consensus=0.90),
+    ]
+    rows[0]["execution"] = {"executable": True, "status": "Optimal", "objective": 100.0, "lp_path": "a.lp"}
+    rows[1]["execution"] = {"executable": True, "status": "Optimal", "objective": 42.0, "lp_path": "b.lp"}
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 4, "variables_count": 4}
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+        row["code_output_format_valid"] = True
+        row["static_validation_score"] = 1.0
+        row["candidate_index"] = int(row["candidate_id"].replace("c", ""))
+        row["reference_objective"] = 999.0
+        row["objective_correct"] = 0.0
+        row["relative_error"] = 9.9
+
+    selected = select_for_method("ReplenishVerifier-FullV2-CandidatePoolAware", {"p0": rows}, _benchmark())[0]
+
+    assert selected["candidate_id"] == "c1"
+    assert selected["selection_components"]["selector_family"] == "fullv2_candidate_pool_aware"
+    assert selected["selection_components"]["objective_consensus_score"] == 0.90
+    assert selected["uses_reference_objective_for_selection"] is False
+    assert set(selected["selection_components"]).isdisjoint({
+        "reference_objective",
+        "objective_correct",
+        "objective_accuracy",
+        "relative_error",
+        "reference_lp",
+        "reference_answer",
+        "oracle",
+    })
 
 
 def test_consensus_safe_is_main_method_before_type_aware_ablation():

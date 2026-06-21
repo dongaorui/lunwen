@@ -253,6 +253,51 @@ User asked to stop the aggressive FullV2 ranker and convert `ReplenishVerifier-F
 - `tests/test_fullv2_does_not_change_baselines.py` (new)
 - `progress.md`
 
+## 2026-06-21 — v9 experiment design and code improvements after v8 candidate diversity results
+
+### User request
+
+User asked to use the latest 100-problem/k=8/Qwen3-8B candidate-diversity experiment results to improve code and experiment design rather than only summarize. Constraints: do not blindly tune selector weights, keep guarded FullV2 conservative, add an experimental CandidatePoolAware ablation, add non-reference repair, improve redundancy diagnostics, fix misleading structure pass@k metrics, and design the next v9 experiment. Experiments will be run on Xshell by the user.
+
+### Actions completed
+
+1. Added experimental appendix-only selector:
+   - `ReplenishVerifier-FullV2-CandidatePoolAware`
+   - Included in `APPENDIX_METHODS`, not `MAIN_METHODS`.
+   - Uses no-reference signals only: solver_ok, finite objective, objective consensus, structure score, constraint coverage, capacity detection, objective-term coverage, LP coefficient sanity, variable-role alignment, problem-type schema coverage, static validation, type-aware hard gate, LP health, code validity, and candidate diversity index.
+   - Does not replace guarded `ReplenishVerifier-FullV2`.
+
+2. Added non-reference candidate-quality repair prompts:
+   - New `build_non_reference_repair_prompts()`.
+   - `run_all_methods` now writes `non_reference_repair_prompts.jsonl/.csv/.md`.
+   - Prompts avoid reference/objective_correct/oracle wording and use only execution, LP artifact, objective-term, static/type-aware, and constraint-coverage signals.
+
+3. Strengthened redundancy diagnostics:
+   - Added `compute_method_selection_clusters()`.
+   - `diagnose_selection_metrics` now writes `diagnostics/method_selection_clusters.csv`.
+   - `method_redundancy_report.md` now includes alias-like exact same-selection pairs and paper display recommendations.
+
+4. Fixed misleading structure pass@k interpretation:
+   - Kept old `pass_at_k_structure` field for backward compatibility.
+   - Added `pass_at_k_structure_semantics = strict_structure_score_equals_1`.
+   - Added `oracle_structure_strict_complete_at_k`.
+   - Added `oracle_structure_mean_best_score_at_k` and `oracle_structure_best_score_semantics = mean_best_structure_score_among_top_k` to explain cases where strict pass@k is 0 but average structure completeness is high.
+
+5. Added TDD tests for all new behavior.
+
+### Verification
+
+- New focused tests initially failed before implementation.
+- Focused impacted tests: `python -m pytest tests/test_selection_gating.py tests/test_repair_prompt_fairness.py tests/test_diagnose_selection_metrics.py tests/test_paper_metrics.py tests/test_leakage_audit.py tests/test_run_all_methods_grouping.py -q` -> `70 passed in 2.47s`.
+- Full suite: `python -m pytest -q` -> `213 passed, 52 warnings in 5.88s`.
+
+### Notes
+
+- No local experiment run was performed.
+- No candidate regeneration was performed.
+- No push or commit was performed.
+- Formal selection remains no-reference; reference/objective correctness/oracle fields remain diagnostics/evaluation only.
+
 ## 2026-06-21 — k=8 candidate-pool quality prompt improvements for 100-problem run
 
 ### User request

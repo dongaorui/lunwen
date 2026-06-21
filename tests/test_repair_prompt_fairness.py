@@ -133,3 +133,31 @@ def test_generic_repair_prompt_row_carries_static_validation_without_domain_labe
     assert "missing_constraints" not in text
     for label in DOMAIN_LABELS:
         assert label not in text
+
+
+def test_non_reference_repair_prompt_targets_candidate_pool_quality_without_reference_labels():
+    from replenishverifier.experiments.methods import build_non_reference_repair_prompts
+
+    weak = _evaluated_row()
+    weak["objective_consensus_score"] = 0.1
+    weak["objective_term_coverage"] = 0.0
+    weak["objective_term_lp_coefficient_coverage"] = 0.0
+    weak["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 1, "variables_count": 2}
+    weak["type_aware_static_validation"] = {"score": 0.5, "hard_gate_score": 0.5, "hard_gate_failures": ["weak_modeling"], "missing_items": ["weak_modeling"]}
+    weak["objective_correct"] = 1.0
+    weak["reference_objective"] = 123.0
+    weak["relative_error"] = 0.0
+
+    rows = build_non_reference_repair_prompts([weak])
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["repair_type"] == "non_reference_quality"
+    assert row["uses_reference_objective_for_repair"] is False
+    assert row["non_reference_repair"] is True
+    text = row["repair_prompt"] + "\n" + row["feedback"]
+    assert "non-reference" in text.lower()
+    assert "objective term" in text.lower()
+    assert "lp artifact" in text.lower()
+    for label in ["reference_objective", "objective_correct", "relative_error", "oracle"]:
+        assert label not in text
