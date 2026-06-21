@@ -326,3 +326,48 @@ Notes:
 - `TypeAware-Consensus` and `ConsensusSafe` are identical on this run (`same_selection_rate=1.0000`), which should be reported as a remaining redundancy if discussed.
 - `diagnostic_join_unmatched.csv` was generated and contains no unmatched selected rows.
 - Formal selector components remain no-reference; post-hoc correctness appears only in diagnostics/evaluation.
+
+### Phase 12 — FullV2 failure investigation and outcome
+
+**Status:** complete on 2026-06-20
+
+Goal:
+
+- Investigate why the newly registered `ReplenishVerifier-FullV2` underperforms the existing `ReplenishVerifier-Full` in the current registered results.
+- Follow systematic debugging: reproduce/read the result, trace selector logic and diagnostics, identify root cause before any fix.
+- Preserve constraints: no candidate regeneration, no `run_generation.py` edits, no reference/objective-correct/oracle/reference-LP/reference-answer in formal selection, and run leakage audit before using the result.
+- If `FullV2` remains below `Full`, produce `fullv2_failure_summary.md` explaining whether the failure is objective-consensus misleading, structure/constraint stronger, type-aware penalty too strong, or non-reference signals cannot distinguish.
+
+Planned actions:
+
+1. Locate the current `FullV2` result directory and registered `main_results.md`.
+2. Inspect `Full`, `FullV2`, `Best-of-K`, and diagnostics/counterfactual outputs.
+3. Trace `ReplenishVerifier-FullV2` implementation and formal selection components.
+4. Add/adjust tests only after root cause is identified.
+5. Implement a minimal no-reference fix if evidence supports one; otherwise write `fullv2_failure_summary.md`.
+6. Run focused tests, full pytest where feasible, rerun diagnostics/paper metrics/leakage audit on the existing candidates/results.
+
+Result:
+
+- Root cause: FullV2 put objective-consensus cluster features before structure/constraint evidence, so a wrong majority objective cluster could override a structurally stronger minority candidate.
+- Added two directional tests:
+  - structure can override misleading majority consensus when the structure difference is material;
+  - consensus can still decide when the structure difference is very small, avoiding collapse into Structure-only.
+- Implemented a no-reference structure-safety bucket in `replenishverifier/experiments/methods.py`.
+- Re-ran the existing-candidate k=8/100 experiment into `runs/qwen3_8b_k8_100_v6_fullv2_structuresafe_20260620` without regenerating candidates.
+- Result: `ReplenishVerifier-FullV2` objective_accuracy improved from the failing `0.7200` to `0.7400`, tying `ReplenishVerifier-Full`, `Structure only`, and `Best-of-K` on the rerun.
+- Leakage audit passed; `no_leakage_audit.json` reports `passed: true` and no issues.
+- `fullv2_failure_summary.md` was updated as a post-hoc diagnostic summary of the original failure and post-fix tie outcome.
+
+Verification:
+
+- `python -m pytest tests/test_fullv2_not_structure_alias.py tests/test_fullv2_no_reference_leakage.py -q` -> `5 passed`.
+- `python -m pytest tests/test_selection_gating.py tests/test_fullv2_not_structure_alias.py tests/test_fullv2_no_reference_leakage.py tests/test_leakage_audit.py -q` -> `34 passed`.
+- `python -m pytest -q` -> `198 passed, 52 warnings in 5.16s`.
+- `python -m py_compile replenishverifier/experiments/methods.py` passed.
+- `git diff --check -- replenishverifier/experiments/methods.py tests/test_fullv2_not_structure_alias.py` produced only LF/CRLF warnings.
+
+Errors encountered in this phase:
+
+- Initial `Read` call again passed invalid `pages: ""` for a Markdown file; future Markdown reads must omit `pages` or use the environment-specific non-empty workaround only if required.
+- First attempted structure-first FullV2 fix passed the misleading-consensus test but failed the user's requested reverse test; replaced it with a structure-safety bucket so consensus still applies when structure differences are tiny.

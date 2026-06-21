@@ -77,3 +77,37 @@ def test_candidate_rank_is_final_tie_breaker_only():
     assert selected["candidate_id"] == "c0"
     debug = selected["selection_components"]["score_tuple_debug"]
     assert debug[-1][0] == "neg_candidate_rank"
+
+
+def test_fullv2_does_not_let_wrong_majority_consensus_override_stronger_structure_signal():
+    rows = [
+        _row("c0", objective=116.0, structure=0.857, consensus=0.125, objective_terms=1.0, lp_terms=1.0),
+        _row("c1", objective=150.0, structure=0.836, consensus=0.875, objective_terms=1.0, lp_terms=1.0),
+        _row("c2", objective=150.0, structure=0.836, consensus=0.875, objective_terms=1.0, lp_terms=1.0),
+    ]
+
+    selected = _select("ReplenishVerifier-FullV2", rows)
+
+    assert selected["candidate_id"] == "c0"
+    components = selected["selection_components"]
+    assert components["selector_family"] == "fullv2"
+    assert set(components).isdisjoint({
+        "reference_objective",
+        "objective_correct",
+        "relative_error",
+        "reference_lp",
+        "reference_answer",
+        "oracle",
+    })
+
+
+def test_fullv2_can_use_consensus_when_structure_difference_is_small():
+    rows = [
+        _row("c0", objective=116.0, structure=0.857, consensus=0.125, objective_terms=1.0, lp_terms=1.0),
+        _row("c1", objective=150.0, structure=0.855, consensus=0.875, objective_terms=1.0, lp_terms=1.0),
+        _row("c2", objective=150.0, structure=0.855, consensus=0.875, objective_terms=1.0, lp_terms=1.0),
+    ]
+
+    selected = _select("ReplenishVerifier-FullV2", rows)
+
+    assert selected["candidate_id"] in {"c1", "c2"}

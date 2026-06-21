@@ -683,6 +683,10 @@ def _normalized_cluster_distance(row):
         return 1.0
 
 
+def _fullv2_structure_bucket(row):
+    return float(int(_structure_score(row) * 100.0)) / 100.0
+
+
 def _fullv2_feature_tuple(row):
     missing_critical = _fullv2_missing_critical_structures(row)
     execution = row.get("execution") or {}
@@ -704,17 +708,17 @@ def _fullv2_feature_tuple(row):
         tuple_items = [
             ("solver_ok", solver_ok),
             ("has_objective", _has_objective_score(row)),
-            ("objective_consensus_score", float(row.get("objective_consensus_score", 0.0) or 0.0)),
-            ("objective_cluster_size", float(row.get("objective_cluster_size", 0) or 0)),
-            ("objective_density_score", float(row.get("objective_density_score", 0.0) or 0.0)),
-            ("neg_distance_to_cluster_median_normalized", -_normalized_cluster_distance(row)),
             ("objective_term_lp_coefficient_coverage", float(row.get("objective_term_lp_coefficient_coverage", 0.0) or 0.0)),
             ("objective_term_coverage", _objective_term_coverage(row)),
             ("neg_critical_structure_penalty", -critical_penalty),
             ("type_aware_hard_gate_score", _type_aware_hard_gate_score(row)),
             ("neg_type_aware_missing_critical_count", -critical_penalty),
-            ("structure_score", _structure_score(row)),
+            ("structure_safety_bucket", _fullv2_structure_bucket(row)),
             ("constraint_coverage", _constraint_coverage(row)),
+            ("objective_consensus_score", float(row.get("objective_consensus_score", 0.0) or 0.0)),
+            ("objective_cluster_size", float(row.get("objective_cluster_size", 0) or 0)),
+            ("objective_density_score", float(row.get("objective_density_score", 0.0) or 0.0)),
+            ("neg_distance_to_cluster_median_normalized", -_normalized_cluster_distance(row)),
             ("static_validation_score", _static_validation_score(row)),
             ("code_validity_score", _code_validity_score(row)),
             ("neg_runtime_normalized", -runtime),

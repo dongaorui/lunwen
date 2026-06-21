@@ -396,3 +396,34 @@ Verification:
 - `python -m pytest tests/test_executor_solver_fallback.py -q` -> `4 passed`.
 - `python -m pytest tests/test_executor_solver_fallback.py tests/test_runtime_overhead.py tests/test_strong_baselines.py -q` -> `17 passed`.
 - `python -m pytest -q` -> `161 passed, 52 warnings`.
+
+## 2026-06-20 — FullV2 consensus failure and structure-safety fix
+
+Root cause:
+
+- The initial `ReplenishVerifier-FullV2` ranking put objective-consensus cluster features before structure/constraint evidence.
+- In real k=8/100 loss cases, a majority of candidates shared the same wrong objective, so consensus chose the wrong cluster even though the minority candidate had slightly stronger structure evidence.
+- The key observed failures were `single_item_multi_period_0001` and `single_item_multi_period_0005`: FullV2 chose high-consensus wrong objectives, while Full/Structure chose the post-hoc correct minority candidate.
+
+Fix:
+
+- FullV2 now uses a no-reference structure-safety bucket before objective-consensus cluster features.
+- Material structure-score differences can protect against a misleading wrong consensus majority.
+- Very small structure-score differences remain in the same bucket, so FullV2 can still use consensus and does not collapse into pure Structure-only selection.
+- Added paired directional tests: one for structure protection against misleading consensus, and one for consensus use when structure differences are small.
+
+Rerun result on `runs/qwen3_8b_k8_100_v6_fullv2_structuresafe_20260620`:
+
+- `Best-of-K`: objective_accuracy `0.7400`.
+- `Structure only`: objective_accuracy `0.7400`.
+- `ReplenishVerifier-Full`: objective_accuracy `0.7400`.
+- `ReplenishVerifier-FullV2`: objective_accuracy `0.7400`.
+- FullV2 is no longer below Full, but it does not exceed Full/Structure/Best-of-K.
+- Leakage audit passed; FullV2 formal selection remains no-reference.
+
+Remaining interpretation:
+
+- Objective consensus can still be misleading.
+- Structure/constraint evidence remains the safer signal in the observed pre-fix losses.
+- There is no direct evidence that type-aware penalty was too strong in those losses; critical missing counts and type-aware hard-gate scores were tied.
+- Remaining wrong selections are mostly candidate-pool-limited or non-reference indistinguishable; post-hoc correctness is diagnostic-only.
