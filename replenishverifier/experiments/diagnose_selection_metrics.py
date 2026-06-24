@@ -365,6 +365,95 @@ def _component(row, key):
     return _selection_components(row).get(key)
 
 
+def _component_or_row(row, key):
+    if row is None:
+        return None
+    value = _component(row, key)
+    if value is not None:
+        return value
+    return row.get(key)
+
+
+def compute_wrong_consensus_risk_diagnostics(main_rows, methods=None, risk_threshold=0.05):
+    methods = methods or ["ReplenishVerifier-TypeAware-Consensus", "ReplenishVerifier-Full", "Consensus only"]
+    selected = _selected_by_method_problem(main_rows)
+    rows = []
+    for method in methods:
+        for pid, row in sorted(selected.get(method, {}).items()):
+            raw = _component_or_row(row, "consensus_cluster_support")
+            if raw is None:
+                raw = _component_or_row(row, "consensus_score")
+            if raw is None:
+                raw = row.get("objective_consensus_score")
+            safe = _component_or_row(row, "safe_consensus_score")
+            if safe is None:
+                safe = raw
+            raw = float(raw or 0.0)
+            safe = float(safe or 0.0)
+            risk = round(max(0.0, raw - safe), 10)
+            if risk < risk_threshold:
+                continue
+            rows.append({
+                "problem_id": pid,
+                "problem_type": row.get("problem_type"),
+                "method": method,
+                "candidate_id": row.get("candidate_id"),
+                "objective_consensus_score": raw,
+                "safe_consensus_score": safe,
+                "wrong_consensus_risk": risk,
+                "critical_missing_count": _component_or_row(row, "critical_missing_count"),
+                "constraint_coverage": _component_or_row(row, "constraint_coverage"),
+                "objective_term_coverage": _component_or_row(row, "objective_term_coverage"),
+                "structure_score": _component_or_row(row, "structure_completeness") or row.get("structure_score"),
+                "posthoc_objective_correct": row.get("objective_correct"),
+                "posthoc_note": "posthoc objective correctness is diagnostic-only",
+            })
+    return rows
+
+
+def compute_full_typeaware_consensus_difference_diagnostics(main_rows):
+    selected = _selected_by_method_problem(main_rows)
+    full = selected.get("ReplenishVerifier-Full", {})
+    tac = selected.get("ReplenishVerifier-TypeAware-Consensus", {})
+    rows = []
+    for pid in sorted(set(full) & set(tac)):
+        f = full[pid]
+        t = tac[pid]
+        if f.get("candidate_id") == t.get("candidate_id"):
+            continue
+        rows.append({
+            "problem_id": pid,
+            "problem_type": (f or t).get("problem_type"),
+            "same_candidate": False,
+            "full_candidate_id": f.get("candidate_id"),
+            "typeaware_consensus_candidate_id": t.get("candidate_id"),
+            "full_objective_correct_posthoc": f.get("objective_correct"),
+            "typeaware_consensus_objective_correct_posthoc": t.get("objective_correct"),
+            "full_safe_consensus_score": _component_or_row(f, "safe_consensus_score"),
+            "typeaware_consensus_safe_consensus_score": _component_or_row(t, "safe_consensus_score"),
+            "full_wrong_consensus_risk": _component_or_row(f, "wrong_consensus_risk"),
+            "typeaware_consensus_wrong_consensus_risk": _component_or_row(t, "wrong_consensus_risk"),
+            "full_constraint_coverage": _component_or_row(f, "constraint_coverage"),
+            "typeaware_consensus_constraint_coverage": _component_or_row(t, "constraint_coverage"),
+            "full_objective_term_coverage": _component_or_row(f, "objective_term_coverage"),
+            "typeaware_consensus_objective_term_coverage": _component_or_row(t, "objective_term_coverage"),
+            "diagnostic_note": "post-hoc diagnostics only; differences explain selected candidates and are not formal selection inputs",
+        })
+    return rows
+
+
+def _write_posthoc_diagnostic_markdown(path, title, rows):
+    header = "This is post-hoc diagnostics only and must not be used for formal selection."
+    if not rows:
+        Path(path).write_text(f"# {title}\n\n{header}\n\nNo rows.\n", encoding="utf-8")
+        return
+    keys = list(rows[0].keys())
+    lines = [f"# {title}", "", header, "", "| " + " | ".join(keys) + " |", "| " + " | ".join(["---"] * len(keys)) + " |"]
+    for row in rows:
+        lines.append("| " + " | ".join(str(row.get(key)) for key in keys) + " |")
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def compute_selector_counterfactuals(main_rows, target_methods=None, baseline_method="Best-of-K"):
     target_methods = target_methods or ["ReplenishVerifier-HybridSafe", "ReplenishVerifier-ConsensusSafe", "ReplenishVerifier-TypeAware-Consensus"]
     selected = _selected_by_method_problem(main_rows)
@@ -881,6 +970,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     paired_method_comparison = compute_paired_method_comparison(main_rows)
     avoidable_error_summary = compute_avoidable_error_summary(main_rows, candidate_rows) if candidate_rows else []
     consensus_safe_counterfactual = compute_consensus_safe_counterfactual(main_rows)
+    wrong_consensus_risk = compute_wrong_consensus_risk_diagnostics(main_rows)
+    full_vs_typeaware_consensus_diff = compute_full_typeaware_consensus_difference_diagnostics(main_rows)
     selector_counterfactuals = compute_selector_counterfactuals(main_rows)
     selector_failure_summary = build_selector_failure_summary(selector_counterfactuals)
     full_vs_structure_diagnosis = compute_full_vs_structure_diagnosis(main_rows)
@@ -930,6 +1021,10 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     _write_avoidable_error_markdown(out_dir / "avoidable_error_summary.md", avoidable_error_summary)
     write_csv(out_dir / "consensus_safe_counterfactual.csv", consensus_safe_counterfactual)
     _write_consensus_safe_counterfactual_markdown(out_dir / "consensus_safe_counterfactual.md", consensus_safe_counterfactual)
+    write_csv(out_dir / "wrong_consensus_risk.csv", wrong_consensus_risk)
+    _write_posthoc_diagnostic_markdown(out_dir / "wrong_consensus_risk.md", "Wrong Consensus Risk Diagnostics", wrong_consensus_risk)
+    write_csv(out_dir / "full_vs_typeaware_consensus_diff.csv", full_vs_typeaware_consensus_diff)
+    _write_posthoc_diagnostic_markdown(out_dir / "full_vs_typeaware_consensus_diff.md", "Full vs TypeAware-Consensus Difference Diagnostics", full_vs_typeaware_consensus_diff)
     write_csv(out_dir / "selector_counterfactuals.csv", selector_counterfactuals)
     _write_selector_counterfactuals_markdown(out_dir / "selector_counterfactuals.md", selector_counterfactuals)
     (out_dir / "selector_failure_summary.md").write_text(selector_failure_summary, encoding="utf-8")
@@ -980,6 +1075,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "paired_method_comparison": paired_method_comparison,
         "avoidable_error_summary": avoidable_error_summary,
         "consensus_safe_counterfactual": consensus_safe_counterfactual,
+        "wrong_consensus_risk": wrong_consensus_risk,
+        "full_vs_typeaware_consensus_diff": full_vs_typeaware_consensus_diff,
         "selector_counterfactuals": selector_counterfactuals,
         "selector_failure_summary": selector_failure_summary,
         "full_vs_structure_diagnosis": full_vs_structure_diagnosis,

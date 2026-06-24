@@ -368,13 +368,15 @@ def test_type_aware_consensus_prefers_consensus_before_structure_when_structure_
     assert selected[0]["uses_reference_objective_for_selection"] is False
 
 
-def test_type_aware_consensus_uses_critical_missing_only_when_consensus_is_close():
+def test_type_aware_consensus_penalizes_wrong_consensus_with_structure_risk():
     rows = [
         _row("c0", structure_score=0.95, missing=["capacity_constraint"], consensus=0.83),
         _row("c1", structure_score=0.70, missing=[], consensus=0.82),
     ]
     for row in rows:
         row["objective_term_coverage"] = 1.0
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
         row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
         row["type_aware_static_validation_errors"] = []
 
@@ -382,6 +384,7 @@ def test_type_aware_consensus_uses_critical_missing_only_when_consensus_is_close
 
     assert selected[0]["candidate_id"] == "c1"
     assert selected[0]["selection_components"]["critical_missing_count"] == 0.0
+    assert selected[0]["selection_components"]["safe_consensus_score"] > rows[0].get("safe_consensus_score", 0.0)
 
 
 def test_type_aware_consensus_does_not_let_non_executable_consensus_win():
@@ -419,6 +422,36 @@ def test_type_aware_consensus_does_not_use_type_aware_pool_filter_alias():
     assert consensus[0]["candidate_id"] == "c1"
     assert "type_aware_pool_filter_applied" not in consensus[0]
     assert consensus[0]["selection_components"]["consensus_score"] == 0.99
+
+
+def test_full_uses_safe_consensus_when_structure_quality_is_tied():
+    rows = [
+        _row("c0", score=0.80, structure_score=0.88, missing=[], consensus=0.30),
+        _row("c1", score=0.80, structure_score=0.88, missing=[], consensus=0.90),
+    ]
+    rows[0]["execution"]["objective"] = 100.0
+    rows[1]["execution"]["objective"] = 42.0
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+        row["code_output_format_valid"] = True
+        row["static_validation_score"] = 1.0
+
+    selected = select_for_method("ReplenishVerifier-Full", {"p0": rows}, _benchmark())
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["selection_components"]["safe_consensus_score"] > 0.88
+    assert selected[0]["selection_components"].keys().isdisjoint({
+        "reference_objective",
+        "objective_correct",
+        "relative_error",
+        "oracle",
+        "reference_lp",
+        "reference_answer",
+    })
 
 
 def test_type_aware_consensus_prefers_majority_objective_cluster_over_isolated_typeaware_score():

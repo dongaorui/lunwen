@@ -2,7 +2,9 @@ from replenishverifier.experiments.diagnose_selection_metrics import (
     build_method_redundancy_report,
     build_metric_saturation_report,
     compute_avoidable_error_summary,
+    compute_full_typeaware_consensus_difference_diagnostics,
     compute_method_selection_clusters,
+    compute_wrong_consensus_risk_diagnostics,
     diagnose_selection_metrics,
 )
 from replenishverifier.experiments.paper_metrics import compute_missed_oracle_summary, compute_paired_method_comparison
