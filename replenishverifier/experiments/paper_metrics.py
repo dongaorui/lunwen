@@ -170,6 +170,41 @@ DEFAULT_PAPER_METHODS = [
 ]
 
 
+HARD_SUBSET_TYPES = {
+    "multi_item_capacity",
+    "single_item_multi_period_shortage",
+    "fixed_order_cost_big_m",
+}
+
+
+def _component_value(row, key, default=None):
+    components = row.get("selection_components") or {}
+    if key in components:
+        return components.get(key)
+    return row.get(key, default)
+
+
+def _wrong_consensus_risk(row):
+    value = _component_value(row, "wrong_consensus_risk")
+    if value is not None:
+        return value
+    raw = _component_value(row, "consensus_cluster_support", row.get("objective_consensus_score"))
+    safe = _component_value(row, "safe_consensus_score", raw)
+    raw = safe_float(raw) or 0.0
+    safe = safe_float(safe) or 0.0
+    return max(0.0, raw - safe)
+
+
+def _safe_consensus_score(row):
+    return _component_value(row, "safe_consensus_score", row.get("objective_consensus_score"))
+
+
+def _hard_subset_label(problem_type):
+    if problem_type in HARD_SUBSET_TYPES:
+        return "capacity_or_fixed_or_shortage"
+    return "other"
+
+
 def compute_metrics_by_problem_type(rows, methods=None):
     methods = set(methods or DEFAULT_PAPER_METHODS)
     grouped = defaultdict(list)
@@ -191,6 +226,35 @@ def compute_metrics_by_problem_type(rows, methods=None):
             "structure_completeness": mean([row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")) for row in items]),
             "constraint_coverage": mean([constraint_coverage(row) for row in items]),
             "objective_term_coverage": mean([row.get("objective_term_coverage") for row in items]),
+            "safe_consensus_score_mean": mean([_safe_consensus_score(row) for row in items]),
+            "wrong_consensus_risk_mean": mean([_wrong_consensus_risk(row) for row in items]),
+        })
+    return result
+
+
+def compute_hard_subset_metrics(rows, methods=None):
+    methods = set(methods or DEFAULT_PAPER_METHODS)
+    grouped = defaultdict(list)
+    for row in selected_rows(rows):
+        method = row.get("method_name") or row.get("method") or "unknown"
+        if method not in methods:
+            continue
+        problem_type = row.get("problem_type") or "unknown"
+        grouped[(_hard_subset_label(problem_type), method)].append(row)
+        if problem_type in HARD_SUBSET_TYPES:
+            grouped[(problem_type, method)].append(row)
+    result = []
+    for (subset, method), items in sorted(grouped.items()):
+        result.append({
+            "hard_subset": subset,
+            "method": method,
+            "n": len(items),
+            "objective_accuracy": mean([row.get("objective_correct", row.get("objective_accuracy")) for row in items]),
+            "structure_completeness": mean([row.get("structure_score", (row.get("structure_verification") or {}).get("structure_score")) for row in items]),
+            "constraint_coverage": mean([constraint_coverage(row) for row in items]),
+            "objective_term_coverage": mean([row.get("objective_term_coverage") for row in items]),
+            "safe_consensus_score_mean": mean([_safe_consensus_score(row) for row in items]),
+            "wrong_consensus_risk_mean": mean([_wrong_consensus_risk(row) for row in items]),
         })
     return result
 

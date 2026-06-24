@@ -1,5 +1,6 @@
 from replenishverifier.experiments.diagnose_selection_metrics import (
     compute_full_typeaware_consensus_difference_diagnostics,
+    compute_hard_subset_stress_diagnostics,
     compute_wrong_consensus_risk_diagnostics,
     diagnose_selection_metrics,
 )
@@ -81,6 +82,25 @@ def test_compute_full_typeaware_consensus_difference_diagnostics_explains_differ
     }]
 
 
+def test_compute_hard_subset_stress_diagnostics_groups_risky_types():
+    rows = [
+        _selected("Consensus only", "p0", "m_k0", objective_correct=0.0, missing=["capacity_constraint"], consensus=0.90, safe_consensus=0.20),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "m_k1", objective_correct=1.0, missing=[], consensus=0.50, safe_consensus=0.50),
+        _selected("Consensus only", "p1", "m_k0", objective_correct=0.0, missing=["fixed_order_cost"], consensus=0.85, safe_consensus=0.25),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "p1", "m_k1", objective_correct=0.0, missing=["fixed_order_cost"], consensus=0.80, safe_consensus=0.30),
+    ]
+    rows[2]["problem_type"] = "fixed_order_cost_big_m"
+    rows[3]["problem_type"] = "fixed_order_cost_big_m"
+
+    diagnostics = compute_hard_subset_stress_diagnostics(rows)
+    by_type_method = {(row["hard_subset"], row["method"]): row for row in diagnostics}
+
+    assert by_type_method[("capacity_or_fixed_or_shortage", "Consensus only")]["n"] == 2
+    assert by_type_method[("capacity_or_fixed_or_shortage", "Consensus only")]["wrong_consensus_risk_mean"] > 0.0
+    assert by_type_method[("multi_item_capacity", "ReplenishVerifier-TypeAware-Consensus")]["objective_accuracy"] == 1.0
+    assert by_type_method[("fixed_order_cost_big_m", "ReplenishVerifier-TypeAware-Consensus")]["objective_accuracy"] == 0.0
+
+
 def test_diagnose_selection_metrics_writes_safe_consensus_diagnostics(tmp_path):
     exp_dir = tmp_path / "exp"
     exp_dir.mkdir()
@@ -96,7 +116,10 @@ def test_diagnose_selection_metrics_writes_safe_consensus_diagnostics(tmp_path):
 
     assert (exp_dir / "diag" / "wrong_consensus_risk.csv").exists()
     assert (exp_dir / "diag" / "full_vs_typeaware_consensus_diff.csv").exists()
+    assert (exp_dir / "diag" / "hard_subset_stress_test.csv").exists()
     assert result["wrong_consensus_risk"]
     assert result["full_vs_typeaware_consensus_diff"]
+    assert result["hard_subset_stress_test"]
     assert "post-hoc diagnostics only" in (exp_dir / "diag" / "wrong_consensus_risk.md").read_text(encoding="utf-8")
     assert "post-hoc diagnostics only" in (exp_dir / "diag" / "full_vs_typeaware_consensus_diff.md").read_text(encoding="utf-8")
+    assert "post-hoc diagnostics only" in (exp_dir / "diag" / "hard_subset_stress_test.md").read_text(encoding="utf-8")

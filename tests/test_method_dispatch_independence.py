@@ -102,7 +102,7 @@ def test_core_methods_have_independent_dispatch_and_no_reference_components():
     assert selected["ReplenishVerifier-ConsensusSafe"]["selection_components"]["selector_family"] == "consensus_safe_v2"
     assert selected["ReplenishVerifier-TypeAware-Consensus"]["selection_components"]["selector_family"] == "type_aware_consensus"
     assert selected["ReplenishVerifier-TypeAware"]["selection_components"].get("selector_family", "type_aware") == "type_aware"
-    assert selected["ReplenishVerifier-Full"]["selection_components"]["selector_family"] == "full_legacy"
+    assert selected["ReplenishVerifier-Full"]["selection_components"]["selector_family"] == "full_safe_consensus"
 
     for method_name, row in selected.items():
         assert row.get("uses_reference_objective_for_selection") is False

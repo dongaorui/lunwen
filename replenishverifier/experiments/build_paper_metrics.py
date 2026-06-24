@@ -4,6 +4,7 @@ from pathlib import Path
 from replenishverifier.experiments.paper_metrics import (
     add_bootstrap_ci,
     compute_error_type_summary,
+    compute_hard_subset_metrics,
     compute_missed_oracle_summary,
     compute_metrics_by_problem_type,
     compute_paired_method_comparison,
@@ -51,6 +52,7 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
     paired_comparison = compute_paired_method_comparison(main_rows, target_method="ReplenishVerifier-TypeAware-Consensus")
     by_problem_type = compute_metrics_by_problem_type(main_rows)
     selection_collapse = compute_selection_collapse_summary(main_rows, candidate_rows)
+    hard_subset_stress = compute_hard_subset_metrics(main_rows)
 
     selector_v2_methods = {"ReplenishVerifier-ConsensusSafe", "ReplenishVerifier-HybridSafe", "ReplenishVerifier-FullV2", "ReplenishVerifier-TypeAware-Consensus", "ReplenishVerifier-Full", "Best-of-K"}
     tables = {
@@ -69,6 +71,7 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "table_bootstrap_ci": metrics_with_ci,
         "table_by_problem_type": by_problem_type,
         "table_selection_collapse": selection_collapse,
+        "table_hard_subset_stress": hard_subset_stress,
     }
 
     titles = {
@@ -87,6 +90,7 @@ def build_paper_metrics(exp_dir, out_dir, k_values, bootstrap_samples=1000, seed
         "table_bootstrap_ci": "Table: Bootstrap Confidence Intervals",
         "table_by_problem_type": "Table: Metrics by Problem Type",
         "table_selection_collapse": "Table: Selection Collapse Diagnostics",
+        "table_hard_subset_stress": "Table: Hard Subset / Stress Test Metrics",
     }
     for name, rows in tables.items():
         _write_table(out_dir, name, titles[name], rows)

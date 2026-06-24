@@ -1327,3 +1327,74 @@ The user asked not to reimplement the repair model, but to build a non-reference
 ### Notes
 
 No candidates were regenerated. `run_repair_generation.py` was not modified. The wrapper output preserves input length and original `problem_id` / `candidate_id` / `candidate_index` / `k` alignment; repaired rows are marked for re-evaluation before any repair-performance claim.
+
+## 2026-06-24 — TypeAware-Consensus safe consensus, wrong-consensus diagnostics, and hard subset stress tests
+
+### User request
+
+The user asked to improve the existing Qwen3-8B k=8 candidate-diversity experiment code by keeping the method name `ReplenishVerifier-TypeAware-Consensus` but changing its internal logic from raw consensus to safe consensus. Required additions: wrong consensus detector, objective-term coverage, text-triggered hard gate, by-problem-type analysis, hard subset / stress test, no method deletion/renaming, no new main method name, and strict no-reference formal selection.
+
+### Actions completed
+
+1. Restored planning-with-files context by reading `task_plan.md`, `findings.md`, and `progress.md`; ran session catchup with no output.
+2. Inspected current selector, diagnostics, paper metrics, objective-term coverage, and type-aware static validation code.
+3. Added/updated TDD tests for:
+   - TypeAware-Consensus demoting a large objective cluster missing fixed-order objective terms.
+   - Text-triggered capacity hard gate selecting the capacity-complete candidate only for capacity problem text/problem type.
+   - Hard subset / stress diagnostics grouped over capacity/fixed/shortage types.
+   - Paper metrics writing `table_hard_subset_stress.*`.
+   - Existing no-reference and dispatch-independence behavior.
+4. Implemented safe consensus inside `ReplenishVerifier-TypeAware-Consensus` without changing the method name:
+   - `safe_consensus_score = objective consensus support * candidate quality discount`.
+   - `wrong_consensus_risk = raw consensus - safe consensus`.
+   - Candidate quality includes constraint coverage, objective-term coverage, LP coefficient sanity, LP health, structure score, type-aware hard gate, type-aware score, text-triggered gate, code validity, static validation, critical missing count, and text-triggered failure count.
+   - Raw consensus remains useful when the cluster is safe, but no longer dominates unsafe clusters.
+5. Added problem-text-triggered gates:
+   - capacity constraints for `multi_item_capacity` only;
+   - shortage variable/cost gates for shortage problems;
+   - binary order, Big-M, and fixed-order cost gates for fixed-order Big-M problems.
+6. Added diagnostics/metrics:
+   - `compute_hard_subset_stress_diagnostics()` and `hard_subset_stress_test.csv/.md` in `diagnose_selection_metrics`.
+   - `compute_hard_subset_metrics()` and `table_hard_subset_stress.csv/.md` in `build_paper_metrics`.
+   - By-problem-type metric rows now include safe-consensus and wrong-consensus risk means.
+7. Left `Consensus only` as raw objective consensus; no existing method was removed or renamed; no new main method was added.
+8. Did not modify `replenishverifier/llm/run_generation.py` and did not regenerate candidates.
+
+### Verification
+
+- Initial RED run failed because the new diagnostic/metric functions did not exist:
+  - `ImportError: cannot import name 'compute_hard_subset_stress_diagnostics'`
+  - `ImportError: cannot import name 'compute_hard_subset_metrics'`
+- Focused new tests after implementation:
+  - `python -m pytest tests/test_selection_gating.py::test_type_aware_consensus_demotes_large_cluster_missing_objective_terms tests/test_selection_gating.py::test_type_aware_consensus_text_triggered_capacity_gate_only_when_text_mentions_capacity tests/test_safe_consensus_diagnostics.py::test_compute_hard_subset_stress_diagnostics_groups_risky_types tests/test_paper_metrics.py::test_compute_hard_subset_metrics_summarizes_capacity_shortage_fixed_cases -q`
+  - Result: `4 passed in 1.49s`.
+- Focused selector/diagnostic/leakage suite:
+  - `python -m pytest tests/test_selection_gating.py tests/test_safe_consensus_diagnostics.py tests/test_paper_metrics.py tests/test_diagnose_selection_metrics.py tests/test_method_dispatch_independence.py tests/test_leakage_audit.py -q`
+  - Result: `73 passed in 2.59s`.
+- Full suite:
+  - `python -m pytest -q`
+  - Result: `225 passed, 52 warnings in 8.15s`.
+- Diff/compile check:
+  - `git diff --check; if ($?) { python -m py_compile replenishverifier/experiments/methods.py replenishverifier/experiments/paper_metrics.py replenishverifier/experiments/diagnose_selection_metrics.py replenishverifier/experiments/build_paper_metrics.py }`
+  - Result: passed; git printed LF/CRLF warnings only.
+
+### Changed files
+
+- `replenishverifier/experiments/methods.py`
+- `replenishverifier/experiments/paper_metrics.py`
+- `replenishverifier/experiments/diagnose_selection_metrics.py`
+- `replenishverifier/experiments/build_paper_metrics.py`
+- `tests/test_selection_gating.py`
+- `tests/test_safe_consensus_diagnostics.py`
+- `tests/test_paper_metrics.py`
+- `tests/test_method_dispatch_independence.py`
+- `tests/test_fullv2_no_reference_leakage.py`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+### Notes
+
+- Formal selection remains no-reference; reference/objective-correct/oracle/reference-LP/reference-answer fields are diagnostics/evaluation only.
+- No real Qwen k=8 rerun was performed locally.
+- `run_full_consensus_safe_experiment.sh` appears as a mode-only modified file from the pre-existing working tree snapshot; this task did not intentionally change its content.

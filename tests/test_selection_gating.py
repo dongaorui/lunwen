@@ -1,4 +1,10 @@
-from replenishverifier.experiments.methods import APPENDIX_METHODS, MAIN_METHODS, METHODS, select_for_method
+from replenishverifier.experiments.methods import (
+    APPENDIX_METHODS,
+    MAIN_METHODS,
+    METHODS,
+    select_for_method,
+    type_aware_consensus_selection_components,
+)
 
 
 def _row(candidate_id, *, problem_type="multi_item_capacity", score=0.5, structure_score=0.5, missing=None, consensus=0.0, feedback=""):
@@ -358,7 +364,9 @@ def test_type_aware_consensus_prefers_consensus_before_structure_when_structure_
     ]
     for row in rows:
         row["objective_term_coverage"] = 1.0
-        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
         row["type_aware_static_validation_errors"] = []
 
     selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
@@ -387,6 +395,70 @@ def test_type_aware_consensus_penalizes_wrong_consensus_with_structure_risk():
     assert selected[0]["selection_components"]["safe_consensus_score"] > rows[0].get("safe_consensus_score", 0.0)
 
 
+def test_type_aware_consensus_demotes_large_cluster_missing_objective_terms():
+    rows = [
+        _row("c0", problem_type="fixed_order_cost_big_m", structure_score=0.88, missing=[], consensus=0.95),
+        _row("c1", problem_type="fixed_order_cost_big_m", structure_score=0.82, missing=[], consensus=0.70),
+    ]
+    rows[0]["objective_term_coverage"] = 0.50
+    rows[0]["objective_term_lp_coefficient_coverage"] = 0.50
+    rows[0]["missing_objective_terms"] = ["fixed_order_cost"]
+    rows[0]["lp_missing_objective_terms"] = ["fixed_order_cost"]
+    rows[1]["objective_term_coverage"] = 1.0
+    rows[1]["objective_term_lp_coefficient_coverage"] = 1.0
+    rows[1]["missing_objective_terms"] = []
+    rows[1]["lp_missing_objective_terms"] = []
+    for row in rows:
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark("fixed_order_cost_big_m"))
+
+    unsafe_components = type_aware_consensus_selection_components(rows[0])
+    safe_components = selected[0]["selection_components"]
+    assert selected[0]["candidate_id"] == "c1"
+    assert safe_components["objective_term_coverage"] == 1.0
+    assert safe_components["wrong_consensus_risk"] < unsafe_components["wrong_consensus_risk"]
+    assert safe_components["text_triggered_hard_gate_failures"] == []
+
+
+def test_type_aware_consensus_text_triggered_capacity_gate_only_when_text_mentions_capacity():
+    rows = [
+        _row("c0", problem_type="multi_item_capacity", structure_score=0.95, missing=["capacity_constraint"], consensus=0.99),
+        _row("c1", problem_type="multi_item_capacity", structure_score=0.70, missing=[], consensus=0.50),
+    ]
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+        row["natural_language"] = "Plan products with limited warehouse capacity and storage limits."
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark("multi_item_capacity"))
+
+    assert selected[0]["candidate_id"] == "c1"
+    assert selected[0]["selection_components"]["text_triggered_hard_gate_failures"] == []
+
+    non_capacity_rows = [
+        _row("c0", problem_type="single_item_multi_period", structure_score=0.95, missing=[], consensus=0.99),
+        _row("c1", problem_type="single_item_multi_period", structure_score=0.70, missing=[], consensus=0.50),
+    ]
+    for row in non_capacity_rows:
+        row["objective_term_coverage"] = 1.0
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+        row["natural_language"] = "Plan one SKU over periods with inventory balance and holding costs."
+
+    non_capacity_selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": non_capacity_rows}, _benchmark("single_item_multi_period"))
+
+    assert non_capacity_selected[0]["candidate_id"] == "c0"
+    assert non_capacity_selected[0]["selection_components"]["text_triggered_hard_gate_score"] == 1.0
+
+
 def test_type_aware_consensus_does_not_let_non_executable_consensus_win():
     rows = [
         _row("c0", structure_score=1.0, missing=[], consensus=1.0),
@@ -412,16 +484,21 @@ def test_type_aware_consensus_does_not_use_type_aware_pool_filter_alias():
     ]
     for row in rows:
         row["objective_term_coverage"] = 1.0
-        row["type_aware_static_validation"] = {"hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+        row["code_output_format_valid"] = True
+        row["static_validation_score"] = 1.0
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
         row["type_aware_static_validation_errors"] = []
 
     type_aware = select_for_method("ReplenishVerifier-TypeAware", {"p0": rows}, _benchmark())
     consensus = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark())
 
     assert type_aware[0]["candidate_id"] == "c0"
-    assert consensus[0]["candidate_id"] == "c1"
+    assert consensus[0]["candidate_id"] == "c0"
     assert "type_aware_pool_filter_applied" not in consensus[0]
-    assert consensus[0]["selection_components"]["consensus_score"] == 0.99
+    assert consensus[0]["selection_components"]["consensus_score"] == 0.10
+    assert consensus[0]["selection_components"]["wrong_consensus_risk"] == 0.0
 
 
 def test_full_uses_safe_consensus_when_structure_quality_is_tied():

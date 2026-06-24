@@ -421,3 +421,38 @@ Errors encountered in this phase:
 
 - Initial `Read` call again passed invalid `pages: ""` for a Markdown file; future Markdown reads must omit `pages` or use the environment-specific non-empty workaround only if required.
 - First attempted structure-first FullV2 fix passed the misleading-consensus test but failed the user's requested reverse test; replaced it with a structure-safety bucket so consensus still applies when structure differences are tiny.
+
+### Phase 14 — TypeAware-Consensus safe consensus hardening
+
+**Status:** complete on 2026-06-24
+
+Goal:
+
+- Keep the formal method name `ReplenishVerifier-TypeAware-Consensus`, but change its internal logic from raw objective-consensus preference to verifier-guided safe consensus.
+- Add diagnostics for wrong consensus, objective-term coverage, text-triggered gates, by-problem-type analysis, and hard subset / stress-test behavior.
+- Preserve existing methods, avoid new main method names, and keep formal selection no-reference.
+
+Actions:
+
+- Updated `ReplenishVerifier-TypeAware-Consensus` selection components to include candidate-quality-discounted `safe_consensus_score`, `wrong_consensus_risk`, LP coefficient sanity, text-triggered hard-gate score/failures, and critical-missing safety.
+- Reweighted TypeAware-Consensus so raw objective-cluster support is no longer dominant when the cluster is unsafe: structure/constraint coverage, objective-term coverage, LP health, type-aware/static validation, and text-triggered failures can demote a majority cluster.
+- Added text-triggered gate logic for capacity, shortage, fixed-order cost, binary order, and Big-M cues; it is scoped by problem type so non-capacity problems are not penalized for lacking capacity constraints.
+- Preserved `Consensus only` as raw consensus and did not remove or rename any existing method.
+- Added hard-subset / stress-test metrics and diagnostics over capacity, shortage, and fixed-order Big-M problem families.
+- Extended by-problem-type metrics with safe-consensus and wrong-consensus risk summaries.
+- Kept post-hoc correctness fields in diagnostics only; selection components still exclude reference objective, objective correctness, oracle fields, reference LP, and reference answers.
+
+Verification:
+
+- RED checks first failed for missing diagnostics/helpers before implementation (`compute_hard_subset_stress_diagnostics`, `compute_hard_subset_metrics`).
+- Focused safe-consensus tests: `python -m pytest tests/test_selection_gating.py::test_type_aware_consensus_demotes_large_cluster_missing_objective_terms tests/test_selection_gating.py::test_type_aware_consensus_text_triggered_capacity_gate_only_when_text_mentions_capacity tests/test_safe_consensus_diagnostics.py::test_compute_hard_subset_stress_diagnostics_groups_risky_types tests/test_paper_metrics.py::test_compute_hard_subset_metrics_summarizes_capacity_shortage_fixed_cases -q` -> `4 passed`.
+- Focused selector/diagnostic/leakage suite: `python -m pytest tests/test_selection_gating.py tests/test_safe_consensus_diagnostics.py tests/test_paper_metrics.py tests/test_diagnose_selection_metrics.py tests/test_method_dispatch_independence.py tests/test_leakage_audit.py -q` -> `73 passed`.
+- Full suite: `python -m pytest -q` -> `225 passed, 52 warnings`.
+- Compile/diff check: `git diff --check; python -m py_compile replenishverifier/experiments/methods.py replenishverifier/experiments/paper_metrics.py replenishverifier/experiments/diagnose_selection_metrics.py replenishverifier/experiments/build_paper_metrics.py` passed except for existing LF/CRLF warnings.
+
+Notes:
+
+- No candidates were regenerated.
+- `replenishverifier/llm/run_generation.py` was not modified.
+- No real k=8 experiment rerun was performed in this checkout.
+- `run_full_consensus_safe_experiment.sh` had a pre-existing mode-only working-tree change and remains shown as modified; this task did not intentionally edit its content.

@@ -169,6 +169,7 @@ def evaluate_candidate(candidate, reference, work_dir, timeout=30, force_skip_ex
         "runtime_sec": runtime_fields["total_candidate_evaluation_time"],
         "problem_type": reference.get("problem_type"),
         "difficulty": reference.get("difficulty"),
+        "natural_language": reference.get("natural_language", reference.get("problem_text", "")),
         "reference_objective": reference.get("reference_objective"),
         "reference_status": reference.get("reference_status"),
         "objective_term_verification": objective_term_result,
@@ -270,6 +271,7 @@ def _first_or_empty(pid, reference):
         "runtime_sec": 0.0,
         "problem_type": reference.get("problem_type"),
         "difficulty": reference.get("difficulty"),
+        "natural_language": reference.get("natural_language", reference.get("problem_text", "")),
         "reference_objective": reference.get("reference_objective"),
         "reference_status": reference.get("reference_status"),
         "score": 0.0,
@@ -478,19 +480,72 @@ def _lp_coefficient_sanity(row):
     return float(value or 0.0)
 
 
+TEXT_TRIGGER_PATTERNS = {
+    "capacity_constraint": re.compile(r"\b(capacity|storage|warehouse|volume|resource limit|limited storage)\b", re.IGNORECASE),
+    "shortage_cost": re.compile(r"\b(shortage|backorder|backlog|unmet|lost sales|penalty)\b", re.IGNORECASE),
+    "shortage_variable": re.compile(r"\b(shortage|backorder|backlog|unmet|lost sales)\b", re.IGNORECASE),
+    "fixed_order_cost": re.compile(r"\b(fixed order|setup cost|fixed cost|ordering fixed)\b", re.IGNORECASE),
+    "binary_order_variable": re.compile(r"\b(binary|trigger|setup|if an order|whenever.*order)\b", re.IGNORECASE),
+    "big_m_constraint": re.compile(r"\b(big[- ]?m|linking|trigger|binary)\b", re.IGNORECASE),
+}
+
+
+TEXT_TRIGGER_RULES_BY_TYPE = {
+    "multi_item_capacity": {"capacity_constraint"},
+    "single_item_multi_period_shortage": {"shortage_variable", "shortage_cost"},
+    "fixed_order_cost_big_m": {"binary_order_variable", "big_m_constraint", "fixed_order_cost"},
+}
+
+
+def _problem_text(row):
+    reference = row.get("reference") or {}
+    parts = [
+        row.get("natural_language"),
+        row.get("problem_text"),
+        row.get("prompt"),
+        reference.get("natural_language"),
+        reference.get("problem_text"),
+        reference.get("prompt"),
+    ]
+    return "\n".join(str(part) for part in parts if part).lower()
+
+
+def _text_triggered_hard_gate_failures(row):
+    problem_type = _row_problem_type(row)
+    rules = TEXT_TRIGGER_RULES_BY_TYPE.get(problem_type, set())
+    if not rules:
+        return []
+    text = _problem_text(row)
+    missing = _required_missing_for_row(row)
+    failures = []
+    for rule in sorted(rules):
+        pattern = TEXT_TRIGGER_PATTERNS.get(rule)
+        if rule in missing and (not text or (pattern and pattern.search(text))):
+            failures.append(rule)
+    return failures
+
+
+def _text_triggered_hard_gate_score(row):
+    failures = _text_triggered_hard_gate_failures(row)
+    return 1.0 if not failures else 0.0
+
+
 def _candidate_quality_score(row):
     critical_missing = _critical_missing_structures(row)
+    text_failures = _text_triggered_hard_gate_failures(row)
     return float(
-        0.24 * _constraint_coverage(row)
-        + 0.20 * _objective_term_coverage(row)
-        + 0.14 * _lp_coefficient_sanity(row)
+        0.22 * _constraint_coverage(row)
+        + 0.22 * _objective_term_coverage(row)
+        + 0.16 * _lp_coefficient_sanity(row)
         + 0.14 * _lp_health_score(row)
         + 0.10 * _structure_score(row)
-        + 0.08 * _type_aware_hard_gate_score(row)
-        + 0.05 * _type_aware_validation_score(row)
-        + 0.03 * _code_validity_score(row)
-        + 0.02 * _static_validation_score(row)
-        - 0.20 * len(critical_missing)
+        + 0.07 * _type_aware_hard_gate_score(row)
+        + 0.04 * _type_aware_validation_score(row)
+        + 0.03 * _text_triggered_hard_gate_score(row)
+        + 0.01 * _code_validity_score(row)
+        + 0.01 * _static_validation_score(row)
+        - 0.30 * len(critical_missing)
+        - 0.25 * len(text_failures)
     )
 
 
@@ -498,6 +553,7 @@ def _safe_consensus_components(row):
     raw = float(row.get("objective_consensus_score", 0.0) or 0.0)
     quality = max(0.0, min(1.0, _candidate_quality_score(row)))
     safe = float(raw * quality)
+    text_failures = _text_triggered_hard_gate_failures(row)
     return {
         "consensus_cluster_support": raw,
         "consensus_bucket": round(raw / 0.05) * 0.05,
@@ -505,6 +561,9 @@ def _safe_consensus_components(row):
         "wrong_consensus_risk": max(0.0, raw - safe),
         "candidate_quality_score": quality,
         "lp_coefficient_sanity": _lp_coefficient_sanity(row),
+        "text_triggered_hard_gate_score": _text_triggered_hard_gate_score(row),
+        "text_triggered_hard_gate_failures": text_failures,
+        "text_triggered_hard_gate_failure_count": float(len(text_failures)),
     }
 
 
@@ -529,19 +588,22 @@ def type_aware_consensus_selection_score(row):
         100000.0 * c["executable"]
         + 50000.0 * c["solver_optimal"]
         + 10000.0 * c["finite_objective"]
-        + 5000.0 * c["consensus_cluster_support"]
-        + 1200.0 * c["safe_consensus_score"]
-        + 350.0 * c["lp_health_score"]
-        + 250.0 * c["structure_completeness"]
-        + 220.0 * c["constraint_coverage"]
-        + 170.0 * c["objective_term_coverage"]
-        + 90.0 * c["lp_coefficient_sanity"]
-        + 80.0 * c["hard_gate_score"]
-        + 40.0 * c["type_aware_score"]
+        + 3600.0 * c["safe_consensus_score"]
+        + 1400.0 * c["candidate_quality_score"]
+        + 800.0 * c["consensus_cluster_support"]
+        + 450.0 * c["objective_term_coverage"]
+        + 360.0 * c["constraint_coverage"]
+        + 320.0 * c["lp_coefficient_sanity"]
+        + 260.0 * c["lp_health_score"]
+        + 180.0 * c["structure_completeness"]
+        + 110.0 * c["hard_gate_score"]
+        + 80.0 * c["text_triggered_hard_gate_score"]
+        + 60.0 * c["type_aware_score"]
         + 20.0 * c["code_validity_score"]
         + 10.0 * c["static_validation_score"]
-        - 160.0 * c["critical_missing_count"]
-        - 260.0 * c["wrong_consensus_risk"]
+        - 520.0 * c["critical_missing_count"]
+        - 420.0 * c["text_triggered_hard_gate_failure_count"]
+        - 360.0 * c["wrong_consensus_risk"]
         - 2.0 * c["repair_feedback_count"]
         - 0.1 * c["runtime_sec"]
     )
@@ -1063,12 +1125,14 @@ def _selection_tie_break_key_for_method(row, method_name, allow_feasible_selecti
             components["candidate_quality_score"],
             components["consensus_cluster_support"],
             components["consensus_bucket"],
+            components["objective_term_coverage"],
+            components["constraint_coverage"],
+            components["lp_coefficient_sanity"],
             components["lp_health_score"],
             components["critical_structure_pass"],
             -components["critical_missing_count"],
-            components["constraint_coverage"],
-            components["objective_term_coverage"],
-            components["lp_coefficient_sanity"],
+            components["text_triggered_hard_gate_score"],
+            -components["text_triggered_hard_gate_failure_count"],
             components["structure_completeness"],
             components["hard_gate_score"],
             components["type_aware_score"],

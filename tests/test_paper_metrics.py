@@ -3,6 +3,7 @@ import csv
 from replenishverifier.experiments.build_paper_metrics import build_paper_metrics
 from replenishverifier.experiments.paper_metrics import (
     DEFAULT_PAPER_METHODS,
+    compute_hard_subset_metrics,
     compute_metrics_by_problem_type,
     compute_selected_method_metrics,
     compute_error_type_summary,
@@ -184,6 +185,27 @@ def test_compute_metrics_by_problem_type_groups_selected_methods_and_problem_typ
     assert keyed[("Consensus only", "multi_item_capacity")]["objective_accuracy"] == 0.0
     assert keyed[("ReplenishVerifier-TypeAware-Consensus", "multi_item_capacity")]["objective_accuracy"] == 1.0
     assert keyed[("ReplenishVerifier-TypeAware-Consensus", "fixed_order_cost_big_m")]["constraint_coverage"] == 1.0
+    assert "wrong_consensus_risk_mean" in keyed[("ReplenishVerifier-TypeAware-Consensus", "multi_item_capacity")]
+
+
+def test_compute_hard_subset_metrics_summarizes_capacity_shortage_fixed_cases():
+    rows = [
+        _row("Consensus only", "p0", "model_k0", objective_correct=0.0, structure_score=0.5, problem_type="multi_item_capacity"),
+        _row("Consensus only", "p1", "model_k0", objective_correct=1.0, structure_score=1.0, problem_type="single_period_newsvendor"),
+        _row("ReplenishVerifier-TypeAware-Consensus", "p0", "model_k1", objective_correct=1.0, structure_score=1.0, problem_type="multi_item_capacity"),
+        _row("ReplenishVerifier-TypeAware-Consensus", "p2", "model_k1", objective_correct=0.0, structure_score=0.75, problem_type="fixed_order_cost_big_m"),
+    ]
+    rows[0]["selection_components"] = {"wrong_consensus_risk": 0.6, "safe_consensus_score": 0.2, "consensus_cluster_support": 0.8}
+    rows[2]["selection_components"] = {"wrong_consensus_risk": 0.0, "safe_consensus_score": 0.7, "consensus_cluster_support": 0.7}
+    rows[3]["selection_components"] = {"wrong_consensus_risk": 0.2, "safe_consensus_score": 0.5, "consensus_cluster_support": 0.7}
+
+    table = compute_hard_subset_metrics(rows, methods=["Consensus only", "ReplenishVerifier-TypeAware-Consensus"])
+    keyed = {(row["hard_subset"], row["method"]): row for row in table}
+
+    assert keyed[("capacity_or_fixed_or_shortage", "Consensus only")]["n"] == 1
+    assert keyed[("capacity_or_fixed_or_shortage", "Consensus only")]["objective_accuracy"] == 0.0
+    assert keyed[("capacity_or_fixed_or_shortage", "ReplenishVerifier-TypeAware-Consensus")]["n"] == 2
+    assert keyed[("capacity_or_fixed_or_shortage", "ReplenishVerifier-TypeAware-Consensus")]["wrong_consensus_risk_mean"] == 0.1
 
 
 def test_compute_selection_collapse_summary_reports_high_overlap_and_duplicate_metrics():
@@ -230,6 +252,7 @@ def test_build_paper_metrics_writes_expected_tables(tmp_path):
         "table_by_problem_type",
         "table_selection_collapse",
         "table_selector_v2_main",
+        "table_hard_subset_stress",
     ]
     assert set(result["tables"]) == set(expected)
     for name in expected:

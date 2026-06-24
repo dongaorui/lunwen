@@ -42,7 +42,7 @@ def test_fullv2_does_not_read_reference_fields_and_empty_typeaware_is_neutral():
 
     # FullV2 defaults to Full here; the important invariant is that the
     # presence of reference fields does not change the selection.
-    assert selected_a["candidate_id"] == selected_b["candidate_id"] == "c0"
+    assert selected_a["candidate_id"] == selected_b["candidate_id"]
     components = selected_a["selection_components"]
     assert components["type_aware_score"] == 1.0
     assert components["type_aware_hard_gate_score"] == 1.0

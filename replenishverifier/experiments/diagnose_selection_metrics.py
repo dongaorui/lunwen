@@ -6,6 +6,7 @@ from pathlib import Path
 from replenishverifier.experiments.paper_metrics import (
     BASE_METRICS,
     compute_error_type_summary,
+    compute_hard_subset_metrics,
     compute_missed_oracle_summary,
     compute_paired_method_comparison,
     compute_selected_method_metrics,
@@ -409,6 +410,11 @@ def compute_wrong_consensus_risk_diagnostics(main_rows, methods=None, risk_thres
                 "posthoc_note": "posthoc objective correctness is diagnostic-only",
             })
     return rows
+
+
+def compute_hard_subset_stress_diagnostics(main_rows, methods=None):
+    methods = methods or ["Consensus only", "Structure only", "ReplenishVerifier-TypeAware-Consensus", "ReplenishVerifier-Full"]
+    return compute_hard_subset_metrics(main_rows, methods=methods)
 
 
 def compute_full_typeaware_consensus_difference_diagnostics(main_rows):
@@ -971,6 +977,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     avoidable_error_summary = compute_avoidable_error_summary(main_rows, candidate_rows) if candidate_rows else []
     consensus_safe_counterfactual = compute_consensus_safe_counterfactual(main_rows)
     wrong_consensus_risk = compute_wrong_consensus_risk_diagnostics(main_rows)
+    hard_subset_stress_test = compute_hard_subset_stress_diagnostics(main_rows)
     full_vs_typeaware_consensus_diff = compute_full_typeaware_consensus_difference_diagnostics(main_rows)
     selector_counterfactuals = compute_selector_counterfactuals(main_rows)
     selector_failure_summary = build_selector_failure_summary(selector_counterfactuals)
@@ -1023,6 +1030,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     _write_consensus_safe_counterfactual_markdown(out_dir / "consensus_safe_counterfactual.md", consensus_safe_counterfactual)
     write_csv(out_dir / "wrong_consensus_risk.csv", wrong_consensus_risk)
     _write_posthoc_diagnostic_markdown(out_dir / "wrong_consensus_risk.md", "Wrong Consensus Risk Diagnostics", wrong_consensus_risk)
+    write_csv(out_dir / "hard_subset_stress_test.csv", hard_subset_stress_test)
+    _write_posthoc_diagnostic_markdown(out_dir / "hard_subset_stress_test.md", "Hard Subset / Stress Test Diagnostics", hard_subset_stress_test)
     write_csv(out_dir / "full_vs_typeaware_consensus_diff.csv", full_vs_typeaware_consensus_diff)
     _write_posthoc_diagnostic_markdown(out_dir / "full_vs_typeaware_consensus_diff.md", "Full vs TypeAware-Consensus Difference Diagnostics", full_vs_typeaware_consensus_diff)
     write_csv(out_dir / "selector_counterfactuals.csv", selector_counterfactuals)
@@ -1076,6 +1085,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "avoidable_error_summary": avoidable_error_summary,
         "consensus_safe_counterfactual": consensus_safe_counterfactual,
         "wrong_consensus_risk": wrong_consensus_risk,
+        "hard_subset_stress_test": hard_subset_stress_test,
         "full_vs_typeaware_consensus_diff": full_vs_typeaware_consensus_diff,
         "selector_counterfactuals": selector_counterfactuals,
         "selector_failure_summary": selector_failure_summary,
