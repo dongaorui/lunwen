@@ -486,6 +486,70 @@ def compute_hard_subset_stress_diagnostics(main_rows, methods=None):
     return compute_hard_subset_metrics(main_rows, methods=methods)
 
 
+def _objective_correct_bool(row):
+    try:
+        return float(row.get("objective_correct") or 0.0) >= 0.5
+    except (TypeError, ValueError):
+        return False
+
+
+def compute_problem_type_pool_limit_diagnostics(main_rows, candidate_rows, pool_limited_threshold=0.65):
+    candidates_by_problem = {}
+    problem_type_by_problem = {}
+    for row in candidate_rows:
+        pid = row.get("problem_id")
+        if not pid:
+            continue
+        candidates_by_problem.setdefault(pid, []).append(row)
+        if row.get("problem_type"):
+            problem_type_by_problem[pid] = row.get("problem_type")
+
+    oracle_by_problem = {
+        pid: any(_objective_correct_bool(row) for row in rows)
+        for pid, rows in candidates_by_problem.items()
+    }
+
+    selected_by_method_type = {}
+    for row in main_rows:
+        method = row.get("method_name") or row.get("method")
+        pid = row.get("problem_id")
+        problem_type = row.get("problem_type") or problem_type_by_problem.get(pid)
+        if not method or not problem_type or not pid:
+            continue
+        bucket = selected_by_method_type.setdefault((method, problem_type), {"n": 0, "selected_correct": 0, "oracle_available": 0})
+        bucket["n"] += 1
+        if _objective_correct_bool(row):
+            bucket["selected_correct"] += 1
+        if oracle_by_problem.get(pid, False):
+            bucket["oracle_available"] += 1
+
+    rows = []
+    for (method, problem_type), values in sorted(selected_by_method_type.items()):
+        n = int(values["n"])
+        oracle_at_k = float(values["oracle_available"] / max(n, 1))
+        selector_accuracy = float(values["selected_correct"] / max(n, 1))
+        selector_gap_to_oracle = float(oracle_at_k - selector_accuracy)
+        pool_limited = oracle_at_k < float(pool_limited_threshold)
+        if pool_limited:
+            note = "candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone"
+        elif selector_gap_to_oracle > 0.05:
+            note = "selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected"
+        else:
+            note = "selector is near the post-hoc oracle@k ceiling for this problem type"
+        rows.append({
+            "method": method,
+            "problem_type": problem_type,
+            "n": n,
+            "oracle_at_k": oracle_at_k,
+            "selector_accuracy": selector_accuracy,
+            "selector_gap_to_oracle": selector_gap_to_oracle,
+            "candidate_pool_limited": pool_limited,
+            "diagnostic_note": note,
+            "posthoc_only": True,
+        })
+    return rows
+
+
 def compute_tac_comparison_diagnostics(main_rows):
     selected = _selected_by_method_problem(main_rows)
     tac = selected.get("ReplenishVerifier-TypeAware-Consensus", {})
@@ -1137,6 +1201,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     consensus_safe_counterfactual = compute_consensus_safe_counterfactual(main_rows)
     wrong_consensus_risk = compute_wrong_consensus_risk_diagnostics(main_rows)
     hard_subset_stress_test = compute_hard_subset_stress_diagnostics(main_rows)
+    problem_type_pool_limit_diagnostics = compute_problem_type_pool_limit_diagnostics(main_rows, candidate_rows) if candidate_rows else []
     full_vs_typeaware_consensus_diff = compute_full_typeaware_consensus_difference_diagnostics(main_rows)
     selector_counterfactuals = compute_selector_counterfactuals(main_rows)
     selector_failure_summary = build_selector_failure_summary(selector_counterfactuals)
@@ -1195,6 +1260,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     _write_posthoc_diagnostic_markdown(out_dir / "wrong_consensus_risk.md", "Wrong Consensus Risk Diagnostics", wrong_consensus_risk)
     write_csv(out_dir / "hard_subset_stress_test.csv", hard_subset_stress_test)
     _write_posthoc_diagnostic_markdown(out_dir / "hard_subset_stress_test.md", "Hard Subset / Stress Test Diagnostics", hard_subset_stress_test)
+    write_csv(out_dir / "problem_type_pool_limit_diagnostics.csv", problem_type_pool_limit_diagnostics)
+    _write_posthoc_diagnostic_markdown(out_dir / "problem_type_pool_limit_diagnostics.md", "Problem-Type Pool-Limit Diagnostics", problem_type_pool_limit_diagnostics)
     write_csv(out_dir / "full_vs_typeaware_consensus_diff.csv", full_vs_typeaware_consensus_diff)
     _write_posthoc_diagnostic_markdown(out_dir / "full_vs_typeaware_consensus_diff.md", "Full vs TypeAware-Consensus Difference Diagnostics", full_vs_typeaware_consensus_diff)
     write_csv(out_dir / "selector_counterfactuals.csv", selector_counterfactuals)
@@ -1252,6 +1319,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "consensus_safe_counterfactual": consensus_safe_counterfactual,
         "wrong_consensus_risk": wrong_consensus_risk,
         "hard_subset_stress_test": hard_subset_stress_test,
+        "problem_type_pool_limit_diagnostics": problem_type_pool_limit_diagnostics,
         "full_vs_typeaware_consensus_diff": full_vs_typeaware_consensus_diff,
         "selector_counterfactuals": selector_counterfactuals,
         "selector_failure_summary": selector_failure_summary,

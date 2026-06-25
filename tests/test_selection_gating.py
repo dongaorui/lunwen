@@ -502,6 +502,63 @@ def test_type_aware_consensus_does_not_use_type_aware_pool_filter_alias():
     assert consensus[0]["selection_components"]["wrong_consensus_risk"] == 0.0
 
 
+def test_type_aware_consensus_components_include_common_no_reference_features():
+    rows = [_row("c2", problem_type="fixed_order_cost_big_m", structure_score=1.0, missing=[], consensus=0.70)]
+    rows[0]["execution"] = {"executable": True, "status": "Optimal", "objective": 12.0, "lp_path": "c2.lp"}
+    rows[0]["objective_term_coverage"] = 1.0
+    rows[0]["objective_term_lp_coefficient_coverage"] = 1.0
+    rows[0]["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 3, "variables_count": 3}
+    rows[0]["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+    rows[0]["type_aware_static_validation_errors"] = []
+    rows[0]["reference_objective"] = 999.0
+    rows[0]["objective_correct"] = 0.0
+    rows[0]["relative_error"] = 9.9
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark("fixed_order_cost_big_m"))[0]
+    components = selected["selection_components"]
+
+    assert components["candidate_id"] == "c2"
+    assert components["candidate_rank"] == 2
+    assert components["problem_type"] == "fixed_order_cost_big_m"
+    assert components["solver_ok"] == 1.0
+    assert components["execution_success"] == 1.0
+    assert components["finite_objective"] == 1.0
+    assert components["objective"] == 12.0
+    assert components.keys().isdisjoint({
+        "reference_objective",
+        "objective_correct",
+        "objective_accuracy",
+        "relative_error",
+        "oracle",
+        "reference_lp",
+        "reference_answer",
+    })
+
+
+def test_fixed_order_tac_profile_uses_stable_structure_safe_tie_before_raw_consensus():
+    rows = [
+        _row("c0", problem_type="fixed_order_cost_big_m", structure_score=0.835, missing=[], consensus=0.375),
+        _row("c1", problem_type="fixed_order_cost_big_m", structure_score=0.835, missing=[], consensus=0.500),
+    ]
+    rows[0]["execution"]["objective"] = 461.0
+    rows[1]["execution"]["objective"] = 316.0
+    for row in rows:
+        row["objective_term_coverage"] = 1.0
+        row["objective_term_lp_coefficient_coverage"] = 1.0
+        row["lp_stats"] = {"lp_exported": True, "objective_present": True, "constraints_count": 4, "variables_count": 4}
+        row["code_output_format_valid"] = True
+        row["static_validation_score"] = 1.0
+        row["type_aware_static_validation"] = {"score": 1.0, "hard_gate_score": 1.0, "hard_gate_failures": [], "missing_items": []}
+        row["type_aware_static_validation_errors"] = []
+        row["natural_language"] = "Plan replenishment with fixed order setup cost, binary order trigger, and Big-M linking."
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, _benchmark("fixed_order_cost_big_m"))[0]
+
+    assert selected["candidate_id"] == "c0"
+    assert selected["selection_components"]["tac_priority_profile"] == "fixed_order_cost_big_m"
+    assert selected["selection_components"]["profile_primary_signal"] == "fixed_order_schema_objective_big_m"
+
+
 def test_full_uses_safe_consensus_when_structure_quality_is_tied():
     rows = [
         _row("c0", score=0.80, structure_score=0.88, missing=[], consensus=0.30),

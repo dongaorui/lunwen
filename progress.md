@@ -1398,3 +1398,70 @@ The user asked to improve the existing Qwen3-8B k=8 candidate-diversity experime
 - Formal selection remains no-reference; reference/objective-correct/oracle/reference-LP/reference-answer fields are diagnostics/evaluation only.
 - No real Qwen k=8 rerun was performed locally.
 - `run_full_consensus_safe_experiment.sh` appears as a mode-only modified file from the pre-existing working tree snapshot; this task did not intentionally change its content.
+
+## 2026-06-25 — Per-problem-type safe TAC profile enhancement
+
+### User request
+
+The user asked to continue enhancing the existing `ReplenishVerifier-TypeAware-Consensus` based on current `safe_tac_v2` results, without adding a new main method name, without weakening baselines, without reference/oracle tuning, and with emphasis on hard problem types: `multi_item_capacity`, `fixed_order_cost_big_m`, `single_item_multi_period_shortage`, and `single_period_newsvendor`. The user will run future 800-candidate generation/repair experiments on Xshell.
+
+### Actions completed
+
+1. Restored planning context by reading `task_plan.md`, `findings.md`, and `progress.md`; ran planning session catchup with no output.
+2. Inspected safe_tac_v2 result artifacts under `docs/experiment_results/qwen3_8b_k8_100_v8_candidate_diversity_safe_tac_v2_20260625_083905_compare`.
+3. Diagnosed by-problem-type TAC and oracle@8 behavior from candidate evaluations:
+   - `multi_item_capacity`: TAC `0.6000`, oracle@8 `0.6000` -> candidate-pool-limited.
+   - `fixed_order_cost_big_m`: TAC `0.9500`, oracle@8 `1.0000` -> selector gap.
+   - `single_item_multi_period_shortage`: TAC `0.9500`, oracle@8 `1.0000` -> small remaining gap.
+   - `single_item_multi_period`: TAC `1.0000`, oracle@8 `1.0000` -> saturated and must not be harmed.
+   - `single_period_newsvendor`: TAC `0.7000`, oracle@8 `0.7000` -> candidate-pool-limited in the inspected run.
+4. Added TDD tests before production changes for:
+   - common no-reference TAC feature exposure;
+   - fixed-order Big-M profile avoiding a raw-consensus tie trap;
+   - problem-type pool-limit diagnostics.
+5. Implemented TAC common no-reference components:
+   - `candidate_id`, `candidate_rank`, `problem_type`, `solver_ok`, `execution_success`, `finite_objective`, and `objective`.
+6. Kept `select_typeaware_consensus(problem_candidates, problem)` as the dispatch entry and used per-problem-type profile keys.
+7. Adjusted the fixed-order Big-M profile so stable structure/objective/Big-M-safe evidence and deterministic candidate rank break tied safety cases before raw consensus. This fixes the inspected `fixed_order_cost_big_m_0008` wrong-consensus miss without touching baselines.
+8. Added `compute_problem_type_pool_limit_diagnostics()` and wired diagnostics output:
+   - `problem_type_pool_limit_diagnostics.csv`
+   - `problem_type_pool_limit_diagnostics.md`
+9. Reselected existing safe_tac_v2 candidate evaluations without re-executing or regenerating candidates:
+   - output: `runs/debug_safe_tac_v2_per_type_reselect`
+10. Generated diagnostics and paper metrics for that reselect run, and ran leakage audit.
+
+### Verification
+
+- New RED tests failed first as expected:
+  - missing `candidate_id`/common TAC fields in `selection_components`;
+  - fixed-order profile selected raw-consensus candidate `c1` instead of stable safe candidate `c0`.
+- New tests after implementation:
+  - `python -m pytest tests/test_selection_gating.py::test_type_aware_consensus_components_include_common_no_reference_features tests/test_selection_gating.py::test_fixed_order_tac_profile_uses_stable_structure_safe_tie_before_raw_consensus -q` -> `2 passed`.
+  - `python -m pytest tests/test_diagnose_selection_metrics.py::test_compute_problem_type_pool_limit_diagnostics_marks_low_oracle_types_as_pool_limited tests/test_diagnose_selection_metrics.py::test_diagnose_selection_metrics_writes_oracle_and_paired_outputs -q` -> `2 passed`.
+- Focused suite:
+  - `python -m pytest tests/test_selection_gating.py tests/test_diagnose_selection_metrics.py tests/test_paper_metrics.py tests/test_leakage_audit.py -q` -> `71 passed in 3.08s`.
+- Selection-only rerun on existing safe_tac_v2 evaluations:
+  - `ReplenishVerifier-TypeAware-Consensus` objective_accuracy improved from `0.8400` to `0.8500`.
+  - By type: fixed Big-M `1.0000`, capacity `0.6000`, ordinary multi-period `1.0000`, shortage `0.9500`, newsvendor `0.7000`.
+- Leakage audit:
+  - `python -m replenishverifier.experiments.audit_leakage --exp_dir runs/debug_safe_tac_v2_per_type_reselect --write_report` -> passed.
+- Full suite:
+  - `python -m pytest -q` -> `234 passed, 52 warnings in 10.33s`.
+
+### Changed files
+
+- `replenishverifier/experiments/methods.py`
+- `replenishverifier/experiments/diagnose_selection_metrics.py`
+- `tests/test_selection_gating.py`
+- `tests/test_diagnose_selection_metrics.py`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+### Notes
+
+- No candidate generation or repair generation was run.
+- `replenishverifier/llm/run_generation.py` was not modified.
+- `Consensus only`, `Structure only`, `Best-of-K`, and other baselines were not changed.
+- Formal TAC selection remains no-reference; oracle/objective correctness are used only in diagnostics and final evaluation.
+- `run_full_consensus_safe_experiment.sh` remains modified from the pre-existing working tree snapshot and was not intentionally edited in this task.

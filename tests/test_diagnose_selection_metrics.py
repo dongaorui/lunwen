@@ -5,6 +5,7 @@ from replenishverifier.experiments.diagnose_selection_metrics import (
     compute_best_of_k_audit,
     compute_full_typeaware_consensus_difference_diagnostics,
     compute_method_selection_clusters,
+    compute_problem_type_pool_limit_diagnostics,
     compute_tac_comparison_diagnostics,
     compute_wrong_consensus_risk_diagnostics,
     diagnose_selection_metrics,
@@ -120,6 +121,34 @@ def test_diagnose_detects_reported_mismatch(tmp_path):
     assert any(row["method"] == "Direct" and row["metric"] == "executable_rate" for row in mismatches)
 
 
+def test_compute_problem_type_pool_limit_diagnostics_marks_low_oracle_types_as_pool_limited():
+    candidate_rows = [
+        _selected("candidate", "cap0", "m_k0", objective_correct=0.0, problem_type="multi_item_capacity"),
+        _selected("candidate", "cap0", "m_k1", objective_correct=1.0, problem_type="multi_item_capacity"),
+        _selected("candidate", "cap1", "m_k0", objective_correct=0.0, problem_type="multi_item_capacity"),
+        _selected("candidate", "cap1", "m_k1", objective_correct=0.0, problem_type="multi_item_capacity"),
+        _selected("candidate", "fix0", "m_k0", objective_correct=1.0, problem_type="fixed_order_cost_big_m"),
+        _selected("candidate", "fix1", "m_k0", objective_correct=1.0, problem_type="fixed_order_cost_big_m"),
+    ]
+    main_rows = [
+        _selected("ReplenishVerifier-TypeAware-Consensus", "cap0", "m_k0", objective_correct=0.0, problem_type="multi_item_capacity"),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "cap1", "m_k0", objective_correct=0.0, problem_type="multi_item_capacity"),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "fix0", "m_k0", objective_correct=1.0, problem_type="fixed_order_cost_big_m"),
+        _selected("ReplenishVerifier-TypeAware-Consensus", "fix1", "m_k0", objective_correct=1.0, problem_type="fixed_order_cost_big_m"),
+    ]
+
+    rows = compute_problem_type_pool_limit_diagnostics(main_rows, candidate_rows)
+    by_type = {row["problem_type"]: row for row in rows}
+
+    assert by_type["multi_item_capacity"]["oracle_at_k"] == 0.5
+    assert by_type["multi_item_capacity"]["selector_accuracy"] == 0.0
+    assert by_type["multi_item_capacity"]["candidate_pool_limited"] is True
+    assert "candidate-pool limitation" in by_type["multi_item_capacity"]["diagnostic_note"]
+    assert by_type["fixed_order_cost_big_m"]["oracle_at_k"] == 1.0
+    assert by_type["fixed_order_cost_big_m"]["candidate_pool_limited"] is False
+
+
+
 def test_compute_missed_oracle_summary_counts_oracle_cases_missed_by_selection():
     candidate_rows = [
         _selected("candidate", "p0", "m_k0", objective_correct=0.0),
@@ -189,8 +218,11 @@ def test_diagnose_selection_metrics_writes_oracle_and_paired_outputs(tmp_path):
 
     assert (exp_dir / "diag" / "missed_oracle_summary.csv").exists()
     assert (exp_dir / "diag" / "paired_method_comparison.csv").exists()
+    assert (exp_dir / "diag" / "problem_type_pool_limit_diagnostics.csv").exists()
+    assert (exp_dir / "diag" / "problem_type_pool_limit_diagnostics.md").exists()
     assert result["missed_oracle_summary"]
     assert result["paired_method_comparison"]
+    assert result["problem_type_pool_limit_diagnostics"]
 
 
 def test_method_redundancy_report_lists_high_overlap_and_identical_metric_groups():

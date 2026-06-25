@@ -627,9 +627,24 @@ def _tac_profile_primary_signal(profile):
     }.get(profile, "inventory_balance_objective_terms")
 
 
+def _tac_common_no_reference_features(row, problem_type):
+    execution = row.get("execution") or {}
+    return {
+        "candidate_id": row.get("candidate_id"),
+        "candidate_rank": _candidate_index(row),
+        "problem_type": problem_type or _row_problem_type(row),
+        "solver_ok": 1.0 if str(execution.get("status") or "") == "Optimal" else 0.0,
+        "execution_success": 1.0 if execution.get("executable") else 0.0,
+        "finite_objective": _finite_objective_score(row),
+        "objective": execution.get("objective"),
+    }
+
+
 def _with_tac_profile_components(row, problem_type):
     components = type_aware_consensus_selection_components(row)
-    profile = _tac_profile_name(problem_type or _row_problem_type(row))
+    profile_problem_type = problem_type or _row_problem_type(row)
+    components.update(_tac_common_no_reference_features(row, profile_problem_type))
+    profile = _tac_profile_name(profile_problem_type)
     components["tac_priority_profile"] = profile
     components["profile_primary_signal"] = _tac_profile_primary_signal(profile)
     return components
@@ -654,12 +669,13 @@ def _tac_profile_key(row, problem_type, allow_feasible_selection=False):
             components["objective_term_coverage"],
             components["lp_coefficient_sanity"],
             components["hard_gate_score"],
+            components["structure_completeness"],
+            components["constraint_coverage"],
+            candidate_order,
             components["safe_consensus_score"],
             -components["wrong_consensus_risk"],
             components["consensus_cluster_support"],
-            components["structure_completeness"],
             runtime,
-            candidate_order,
         )
     if profile == "multi_item_capacity":
         return common_prefix + (

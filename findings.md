@@ -520,3 +520,20 @@ Verification:
 - Full suite: `225 passed, 52 warnings`.
 - Compile/diff check passed aside from LF/CRLF warnings.
 - No candidate regeneration or `run_generation.py` change.
+
+## 2026-06-25 — Per-problem-type safe TAC profiles and pool-limit diagnostics
+
+Safe TAC v2 result inspection showed the key distinction between selector headroom and candidate-pool limitation:
+
+- `multi_item_capacity`: oracle@8 is `0.6000`; TAC reaches `0.6000`, so this subset is candidate-pool-limited in the inspected run. If a future run has capacity oracle@8 clearly above `0.6000`, remaining TAC errors should be treated as selector errors.
+- `single_period_newsvendor`: oracle@8 is `0.7000`; TAC remains `0.7000`, so the inspected run is also bounded by candidate quality. Further improvement likely needs generation/repair for overage/underage/expected-cost/demand-satisfaction candidates.
+- `fixed_order_cost_big_m`: oracle@8 is `1.0000`, while safe TAC v2 was `0.9500`; this was a selector gap. The observed miss involved a larger wrong objective cluster with otherwise tied structure/objective-term evidence. The fixed-order TAC profile now uses stable schema/objective/Big-M-safe evidence and earlier candidate-rank tie-breaking before raw consensus under tied safety evidence, fixing the inspected gap.
+- `single_item_multi_period`: TAC remains `1.0000`, so the new profiles did not harm the saturated ordinary multi-period subset.
+- `single_item_multi_period_shortage`: TAC remains `0.9500`; it preserves its previous advantage but does not close the last gap from the currently inspected no-reference signals.
+
+Implementation finding:
+
+- `select_typeaware_consensus(problem_candidates, problem)` now dispatches through explicit per-problem-type TAC profiles rather than a single global safe-consensus priority key.
+- TAC `selection_components` now expose common no-reference features: `candidate_id`, `candidate_rank`, `problem_type`, `solver_ok`, `execution_success`, `finite_objective`, and `objective`.
+- New diagnostics `problem_type_pool_limit_diagnostics.csv/.md` report oracle@k, selector accuracy, gap to oracle, and a candidate-pool-limited flag by method/problem type. These diagnostics are post-hoc only and not used by selection.
+- Reselecting existing safe_tac_v2 evaluations into `runs/debug_safe_tac_v2_per_type_reselect` improved TAC objective_accuracy from `0.8400` to `0.8500` while preserving no-reference leakage audit success.

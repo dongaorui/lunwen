@@ -456,3 +456,43 @@ Notes:
 - `replenishverifier/llm/run_generation.py` was not modified.
 - No real k=8 experiment rerun was performed in this checkout.
 - `run_full_consensus_safe_experiment.sh` had a pre-existing mode-only working-tree change and remains shown as modified; this task did not intentionally edit its content.
+
+### Phase 15 — Per-problem-type safe TAC profiles
+
+**Status:** complete on 2026-06-25
+
+Goal:
+
+- Keep the public method name `ReplenishVerifier-TypeAware-Consensus` unchanged while upgrading the internal selector from one global safe-consensus key to per-problem-type safe TAC profiles.
+- Focus on hard problem types: `multi_item_capacity`, `fixed_order_cost_big_m`, `single_item_multi_period_shortage`, and `single_period_newsvendor`.
+- Preserve baselines and no-reference formal selection.
+
+Actions:
+
+- Read current safe TAC v2 results under `docs/experiment_results/qwen3_8b_k8_100_v8_candidate_diversity_safe_tac_v2_20260625_083905_compare`.
+- Confirmed current TAC v2 objective accuracy was `0.8400`, with by-type TAC: fixed Big-M `0.9500`, capacity `0.6000`, ordinary multi-period `1.0000`, shortage `0.9500`, newsvendor `0.7000`.
+- Confirmed post-hoc oracle@8 by problem type from candidate rows: capacity `0.6000`, newsvendor `0.7000`, fixed Big-M `1.0000`, shortage `1.0000`, ordinary multi-period `1.0000`.
+- Added/verified explicit `select_typeaware_consensus(problem_candidates, problem)` dispatch path using problem-type profiles.
+- Added common no-reference TAC features in `selection_components`: `candidate_id`, `candidate_rank`, `problem_type`, `solver_ok`, `execution_success`, `finite_objective`, and `objective`.
+- Adjusted the fixed-order Big-M TAC profile to use stable schema/objective/Big-M-safe evidence before raw consensus when all safety evidence ties, avoiding the observed wrong majority objective cluster on `fixed_order_cost_big_m_0008`.
+- Added problem-type pool-limit diagnostics that report `oracle_at_k`, selector accuracy, selector gap, and whether a problem type is candidate-pool-limited.
+- Reselected existing safe_tac_v2 candidate evaluations into `runs/debug_safe_tac_v2_per_type_reselect` without re-executing or regenerating candidates.
+- Generated diagnostics and paper metrics for the reselect run.
+
+Verification:
+
+- New RED tests failed first for missing common TAC component fields and fixed-order tie behavior, then passed after implementation.
+- Focused tests: `python -m pytest tests/test_selection_gating.py tests/test_diagnose_selection_metrics.py tests/test_paper_metrics.py tests/test_leakage_audit.py -q` -> `71 passed in 3.08s`.
+- Reselect result: `ReplenishVerifier-TypeAware-Consensus` improved from `0.8400` to `0.8500` objective_accuracy on the existing safe_tac_v2 candidate evaluations.
+- By-type reselect TAC: fixed Big-M `1.0000`, capacity `0.6000`, ordinary multi-period `1.0000`, shortage `0.9500`, newsvendor `0.7000`.
+- Leakage audit on `runs/debug_safe_tac_v2_per_type_reselect` passed.
+- Full suite: `python -m pytest -q` -> `234 passed, 52 warnings in 10.33s`.
+
+Notes:
+
+- `multi_item_capacity` is candidate-pool-limited in the inspected run because oracle@8 is only `0.6000`; TAC reaches `0.6000`, so further gains require better candidate generation/repair rather than selector tuning alone.
+- `single_period_newsvendor` is also pool-limited at oracle@8 `0.7000`; TAC remains at this ceiling.
+- `fixed_order_cost_big_m` had selector headroom because oracle@8 was `1.0000` while TAC was `0.9500`; the per-type profile fixes the observed gap in the inspected run.
+- `single_item_multi_period` stays saturated at `1.0000`, so ordinary multi-period was not harmed.
+- `single_item_multi_period_shortage` keeps `0.9500`; remaining gap is not fixed by the no-reference signals inspected here.
+- No `run_generation.py` changes and no candidate regeneration were performed.
