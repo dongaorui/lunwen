@@ -751,11 +751,53 @@ def should_recover_tac_selection(initial, challenger, profile):
     return True
 
 
+def _fixed_order_safety_signature(components):
+    return (
+        components["critical_structure_pass"],
+        components["critical_missing_count"],
+        components["text_triggered_hard_gate_score"],
+        components["objective_term_coverage"],
+        components["lp_coefficient_sanity"],
+        components["hard_gate_score"],
+        components["structure_completeness"],
+        components["constraint_coverage"],
+        components["candidate_quality_score"],
+        components["lp_health_score"],
+        components["type_aware_score"],
+        components["static_validation_score"],
+    )
+
+
+def _fixed_order_overwhelming_safe_consensus_recovery(initial, challengers, problem_type):
+    initial_components = _with_tac_profile_components(initial, problem_type)
+    initial_signature = _fixed_order_safety_signature(initial_components)
+    eligible = []
+    for row in challengers:
+        components = _with_tac_profile_components(row, problem_type)
+        if _tac_missing_hard_schema(row, "fixed_order_cost_big_m"):
+            continue
+        if components["execution_success"] <= 0.0 or components["solver_ok"] <= 0.0 or components["finite_objective"] <= 0.0:
+            continue
+        if components["critical_missing_count"] > 0.0 or components["text_triggered_hard_gate_failure_count"] > 0.0:
+            continue
+        if _fixed_order_safety_signature(components) != initial_signature:
+            continue
+        if components["consensus_cluster_support"] < 0.75 or components["safe_consensus_score"] < 0.75:
+            continue
+        if components["safe_consensus_score"] < initial_components["safe_consensus_score"] + 0.50:
+            continue
+        eligible.append(row)
+    if not eligible:
+        return None
+    return max(eligible, key=lambda row: _tac_profile_key(row, problem_type))
+
+
 def _tac_recovery_decision(initial, challengers, profile, problem_type):
     decision = {
         "triggered": False,
         "profile": profile,
         "reason": "not_applicable",
+        "initial_candidate_id": initial.get("candidate_id"),
         "initial_missing_hard_schema": sorted(_tac_missing_hard_schema(initial, profile)),
         "challenger_candidate_id": None,
     }
@@ -763,6 +805,16 @@ def _tac_recovery_decision(initial, challengers, profile, problem_type):
         decision["reason"] = "hard_profile_not_enabled"
         return initial, decision
     if not decision["initial_missing_hard_schema"]:
+        if profile == "fixed_order_cost_big_m":
+            challenger = _fixed_order_overwhelming_safe_consensus_recovery(initial, challengers, problem_type)
+            if challenger is not None and challenger is not initial:
+                decision.update({
+                    "triggered": True,
+                    "reason": "fixed_order_overwhelming_safe_consensus",
+                    "challenger_candidate_id": challenger.get("candidate_id"),
+                    "challenger_missing_hard_schema": sorted(_tac_missing_hard_schema(challenger, profile)),
+                })
+                return challenger, decision
         decision["reason"] = "initial_schema_complete"
         return initial, decision
     eligible = [row for row in challengers if should_recover_tac_selection(initial, row, profile)]

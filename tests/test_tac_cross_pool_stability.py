@@ -178,3 +178,30 @@ def test_conservative_recovery_requires_solver_and_schema_complete_challenger():
     assert should_recover_tac_selection(initial, challenger, "multi_item_capacity") is True
     assert should_recover_tac_selection(initial, failed_challenger, "multi_item_capacity") is False
     assert should_recover_tac_selection(challenger, initial, "multi_item_capacity") is False
+
+
+def test_fixed_order_tac_recovers_when_schema_safe_challenger_has_overwhelming_consensus():
+    required = ["inventory_balance", "order_variable", "binary_order_variable", "big_m_constraint", "fixed_order_cost"]
+    rows = [
+        _row("minority_k3", problem_type="fixed_order_cost_big_m", rank=3, required=required, missing=[], consensus=0.125),
+        _row("majority_k4", problem_type="fixed_order_cost_big_m", rank=4, required=required, missing=[], consensus=0.875),
+    ]
+
+    selected = select_typeaware_consensus(rows, {"problem_type": "fixed_order_cost_big_m"})
+
+    assert selected["candidate_id"] == "majority_k4"
+    assert selected["selection_components"]["tac_recovery_triggered"] is True
+    assert selected["selection_components"]["tac_recovery_reason"] == "fixed_order_overwhelming_safe_consensus"
+
+
+def test_fixed_order_tac_keeps_stable_rank_when_consensus_gain_is_only_moderate():
+    required = ["inventory_balance", "order_variable", "binary_order_variable", "big_m_constraint", "fixed_order_cost"]
+    rows = [
+        _row("stable_k0", problem_type="fixed_order_cost_big_m", rank=0, required=required, missing=[], consensus=0.375),
+        _row("moderate_consensus_k3", problem_type="fixed_order_cost_big_m", rank=3, required=required, missing=[], consensus=0.50),
+    ]
+
+    selected = select_typeaware_consensus(rows, {"problem_type": "fixed_order_cost_big_m"})
+
+    assert selected["candidate_id"] == "stable_k0"
+    assert selected["selection_components"]["tac_recovery_triggered"] is False

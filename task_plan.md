@@ -497,6 +497,51 @@ Notes:
 - `single_item_multi_period_shortage` keeps `0.9500`; remaining gap is not fixed by the no-reference signals inspected here.
 - No `run_generation.py` changes and no candidate regeneration were performed.
 
+### Phase 17 — V8/V9 robust TAC stability refinement
+
+**Status:** complete on 2026-06-25
+
+Goal:
+
+- Improve `ReplenishVerifier-TypeAware-Consensus` stability across the recent V8/V9 cross-pool robust TAC runs.
+- Diagnose before changing code; do not overfit to V9 missed-oracle cases unless oracle-correct candidates are distinguishable by no-reference features.
+- Modify only TAC internals/helpers/diagnostics/tests, not other baseline selection or generation.
+
+Actions:
+
+- Restored planning context and inspected current TAC profile/recovery code.
+- Diagnosed V8/V9 missed-oracle cases from archived `candidate_evaluations.jsonl` without regenerating or re-executing candidates.
+- Found V8 has one TAC missed oracle in `single_item_multi_period_shortage`; the oracle-correct candidate is weaker on current no-reference consensus/quality features, so no selector rule was added for it.
+- Found V9 has three TAC missed oracles: two shortage cases are similarly not justified by no-reference features, while `fixed_order_cost_big_m_0018` has an oracle-correct candidate with all safety/schema features tied and overwhelming safe objective-consensus support.
+- Added a conservative fixed-order TAC recovery path that fires only when schema/safety features are tied, the challenger is executable/Optimal/finite, has no critical/text-gate failures, and has overwhelming safe consensus (`>=0.75` and at least `+0.50` over the initial selection).
+- Preserved the existing fixed-order rank-stability behavior for moderate consensus gains, protecting the known V8 `fixed_order_cost_big_m_0008` style counterexample.
+- Added post-hoc TAC override summary diagnostics (`tac_override_summary.csv/.md`) that count improved/worsened/unchanged recoveries using objective correctness only after selection.
+- Reselected V8/V9 existing candidate evaluations into `runs/tac_crosspool_v8_20260625` and `runs/tac_crosspool_v9_20260625`; no candidate execution/generation was performed.
+
+Verification:
+
+- RED/GREEN tests added for fixed-order overwhelming safe-consensus recovery and moderate-consensus rank stability.
+- RED/GREEN tests added for `compute_tac_override_summary()` and writing `diagnostics/tac_override_summary.md`.
+- Focused TAC tests: `python -m pytest tests/test_tac_cross_pool_stability.py tests/test_selection_gating.py -q` -> `42 passed`.
+- Full suite: `python -m pytest -q` -> `245 passed, 52 warnings in 10.42s`.
+- V8 leakage audit passed.
+- V9 leakage audit passed.
+
+Results:
+
+- V8 TAC objective_accuracy: `0.8500` (unchanged, meets threshold).
+- V9 TAC objective_accuracy: `0.8300` (improved from the prior `0.8200`).
+- Cross-pool average TAC objective_accuracy: `(0.8500 + 0.8300) / 2 = 0.8400`.
+- Cross-pool minimum TAC objective_accuracy: `0.8300`.
+- V8 override summary: `improved_count=0`, `worsened_count=0`.
+- V9 override summary: `improved_count=1`, `worsened_count=0`.
+
+Notes:
+
+- Formal selection remains no-reference; the new recovery uses only candidate-observable TAC components.
+- Post-hoc objective correctness is used only in diagnostics, never in ranking.
+- No `run_generation.py` change and no candidate regeneration were performed.
+
 ### Phase 16 — Cross-pool conservative TAC hardening
 
 **Status:** complete on 2026-06-25

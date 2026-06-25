@@ -556,3 +556,26 @@ Cross-pool validation on existing candidate evaluations:
 - Both leakage audits passed.
 - The change is stability-preserving on these pools: average TAC across V8/V9 is `0.8350`, minimum is `0.8200`; V8 remains at `0.8500` and V9 remains at the provided regenerated baseline `0.8200`.
 - Capacity remains pool/selector-limited by available candidates and no-reference signals; no problem-id or candidate-file-specific rule was added.
+
+## 2026-06-25 — V8/V9 robust TAC stability refinement
+
+Cross-pool missed-oracle diagnosis showed only one new selector-actionable pattern:
+
+- V8 had one remaining TAC missed oracle in `single_item_multi_period_shortage_0004`. The post-hoc correct candidate had weaker or equal current no-reference signals (lower safe consensus/support and slightly lower structure/candidate quality), so no rule was added.
+- V9 had three remaining TAC missed oracles. The two shortage misses were also not justified by current no-reference features: oracle-correct candidates had equal safety/coverage but weaker consensus support. No rule was added for them.
+- V9 `fixed_order_cost_big_m_0018` was different: the oracle-correct candidate tied the selected candidate on schema, objective-term coverage, constraint coverage, structure, LP health, type-aware/static validation, and hard gates, but had overwhelming safe consensus (`~0.864` vs `~0.123`). This is a legitimate no-reference distinction.
+
+Implementation finding:
+
+- TAC now has a fixed-order-only overwhelming safe-consensus recovery after the stable rank-first profile. It fires only when safety signatures are equal, hard schema is complete, the challenger is executable/Optimal/finite, and safe consensus is both high and far above the initial choice.
+- The threshold intentionally does not fire for V8 `fixed_order_cost_big_m_0008`-style moderate consensus gains, where moving consensus before rank would have worsened V8.
+- New `tac_override_summary.csv/.md` diagnostics count post-hoc improved/worsened/unchanged override effects. These diagnostics use objective correctness only after selection and are not formal selection inputs.
+
+Validation outcome on selection-only reruns:
+
+- V8 TAC remains `0.8500`; V9 TAC improves to `0.8300`.
+- V8/V9 average TAC objective_accuracy is `0.8400`; minimum is `0.8300`.
+- V8 and V9 leakage audits passed.
+- Override summary satisfies `improved_count >= worsened_count`: V8 `0 >= 0`, V9 `1 >= 0`.
+
+No other baseline selection logic, generation code, candidate files, or candidate execution path was changed.

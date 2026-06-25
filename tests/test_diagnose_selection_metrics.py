@@ -7,6 +7,7 @@ from replenishverifier.experiments.diagnose_selection_metrics import (
     compute_method_selection_clusters,
     compute_problem_type_pool_limit_diagnostics,
     compute_tac_comparison_diagnostics,
+    compute_tac_override_summary,
     compute_wrong_consensus_risk_diagnostics,
     diagnose_selection_metrics,
 )
@@ -411,6 +412,45 @@ def test_diagnose_selection_metrics_writes_new_diagnostic_reports(tmp_path):
     assert (exp_dir / "diag" / "avoidable_error_summary.md").exists()
     assert "avoidable_error_summary" in result
     assert "post-hoc diagnostics only" in (exp_dir / "diag" / "avoidable_error_summary.md").read_text(encoding="utf-8")
+
+
+def test_compute_tac_override_summary_counts_posthoc_recovery_effects():
+    improved = _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "m_k1", objective_correct=1.0, missing=[])
+    worsened = _selected("ReplenishVerifier-TypeAware-Consensus", "p1", "m_k1", objective_correct=0.0, missing=[])
+    unchanged = _selected("ReplenishVerifier-TypeAware-Consensus", "p2", "m_k0", objective_correct=1.0, missing=[])
+    improved["tac_recovery_decision"] = {"triggered": True, "reason": "fixed_order_overwhelming_safe_consensus", "initial_candidate_id": "m_k0"}
+    improved["selection_components"] = {"tac_recovery_triggered": True, "tac_recovery_reason": "fixed_order_overwhelming_safe_consensus"}
+    improved["tac_initial_objective_correct_posthoc"] = 0.0
+    worsened["tac_recovery_decision"] = {"triggered": True, "reason": "challenger_completes_hard_schema", "initial_candidate_id": "m_k0"}
+    worsened["selection_components"] = {"tac_recovery_triggered": True, "tac_recovery_reason": "challenger_completes_hard_schema"}
+    worsened["tac_initial_objective_correct_posthoc"] = 1.0
+    unchanged["selection_components"] = {"tac_recovery_triggered": False}
+
+    summary = compute_tac_override_summary([improved, worsened, unchanged])
+
+    assert summary["total_triggered"] == 2
+    assert summary["improved_count"] == 1
+    assert summary["worsened_count"] == 1
+    assert summary["unchanged_count"] == 0
+    assert summary["posthoc_note"]
+
+
+def test_diagnose_selection_metrics_writes_tac_override_summary(tmp_path):
+    exp_dir = tmp_path / "exp"
+    exp_dir.mkdir()
+    row = _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "m_k1", objective_correct=1.0, missing=[])
+    row["selection_components"] = {"tac_recovery_triggered": True, "tac_recovery_reason": "fixed_order_overwhelming_safe_consensus"}
+    row["tac_recovery_decision"] = {"triggered": True, "reason": "fixed_order_overwhelming_safe_consensus", "initial_candidate_id": "m_k0"}
+    row["tac_initial_objective_correct_posthoc"] = 0.0
+    write_jsonl(exp_dir / "main_results.jsonl", [row])
+    write_jsonl(exp_dir / "candidate_evaluations.jsonl", [dict(row, method_name=None)])
+
+    result = diagnose_selection_metrics(exp_dir=exp_dir, out_dir=exp_dir / "diagnostics")
+
+    assert result["tac_override_summary"]["improved_count"] == 1
+    text = (exp_dir / "diagnostics" / "tac_override_summary.md").read_text(encoding="utf-8")
+    assert "improved_count" in text
+    assert "post-hoc" in text
 
 
 def test_diagnostics_join_matches_k4_to_k7_candidate_ids(tmp_path):

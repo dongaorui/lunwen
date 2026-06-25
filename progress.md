@@ -1527,3 +1527,65 @@ The user asked to improve only `ReplenishVerifier-TypeAware-Consensus` and its i
 
 No candidate generation, repair generation, or `run_generation.py` change was made. Other baseline selection logic was not intentionally changed. Formal TAC selection remains no-reference; objective correctness/oracle/reference fields are evaluation or diagnostics only.
 不起用 problem_id 或 candidate-file 特判；capacity 没有硬调高，仍以泛化 shared-resource/schema evidence 为准。
+
+## 2026-06-25 — V8/V9 robust TAC stability refinement
+
+### User request
+
+The user asked to continue improving `ReplenishVerifier-TypeAware-Consensus` based on recent V8/V9 cross-pool robust TAC experiments. The priority was cross-pool stability, not chasing one candidate pool. Requirements included diagnosing before code changes, using only no-reference distinguishability, modifying only TAC internals/helpers/diagnostics/tests, preserving baselines and no-reference selection, and not running experiment generation locally.
+
+### Actions completed
+
+1. Restored planning context by reading `task_plan.md`, `findings.md`, and `progress.md`, then ran planning session catchup with no output.
+2. Inspected current TAC implementation in `replenishverifier/experiments/methods.py` and tests in `tests/test_tac_cross_pool_stability.py`.
+3. Diagnosed V8/V9 archived `candidate_evaluations.jsonl`:
+   - V8 had one missed oracle in shortage; oracle-correct candidate was not better by no-reference TAC features.
+   - V9 had two shortage missed-oracles with weaker consensus support; not fixed.
+   - V9 had one fixed-order Big-M miss where the oracle-correct candidate had equal safety/schema evidence and overwhelming safe consensus; this was fixable by no-reference features.
+4. Added RED tests for:
+   - fixed-order TAC recovery when schema-safe challenger has overwhelming safe consensus;
+   - preserving stable rank when consensus gain is only moderate.
+5. Implemented a fixed-order-only conservative recovery helper in `methods.py`:
+   - compares a safety signature over critical pass, text gate, objective terms, coefficient sanity, structure, constraint coverage, candidate quality, LP health, and type-aware/static validation;
+   - requires challenger consensus/support thresholds before overriding the initial stable selection.
+6. Added RED/GREEN tests and implementation for post-hoc `compute_tac_override_summary()` and `diagnostics/tac_override_summary.md`.
+7. Reselected existing V8/V9 candidate evaluations without re-execution/generation:
+   - V8: `runs/tac_crosspool_v8_20260625`
+   - V9: `runs/tac_crosspool_v9_20260625`
+8. Ran diagnostics and leakage audits for both reruns.
+
+### Verification
+
+- New fixed-order TAC tests first failed as expected, then passed after implementation.
+- New TAC override summary tests first failed with missing import/function, then passed after implementation.
+- Focused TAC suite:
+  - `python -m pytest tests/test_tac_cross_pool_stability.py tests/test_selection_gating.py -q`
+  - Result: `42 passed in 1.27s`.
+- Full suite:
+  - `python -m pytest -q`
+  - Result: `245 passed, 52 warnings in 10.42s`.
+- V8 leakage audit: passed.
+- V9 leakage audit: passed.
+
+### Results
+
+- V8 TAC objective_accuracy: `0.8500`.
+- V9 TAC objective_accuracy: `0.8300`.
+- Cross-pool average: `0.8400`.
+- Cross-pool minimum: `0.8300`.
+- V8 override summary: `total_triggered=0`, `improved_count=0`, `worsened_count=0`.
+- V9 override summary: `total_triggered=1`, `improved_count=1`, `worsened_count=0`.
+
+### Changed files
+
+- `replenishverifier/experiments/methods.py`
+- `replenishverifier/experiments/diagnose_selection_metrics.py`
+- `tests/test_tac_cross_pool_stability.py`
+- `tests/test_diagnose_selection_metrics.py`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+### Notes
+
+No candidate generation, repair generation, or `run_generation.py` change was made. Other baseline selection logic was not intentionally changed. Formal TAC selection remains no-reference; objective correctness/oracle/reference fields are evaluation or diagnostics only. No problem-id or candidate-file-specific rule was added.

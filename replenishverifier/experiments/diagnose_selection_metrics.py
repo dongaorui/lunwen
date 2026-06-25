@@ -493,6 +493,70 @@ def _objective_correct_bool(row):
         return False
 
 
+def _objective_correct_value(row):
+    if row is None or row.get("objective_correct") is None:
+        return None
+    try:
+        return 1.0 if float(row.get("objective_correct") or 0.0) >= 0.5 else 0.0
+    except (TypeError, ValueError):
+        return None
+
+
+def compute_tac_override_summary(main_rows, candidate_rows=None):
+    candidate_rows = candidate_rows or []
+    candidates_by_problem_id = {
+        (row.get("problem_id"), row.get("candidate_id")): row
+        for row in candidate_rows
+    }
+    total_triggered = 0
+    improved_count = 0
+    worsened_count = 0
+    unchanged_count = 0
+    unknown_count = 0
+    reason_counts = {}
+    for row in main_rows:
+        method = row.get("method_name") or row.get("method")
+        if method != "ReplenishVerifier-TypeAware-Consensus":
+            continue
+        components = _selection_components(row)
+        decision = row.get("tac_recovery_decision") or {}
+        triggered = bool(decision.get("triggered") or components.get("tac_recovery_triggered"))
+        if not triggered:
+            continue
+        total_triggered += 1
+        reason = decision.get("reason") or components.get("tac_recovery_reason") or "unknown"
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        selected_correct = _objective_correct_value(row)
+        initial_correct = row.get("tac_initial_objective_correct_posthoc")
+        if initial_correct is None:
+            initial_candidate_id = decision.get("initial_candidate_id")
+            initial_row = candidates_by_problem_id.get((row.get("problem_id"), initial_candidate_id))
+            initial_correct = _objective_correct_value(initial_row)
+        else:
+            try:
+                initial_correct = 1.0 if float(initial_correct) >= 0.5 else 0.0
+            except (TypeError, ValueError):
+                initial_correct = None
+        if selected_correct is None or initial_correct is None:
+            unknown_count += 1
+        elif selected_correct > initial_correct:
+            improved_count += 1
+        elif selected_correct < initial_correct:
+            worsened_count += 1
+        else:
+            unchanged_count += 1
+    return {
+        "method": "ReplenishVerifier-TypeAware-Consensus",
+        "total_triggered": total_triggered,
+        "improved_count": improved_count,
+        "worsened_count": worsened_count,
+        "unchanged_count": unchanged_count,
+        "unknown_count": unknown_count,
+        "reason_counts_json": json.dumps(reason_counts, ensure_ascii=False, sort_keys=True),
+        "posthoc_note": "post-hoc objective_correct is used only to summarize override effects; it is not a formal selection signal",
+    }
+
+
 def compute_problem_type_pool_limit_diagnostics(main_rows, candidate_rows, pool_limited_threshold=0.65):
     candidates_by_problem = {}
     problem_type_by_problem = {}
@@ -1202,6 +1266,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     wrong_consensus_risk = compute_wrong_consensus_risk_diagnostics(main_rows)
     hard_subset_stress_test = compute_hard_subset_stress_diagnostics(main_rows)
     problem_type_pool_limit_diagnostics = compute_problem_type_pool_limit_diagnostics(main_rows, candidate_rows) if candidate_rows else []
+    tac_override_summary = compute_tac_override_summary(main_rows, candidate_rows)
     full_vs_typeaware_consensus_diff = compute_full_typeaware_consensus_difference_diagnostics(main_rows)
     selector_counterfactuals = compute_selector_counterfactuals(main_rows)
     selector_failure_summary = build_selector_failure_summary(selector_counterfactuals)
@@ -1262,6 +1327,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     _write_posthoc_diagnostic_markdown(out_dir / "hard_subset_stress_test.md", "Hard Subset / Stress Test Diagnostics", hard_subset_stress_test)
     write_csv(out_dir / "problem_type_pool_limit_diagnostics.csv", problem_type_pool_limit_diagnostics)
     _write_posthoc_diagnostic_markdown(out_dir / "problem_type_pool_limit_diagnostics.md", "Problem-Type Pool-Limit Diagnostics", problem_type_pool_limit_diagnostics)
+    write_csv(out_dir / "tac_override_summary.csv", [tac_override_summary])
+    _write_posthoc_diagnostic_markdown(out_dir / "tac_override_summary.md", "TAC Override Summary", [tac_override_summary])
     write_csv(out_dir / "full_vs_typeaware_consensus_diff.csv", full_vs_typeaware_consensus_diff)
     _write_posthoc_diagnostic_markdown(out_dir / "full_vs_typeaware_consensus_diff.md", "Full vs TypeAware-Consensus Difference Diagnostics", full_vs_typeaware_consensus_diff)
     write_csv(out_dir / "selector_counterfactuals.csv", selector_counterfactuals)
@@ -1320,6 +1387,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "wrong_consensus_risk": wrong_consensus_risk,
         "hard_subset_stress_test": hard_subset_stress_test,
         "problem_type_pool_limit_diagnostics": problem_type_pool_limit_diagnostics,
+        "tac_override_summary": tac_override_summary,
         "full_vs_typeaware_consensus_diff": full_vs_typeaware_consensus_diff,
         "selector_counterfactuals": selector_counterfactuals,
         "selector_failure_summary": selector_failure_summary,
