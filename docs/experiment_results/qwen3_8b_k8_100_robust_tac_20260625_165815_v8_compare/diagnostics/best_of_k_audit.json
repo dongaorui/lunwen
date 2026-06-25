@@ -1,0 +1,17 @@
+{
+  "method": "Best-of-K",
+  "n_selected_rows": 100,
+  "formal_best_of_k_is_no_reference": true,
+  "uses_reference_objective_for_selection": false,
+  "uses_objective_correct_for_selection": false,
+  "uses_oracle_for_selection": false,
+  "uses_reference_lp_for_selection": false,
+  "uses_reference_answer_for_selection": false,
+  "forbidden_component_keys": [],
+  "selection_component_keys_scanned": [],
+  "uses_reference_objective_for_selection_values": [
+    "False"
+  ],
+  "issues": [],
+  "policy_summary": "Formal Best-of-K uses executable/optimal/objective-present and no-reference quality tie-breakers; objective_correct/reference fields may appear on rows only as evaluation metrics."
+}

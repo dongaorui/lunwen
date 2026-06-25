@@ -1,0 +1,12 @@
+method,n_common,oracle_objective_available_count,missed_oracle_objective_count,missed_oracle_objective_rate,oracle_structure_available_count,missed_oracle_structure_count,missed_oracle_structure_rate,oracle_both_available_count,missed_oracle_both_count,missed_oracle_both_rate
+Best-of-K,100,86,8,0.09302325581395349,0,0,0.0,0,0,0.0
+Consensus only,100,86,3,0.03488372093023256,0,0,0.0,0,0,0.0
+Direct,100,86,16,0.18604651162790697,0,0,0.0,0,0,0.0
+ReplenishVerifier-ConsensusSafe,100,86,3,0.03488372093023256,0,0,0.0,0,0,0.0
+ReplenishVerifier-Full,100,86,3,0.03488372093023256,0,0,0.0,0,0,0.0
+ReplenishVerifier-FullV2,100,86,3,0.03488372093023256,0,0,0.0,0,0,0.0
+ReplenishVerifier-HybridSafe,100,86,3,0.03488372093023256,0,0,0.0,0,0,0.0
+ReplenishVerifier-TypeAware,100,86,3,0.03488372093023256,0,0,0.0,0,0,0.0
+ReplenishVerifier-TypeAware-Consensus,100,86,1,0.011627906976744186,0,0,0.0,0,0,0.0
+Solver only,100,86,8,0.09302325581395349,0,0,0.0,0,0,0.0
+Structure only,100,86,4,0.046511627906976744,0,0,0.0,0,0,0.0

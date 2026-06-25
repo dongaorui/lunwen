@@ -1,0 +1,26 @@
+# Hard Subset / Stress Test Diagnostics
+
+This is post-hoc diagnostics only and must not be used for formal selection.
+
+| hard_subset | method | n | objective_accuracy | structure_completeness | constraint_coverage | objective_term_coverage | safe_consensus_score_mean | wrong_consensus_risk_mean |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| capacity_or_fixed_or_shortage | Consensus only | 60 | 0.8 | 0.8126412037037037 | 0.9645833333333333 | 0.9944444444444444 | 0.7665674603174604 | 0.0 |
+| capacity_or_fixed_or_shortage | ReplenishVerifier-Full | 60 | 0.7833333333333333 | 0.8380300925925925 | 0.9854166666666667 | 1.0 | 0.7039821924603173 | 0.050680505952380904 |
+| capacity_or_fixed_or_shortage | ReplenishVerifier-TypeAware-Consensus | 60 | 0.8 | 0.8377523148148147 | 0.9854166666666667 | 1.0 | 0.6963290509259257 | 0.05059555224867722 |
+| capacity_or_fixed_or_shortage | Structure only | 60 | 0.7833333333333333 | 0.8380300925925925 | 0.9854166666666667 | 0.9777777777777776 | 0.7246031746031746 | 0.0 |
+| fixed_order_cost_big_m | Consensus only | 20 | 0.95 | 0.8515 | 1.0 | 0.9833333333333334 | 0.9255952380952379 | 0.0 |
+| fixed_order_cost_big_m | ReplenishVerifier-Full | 20 | 0.95 | 0.8710000000000001 | 1.0 | 1.0 | 0.9136824404761906 | 0.011912797619047571 |
+| fixed_order_cost_big_m | ReplenishVerifier-TypeAware-Consensus | 20 | 0.95 | 0.8710000000000001 | 1.0 | 1.0 | 0.8555761904761907 | 0.011090476190476147 |
+| fixed_order_cost_big_m | Structure only | 20 | 1.0 | 0.8710000000000001 | 1.0 | 0.9333333333333333 | 0.9041666666666668 | 0.0 |
+| multi_item_capacity | Consensus only | 20 | 0.55 | 0.7328125 | 0.89375 | 1.0 | 0.5803571428571429 | 0.0 |
+| multi_item_capacity | ReplenishVerifier-Full | 20 | 0.55 | 0.7828125 | 0.95625 | 1.0 | 0.45081919642857154 | 0.12953794642857136 |
+| multi_item_capacity | ReplenishVerifier-TypeAware-Consensus | 20 | 0.55 | 0.7828125 | 0.95625 | 1.0 | 0.45081919642857154 | 0.12953794642857136 |
+| multi_item_capacity | Structure only | 20 | 0.55 | 0.7828125 | 0.95625 | 1.0 | 0.5803571428571429 | 0.0 |
+| other | Consensus only | 40 | 0.8 | 0.762480158730159 | 0.8916666666666666 | 0.8166666666666667 | 0.8151785714285715 | 0.0 |
+| other | ReplenishVerifier-Full | 40 | 0.85 | 0.7650992063492066 | 0.8916666666666666 | 0.8 | 0.7370921910430841 | 0.07183638038548742 |
+| other | ReplenishVerifier-TypeAware-Consensus | 40 | 0.825 | 0.7650992063492066 | 0.8916666666666666 | 0.8 | 0.7370921910430841 | 0.07183638038548742 |
+| other | Structure only | 40 | 0.85 | 0.7650992063492066 | 0.8916666666666666 | 0.8 | 0.8089285714285716 | 0.0 |
+| single_item_multi_period_shortage | Consensus only | 20 | 0.9 | 0.8536111111111111 | 1.0 | 1.0 | 0.79375 | 0.0 |
+| single_item_multi_period_shortage | ReplenishVerifier-Full | 20 | 0.85 | 0.8602777777777776 | 1.0 | 1.0 | 0.7474449404761904 | 0.010590773809523774 |
+| single_item_multi_period_shortage | ReplenishVerifier-TypeAware-Consensus | 20 | 0.9 | 0.8594444444444443 | 1.0 | 1.0 | 0.7825917658730159 | 0.01115823412698409 |
+| single_item_multi_period_shortage | Structure only | 20 | 0.8 | 0.8602777777777776 | 1.0 | 1.0 | 0.6892857142857143 | 0.0 |

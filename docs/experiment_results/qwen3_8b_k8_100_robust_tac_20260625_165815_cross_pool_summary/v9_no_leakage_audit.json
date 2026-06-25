@@ -1,0 +1,46 @@
+{
+  "exp_dir": "runs/qwen3_8b_k8_100_robust_tac_20260625_165815_v9",
+  "checked_files": [
+    "runs/qwen3_8b_k8_100_robust_tac_20260625_165815_v9/main_results.jsonl",
+    "runs/qwen3_8b_k8_100_robust_tac_20260625_165815_v9/candidate_evaluations.jsonl"
+  ],
+  "formal_methods": [
+    "Best-of-K",
+    "Consensus only",
+    "Direct",
+    "OR-R1-like Voting",
+    "OptArgus-like Audit",
+    "OptiRepair-like Repair-Prompt",
+    "ReplenishVerifier full",
+    "ReplenishVerifier-ConsensusSafe",
+    "ReplenishVerifier-Full",
+    "ReplenishVerifier-FullV2",
+    "ReplenishVerifier-FullV2-CandidatePoolAware",
+    "ReplenishVerifier-HybridSafe",
+    "ReplenishVerifier-Repair",
+    "ReplenishVerifier-TypeAware",
+    "ReplenishVerifier-TypeAware-Consensus",
+    "SIRL-like LP-Stats",
+    "Solver + Consensus",
+    "Solver + Structure",
+    "Solver + Structure + Consensus",
+    "Solver only",
+    "Solver-Filter",
+    "Structure + Consensus",
+    "Structure only",
+    "Structure-Grounded Consistency",
+    "Structure-Only"
+  ],
+  "forbidden_policy_phrases": [
+    "closest to reference",
+    "reference_objective",
+    "reference objective distance",
+    "objective closeness to reference",
+    "objective_correct",
+    "minimize relative error",
+    "ground truth objective",
+    "oracle"
+  ],
+  "passed": true,
+  "issues": []
+}
