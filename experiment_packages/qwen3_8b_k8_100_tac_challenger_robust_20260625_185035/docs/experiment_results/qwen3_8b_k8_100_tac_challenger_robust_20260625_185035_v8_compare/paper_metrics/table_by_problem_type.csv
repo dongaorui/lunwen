@@ -1,0 +1,46 @@
+method,problem_type,n,executable_rate,optimal_rate,objective_accuracy,structure_completeness,constraint_coverage,objective_term_coverage,safe_consensus_score_mean,wrong_consensus_risk_mean
+Best-of-K,fixed_order_cost_big_m,20,1.0,1.0,1.0,0.8707499999999999,1.0,1.0,0.9366071428571429,0.0
+Best-of-K,multi_item_capacity,20,1.0,0.6,0.55,0.7631249999999999,0.925,1.0,0.5449404761904763,0.0
+Best-of-K,single_item_multi_period,20,1.0,1.0,0.95,0.8571428571428573,1.0,0.95,0.9017857142857142,0.0
+Best-of-K,single_item_multi_period_shortage,20,1.0,1.0,0.8,0.8602777777777776,1.0,1.0,0.7428571428571429,0.0
+Best-of-K,single_period_newsvendor,20,0.85,0.75,0.7,0.664722222222222,0.7722222222222223,0.5666666666666667,0.69375,0.0
+Consensus only,fixed_order_cost_big_m,20,1.0,1.0,0.95,0.853,1.0,0.9666666666666666,0.9428571428571428,0.0
+Consensus only,multi_item_capacity,20,1.0,0.6,0.6,0.728125,0.8875,1.0,0.5782738095238095,0.0
+Consensus only,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9392857142857143,0.0
+Consensus only,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8511111111111112,1.0,1.0,0.8223214285714286,0.0
+Consensus only,single_period_newsvendor,20,0.85,0.75,0.65,0.6605555555555556,0.7722222222222223,0.6166666666666666,0.71875,0.0
+Direct,fixed_order_cost_big_m,20,0.95,0.95,0.95,0.806,0.95,0.8666666666666665,0.8866071428571429,0.0
+Direct,multi_item_capacity,20,0.95,0.45,0.45,0.6875,0.8375,1.0,0.43660714285714286,0.0
+Direct,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9392857142857143,0.0
+Direct,single_item_multi_period_shortage,20,1.0,0.9,0.55,0.8536111111111111,1.0,1.0,0.5446428571428571,0.0
+Direct,single_period_newsvendor,20,0.65,0.6,0.55,0.5402777777777777,0.6333333333333333,0.7666666666666665,0.56875,0.0
+ReplenishVerifier-ConsensusSafe,fixed_order_cost_big_m,20,1.0,1.0,0.95,0.8707499999999999,1.0,1.0,0.9428571428571428,0.0
+ReplenishVerifier-ConsensusSafe,multi_item_capacity,20,1.0,0.6,0.6,0.7834375,0.95,1.0,0.5782738095238095,0.0
+ReplenishVerifier-ConsensusSafe,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9392857142857143,0.0
+ReplenishVerifier-ConsensusSafe,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8602777777777776,1.0,1.0,0.8223214285714286,0.0
+ReplenishVerifier-ConsensusSafe,single_period_newsvendor,20,0.85,0.75,0.65,0.6619444444444443,0.7722222222222223,0.6166666666666666,0.71875,0.0
+ReplenishVerifier-Full,fixed_order_cost_big_m,20,1.0,1.0,0.95,0.8707499999999999,1.0,1.0,0.9307558035714287,0.012101339285714247
+ReplenishVerifier-Full,multi_item_capacity,20,1.0,0.6,0.55,0.7849999999999999,0.95,1.0,0.4163113839285715,0.1286290922619047
+ReplenishVerifier-Full,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9258673469387755,0.013418367346938732
+ReplenishVerifier-Full,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8602777777777776,1.0,1.0,0.8108377976190477,0.0114836309523809
+ReplenishVerifier-Full,single_period_newsvendor,20,0.85,0.75,0.7,0.664722222222222,0.7722222222222223,0.5833333333333334,0.5542534722222223,0.13949652777777763
+ReplenishVerifier-FullV2,fixed_order_cost_big_m,20,1.0,1.0,0.95,0.8707499999999999,1.0,1.0,0.9428571428571428,0.0
+ReplenishVerifier-FullV2,multi_item_capacity,20,1.0,0.6,0.55,0.7849999999999999,0.95,1.0,0.5449404761904763,0.0
+ReplenishVerifier-FullV2,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9392857142857143,0.0
+ReplenishVerifier-FullV2,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8602777777777776,1.0,1.0,0.8223214285714286,0.0
+ReplenishVerifier-FullV2,single_period_newsvendor,20,0.85,0.75,0.7,0.664722222222222,0.7722222222222223,0.5833333333333334,0.69375,0.0
+ReplenishVerifier-HybridSafe,fixed_order_cost_big_m,20,1.0,1.0,0.95,0.8707499999999999,1.0,1.0,0.9428571428571428,0.0
+ReplenishVerifier-HybridSafe,multi_item_capacity,20,1.0,0.6,0.6,0.7834375,0.95,1.0,0.5782738095238095,0.0
+ReplenishVerifier-HybridSafe,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9392857142857143,0.0
+ReplenishVerifier-HybridSafe,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8602777777777776,1.0,1.0,0.8223214285714286,0.0
+ReplenishVerifier-HybridSafe,single_period_newsvendor,20,0.85,0.75,0.65,0.6619444444444443,0.7722222222222223,0.6166666666666666,0.71875,0.0
+ReplenishVerifier-TypeAware,fixed_order_cost_big_m,20,1.0,1.0,0.95,0.8707499999999999,1.0,1.0,0.9428571428571428,0.0
+ReplenishVerifier-TypeAware,multi_item_capacity,20,0.9,0.6,0.6,0.7084374999999999,0.8625,1.0,0.5782738095238095,0.0
+ReplenishVerifier-TypeAware,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9392857142857143,0.0
+ReplenishVerifier-TypeAware,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8602777777777776,1.0,1.0,0.8223214285714286,0.0
+ReplenishVerifier-TypeAware,single_period_newsvendor,20,0.75,0.75,0.65,0.6063888888888889,0.7055555555555555,0.6833333333333333,0.71875,0.0
+ReplenishVerifier-TypeAware-Consensus,fixed_order_cost_big_m,20,1.0,1.0,1.0,0.8707499999999999,1.0,1.0,0.9246089285714287,0.011998214285714248
+ReplenishVerifier-TypeAware-Consensus,multi_item_capacity,20,1.0,0.6,0.6,0.7834375,0.95,1.0,0.4489936755952382,0.12928013392857135
+ReplenishVerifier-TypeAware-Consensus,single_item_multi_period,20,1.0,1.0,1.0,0.8571428571428573,1.0,1.0,0.9258673469387755,0.013418367346938732
+ReplenishVerifier-TypeAware-Consensus,single_item_multi_period_shortage,20,1.0,1.0,0.95,0.8602777777777776,1.0,1.0,0.8108377976190477,0.0114836309523809
+ReplenishVerifier-TypeAware-Consensus,single_period_newsvendor,20,0.85,0.75,0.7,0.664722222222222,0.7722222222222223,0.5833333333333334,0.5542534722222223,0.13949652777777763

@@ -1,0 +1,12 @@
+method,n,k0,k1,k2,k3,k4,k5,k6,k7
+Best-of-K,100,15,23,3,21,11,8,12,7
+Consensus only,100,11,18,8,14,11,9,15,14
+Direct,100,100,0,0,0,0,0,0,0
+ReplenishVerifier-ConsensusSafe,100,6,24,4,28,9,10,13,6
+ReplenishVerifier-Full,100,48,20,2,19,3,1,5,2
+ReplenishVerifier-FullV2,100,48,20,2,19,3,1,5,2
+ReplenishVerifier-HybridSafe,100,6,24,4,28,9,10,13,6
+ReplenishVerifier-TypeAware,100,5,25,4,27,9,10,13,7
+ReplenishVerifier-TypeAware-Consensus,100,7,29,5,24,8,8,11,8
+Solver only,100,10,18,7,13,12,10,15,15
+Structure only,100,54,17,2,16,3,1,5,2

@@ -1,0 +1,7 @@
+# Paired Method Comparison
+
+| target_method | baseline_method | n_common | objective_win_count | objective_loss_count | objective_tie_count | structure_win_count | structure_loss_count | structure_tie_count | missing_capacity_reduction_count | missing_capacity_increase_count | objective_mismatch_reduction_count | objective_mismatch_increase_count |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ReplenishVerifier-TypeAware | Direct | 100 | 14 | 1 | 85 | 41 | 2 | 57 | 13 | 1 | 14 | 1 |
+| ReplenishVerifier-TypeAware | Best-of-K | 100 | 4 | 3 | 93 | 5 | 6 | 89 | 6 | 0 | 4 | 3 |
+| ReplenishVerifier-TypeAware | ReplenishVerifier-Full | 100 | 1 | 2 | 97 | 0 | 6 | 94 | 1 | 0 | 1 | 2 |
