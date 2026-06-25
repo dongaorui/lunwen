@@ -1,0 +1,56 @@
+method_a,method_b,same_selection_rate,objective_accuracy_a,objective_accuracy_b,recommendation
+Best-of-K,Consensus only,0.52,0.79,0.83,distinct_selection
+Best-of-K,Direct,0.19,0.79,0.7,distinct_selection
+Best-of-K,ReplenishVerifier-ConsensusSafe,0.8,0.79,0.83,distinct_selection
+Best-of-K,ReplenishVerifier-Full,0.43,0.79,0.83,distinct_selection
+Best-of-K,ReplenishVerifier-FullV2,0.43,0.79,0.83,distinct_selection
+Best-of-K,ReplenishVerifier-HybridSafe,0.8,0.79,0.83,distinct_selection
+Best-of-K,ReplenishVerifier-TypeAware,0.77,0.79,0.83,distinct_selection
+Best-of-K,ReplenishVerifier-TypeAware-Consensus,0.76,0.79,0.85,distinct_selection
+Best-of-K,Solver only,0.56,0.79,0.77,distinct_selection
+Best-of-K,Structure only,0.42,0.79,0.82,distinct_selection
+Consensus only,Direct,0.19,0.83,0.7,distinct_selection
+Consensus only,ReplenishVerifier-ConsensusSafe,0.6,0.83,0.83,distinct_selection
+Consensus only,ReplenishVerifier-Full,0.2,0.83,0.83,distinct_selection
+Consensus only,ReplenishVerifier-FullV2,0.2,0.83,0.83,distinct_selection
+Consensus only,ReplenishVerifier-HybridSafe,0.6,0.83,0.83,distinct_selection
+Consensus only,ReplenishVerifier-TypeAware,0.56,0.83,0.83,distinct_selection
+Consensus only,ReplenishVerifier-TypeAware-Consensus,0.56,0.83,0.85,distinct_selection
+Consensus only,Solver only,0.92,0.83,0.77,distinct_selection
+Consensus only,Structure only,0.19,0.83,0.82,distinct_selection
+Direct,ReplenishVerifier-ConsensusSafe,0.13,0.7,0.83,distinct_selection
+Direct,ReplenishVerifier-Full,0.48,0.7,0.83,distinct_selection
+Direct,ReplenishVerifier-FullV2,0.48,0.7,0.83,distinct_selection
+Direct,ReplenishVerifier-HybridSafe,0.13,0.7,0.83,distinct_selection
+Direct,ReplenishVerifier-TypeAware,0.12,0.7,0.83,distinct_selection
+Direct,ReplenishVerifier-TypeAware-Consensus,0.13,0.7,0.85,distinct_selection
+Direct,Solver only,0.15,0.7,0.77,distinct_selection
+Direct,Structure only,0.54,0.7,0.82,distinct_selection
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-Full,0.43,0.83,0.83,distinct_selection
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-FullV2,0.43,0.83,0.83,distinct_selection
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-HybridSafe,1.0,0.83,0.83,alias_like_same_selection
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-TypeAware,0.95,0.83,0.83,high_overlap_consider_merge_explanation
+ReplenishVerifier-ConsensusSafe,ReplenishVerifier-TypeAware-Consensus,0.9,0.83,0.85,distinct_selection
+ReplenishVerifier-ConsensusSafe,Solver only,0.56,0.83,0.77,distinct_selection
+ReplenishVerifier-ConsensusSafe,Structure only,0.4,0.83,0.82,distinct_selection
+ReplenishVerifier-Full,ReplenishVerifier-FullV2,1.0,0.83,0.83,alias_like_same_selection
+ReplenishVerifier-Full,ReplenishVerifier-HybridSafe,0.43,0.83,0.83,distinct_selection
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware,0.4,0.83,0.83,distinct_selection
+ReplenishVerifier-Full,ReplenishVerifier-TypeAware-Consensus,0.5,0.83,0.85,distinct_selection
+ReplenishVerifier-Full,Solver only,0.17,0.83,0.77,distinct_selection
+ReplenishVerifier-Full,Structure only,0.93,0.83,0.82,distinct_selection
+ReplenishVerifier-FullV2,ReplenishVerifier-HybridSafe,0.43,0.83,0.83,distinct_selection
+ReplenishVerifier-FullV2,ReplenishVerifier-TypeAware,0.4,0.83,0.83,distinct_selection
+ReplenishVerifier-FullV2,ReplenishVerifier-TypeAware-Consensus,0.5,0.83,0.85,distinct_selection
+ReplenishVerifier-FullV2,Solver only,0.17,0.83,0.77,distinct_selection
+ReplenishVerifier-FullV2,Structure only,0.93,0.83,0.82,distinct_selection
+ReplenishVerifier-HybridSafe,ReplenishVerifier-TypeAware,0.95,0.83,0.83,high_overlap_consider_merge_explanation
+ReplenishVerifier-HybridSafe,ReplenishVerifier-TypeAware-Consensus,0.9,0.83,0.85,distinct_selection
+ReplenishVerifier-HybridSafe,Solver only,0.56,0.83,0.77,distinct_selection
+ReplenishVerifier-HybridSafe,Structure only,0.4,0.83,0.82,distinct_selection
+ReplenishVerifier-TypeAware,ReplenishVerifier-TypeAware-Consensus,0.85,0.83,0.85,distinct_selection
+ReplenishVerifier-TypeAware,Solver only,0.52,0.83,0.77,distinct_selection
+ReplenishVerifier-TypeAware,Structure only,0.37,0.83,0.82,distinct_selection
+ReplenishVerifier-TypeAware-Consensus,Solver only,0.52,0.85,0.77,distinct_selection
+ReplenishVerifier-TypeAware-Consensus,Structure only,0.47,0.85,0.82,distinct_selection
+Solver only,Structure only,0.16,0.77,0.82,distinct_selection

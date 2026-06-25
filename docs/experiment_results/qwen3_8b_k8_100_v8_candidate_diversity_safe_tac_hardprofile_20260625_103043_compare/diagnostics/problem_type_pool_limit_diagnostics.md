@@ -1,0 +1,61 @@
+# Problem-Type Pool-Limit Diagnostics
+
+This is post-hoc diagnostics only and must not be used for formal selection.
+
+| method | problem_type | n | oracle_at_k | selector_accuracy | selector_gap_to_oracle | candidate_pool_limited | diagnostic_note | posthoc_only |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Best-of-K | fixed_order_cost_big_m | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Best-of-K | multi_item_capacity | 20 | 0.6 | 0.5 | 0.09999999999999998 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| Best-of-K | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Best-of-K | single_item_multi_period_shortage | 20 | 1.0 | 0.75 | 0.25 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Best-of-K | single_period_newsvendor | 20 | 0.7 | 0.7 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Consensus only | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Consensus only | multi_item_capacity | 20 | 0.6 | 0.6 | 0.0 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| Consensus only | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Consensus only | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Consensus only | single_period_newsvendor | 20 | 0.7 | 0.65 | 0.04999999999999993 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Direct | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Direct | multi_item_capacity | 20 | 0.6 | 0.45 | 0.14999999999999997 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| Direct | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Direct | single_item_multi_period_shortage | 20 | 1.0 | 0.55 | 0.44999999999999996 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Direct | single_period_newsvendor | 20 | 0.7 | 0.55 | 0.1499999999999999 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-ConsensusSafe | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-ConsensusSafe | multi_item_capacity | 20 | 0.6 | 0.6 | 0.0 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| ReplenishVerifier-ConsensusSafe | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-ConsensusSafe | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-ConsensusSafe | single_period_newsvendor | 20 | 0.7 | 0.65 | 0.04999999999999993 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-Full | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-Full | multi_item_capacity | 20 | 0.6 | 0.55 | 0.04999999999999993 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| ReplenishVerifier-Full | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-Full | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-Full | single_period_newsvendor | 20 | 0.7 | 0.7 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-FullV2 | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-FullV2 | multi_item_capacity | 20 | 0.6 | 0.55 | 0.04999999999999993 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| ReplenishVerifier-FullV2 | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-FullV2 | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-FullV2 | single_period_newsvendor | 20 | 0.7 | 0.7 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-HybridSafe | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-HybridSafe | multi_item_capacity | 20 | 0.6 | 0.6 | 0.0 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| ReplenishVerifier-HybridSafe | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-HybridSafe | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-HybridSafe | single_period_newsvendor | 20 | 0.7 | 0.65 | 0.04999999999999993 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-TypeAware | fixed_order_cost_big_m | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-TypeAware | multi_item_capacity | 20 | 0.6 | 0.6 | 0.0 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| ReplenishVerifier-TypeAware | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-TypeAware | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-TypeAware | single_period_newsvendor | 20 | 0.7 | 0.65 | 0.04999999999999993 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-TypeAware-Consensus | fixed_order_cost_big_m | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-TypeAware-Consensus | multi_item_capacity | 20 | 0.6 | 0.6 | 0.0 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| ReplenishVerifier-TypeAware-Consensus | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| ReplenishVerifier-TypeAware-Consensus | single_item_multi_period_shortage | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| ReplenishVerifier-TypeAware-Consensus | single_period_newsvendor | 20 | 0.7 | 0.7 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Solver only | fixed_order_cost_big_m | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Solver only | multi_item_capacity | 20 | 0.6 | 0.55 | 0.04999999999999993 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| Solver only | single_item_multi_period | 20 | 1.0 | 0.95 | 0.050000000000000044 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Solver only | single_item_multi_period_shortage | 20 | 1.0 | 0.7 | 0.30000000000000004 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Solver only | single_period_newsvendor | 20 | 0.7 | 0.65 | 0.04999999999999993 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Structure only | fixed_order_cost_big_m | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Structure only | multi_item_capacity | 20 | 0.6 | 0.55 | 0.04999999999999993 | True | candidate-pool limitation: oracle@k is low, so failures are bounded by candidate generation/repair quality rather than selector choice alone | True |
+| Structure only | single_item_multi_period | 20 | 1.0 | 1.0 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
+| Structure only | single_item_multi_period_shortage | 20 | 1.0 | 0.85 | 0.15000000000000002 | False | selector limitation: oracle@k is available above selector accuracy, so no-reference ranking should be inspected | True |
+| Structure only | single_period_newsvendor | 20 | 0.7 | 0.7 | 0.0 | False | selector is near the post-hoc oracle@k ceiling for this problem type | True |
