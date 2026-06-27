@@ -7,6 +7,7 @@ from replenishverifier.experiments.diagnose_selection_metrics import (
     compute_method_selection_clusters,
     compute_problem_type_pool_limit_diagnostics,
     compute_tac_comparison_diagnostics,
+    compute_tac_llmopt_signal_diagnostics,
     compute_tac_override_summary,
     compute_wrong_consensus_risk_diagnostics,
     diagnose_selection_metrics,
@@ -120,6 +121,42 @@ def test_diagnose_detects_reported_mismatch(tmp_path):
 
     mismatches = [row for row in result["metric_comparison"] if row["status"] == "MISMATCH"]
     assert any(row["method"] == "Direct" and row["metric"] == "executable_rate" for row in mismatches)
+
+
+def test_compute_tac_llmopt_signal_diagnostics_reports_selected_components_without_oracle_keys():
+    tac = _selected("ReplenishVerifier-TypeAware-Consensus", "p0", "m_k1", objective_correct=1.0, problem_type="fixed_order_cost_big_m")
+    tac["selection_components"] = {
+        "formulation_awareness_score": 0.8,
+        "formulation_elements_missing": ["constraints"],
+        "variable_domain_correctness_score": 0.5,
+        "variable_domain_failures": ["binary_order_domain"],
+        "solver_execution_feedback_score": 0.75,
+        "solver_feedback_flags": ["solver_status_optimal"],
+        "safe_consensus_score": 0.4,
+        "wrong_consensus_risk": 0.2,
+        "reference_objective": "forbidden",
+        "objective_correct": "forbidden",
+    }
+
+    rows = compute_tac_llmopt_signal_diagnostics([tac])
+
+    assert rows == [{
+        "problem_id": "p0",
+        "problem_type": "fixed_order_cost_big_m",
+        "candidate_id": "m_k1",
+        "formulation_awareness_score": 0.8,
+        "formulation_elements_missing": "constraints",
+        "variable_domain_correctness_score": 0.5,
+        "variable_domain_failures": "binary_order_domain",
+        "solver_execution_feedback_score": 0.75,
+        "solver_feedback_flags": "solver_status_optimal",
+        "safe_consensus_score": 0.4,
+        "wrong_consensus_risk": 0.2,
+        "posthoc_objective_correct": 1.0,
+        "posthoc_only": True,
+    }]
+    assert "reference_objective" not in rows[0]
+    assert "objective_correct" not in rows[0]
 
 
 def test_compute_problem_type_pool_limit_diagnostics_marks_low_oracle_types_as_pool_limited():

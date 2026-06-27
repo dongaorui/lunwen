@@ -1,7 +1,11 @@
 from replenishverifier.experiments.methods import (
     capacity_evidence_strength,
+    formulation_awareness_score,
+    select_for_method,
     select_typeaware_consensus,
     should_recover_tac_selection,
+    solver_execution_feedback_score,
+    variable_domain_correctness_score,
 )
 
 
@@ -202,6 +206,179 @@ def test_fixed_order_tac_keeps_stable_rank_when_consensus_gain_is_only_moderate(
     ]
 
     selected = select_typeaware_consensus(rows, {"problem_type": "fixed_order_cost_big_m"})
+
+    assert selected["candidate_id"] == "stable_k0"
+    assert selected["selection_components"]["tac_recovery_triggered"] is False
+
+
+def test_select_for_method_preserves_tac_recovery_metadata_after_annotation():
+    required = ["inventory_balance", "order_variable", "binary_order_variable", "big_m_constraint", "fixed_order_cost"]
+    rows = [
+        _row("minority_k3", problem_type="fixed_order_cost_big_m", rank=3, required=required, missing=[], consensus=0.125),
+        _row("majority_k4", problem_type="fixed_order_cost_big_m", rank=4, required=required, missing=[], consensus=0.875),
+    ]
+    benchmark = {"p0": {"problem_type": "fixed_order_cost_big_m"}}
+
+    selected = select_for_method("ReplenishVerifier-TypeAware-Consensus", {"p0": rows}, benchmark)[0]
+
+    assert selected["candidate_id"] == "majority_k4"
+    assert selected["tac_recovery_decision"]["triggered"] is True
+    assert selected["selection_components"]["tac_recovery_triggered"] is True
+    assert selected["selection_components"]["tac_recovery_reason"] == "fixed_order_overwhelming_safe_consensus"
+
+
+def test_tac_components_include_llmopt_no_reference_signals():
+    row = _row(
+        "c0",
+        problem_type="fixed_order_cost_big_m",
+        required=["inventory_balance", "order_variable", "binary_order_variable", "big_m_constraint", "fixed_order_cost", "nonnegative_bounds"],
+        missing=[],
+        generated_code="""
+import pulp
+periods = range(2)
+demand = [3, 4]
+model = pulp.LpProblem('fixed', pulp.LpMinimize)
+Q = pulp.LpVariable.dicts('Q', periods, lowBound=0)
+I = pulp.LpVariable.dicts('I', periods, lowBound=0)
+Y = pulp.LpVariable.dicts('Y', periods, lowBound=0, upBound=1, cat='Binary')
+model += pulp.lpSum(2 * Q[t] + I[t] + 5 * Y[t] for t in periods)
+for t in periods:
+    model += I[t] >= 0
+    model += Q[t] <= 99 * Y[t]
+""",
+        text="Sets: periods. Parameters include demand and costs. Variables are order, inventory, binary trigger. Objective and constraints are required.",
+    )
+
+    selected = select_typeaware_consensus([row], {"problem_type": "fixed_order_cost_big_m"})
+    components = selected["selection_components"]
+
+    assert components["formulation_awareness_score"] == 1.0
+    assert components["variable_domain_correctness_score"] == 1.0
+    assert components["solver_execution_feedback_score"] == 1.0
+    assert set(components["formulation_elements_present"]) == {"sets", "parameters", "variables", "objective", "constraints"}
+    assert components["variable_domain_failures"] == []
+    assert set(components).isdisjoint(FORBIDDEN_SELECTION_KEYS)
+
+
+def test_variable_domain_correctness_penalizes_continuous_trigger_in_fixed_order_tac():
+    required = ["inventory_balance", "order_variable", "binary_order_variable", "big_m_constraint", "fixed_order_cost", "nonnegative_bounds"]
+    bad = _row(
+        "continuous_trigger_k0",
+        problem_type="fixed_order_cost_big_m",
+        rank=0,
+        required=required,
+        missing=[],
+        consensus=0.90,
+        generated_code="Y = pulp.LpVariable.dicts('Y', range(T), lowBound=0, upBound=1)\nQ = pulp.LpVariable.dicts('Q', range(T), lowBound=0)",
+    )
+    bad["lp_stats"]["binary_variables_count"] = 0
+    good = _row(
+        "binary_trigger_k1",
+        problem_type="fixed_order_cost_big_m",
+        rank=1,
+        required=required,
+        missing=[],
+        consensus=0.50,
+        generated_code="Y = pulp.LpVariable.dicts('Y', range(T), lowBound=0, upBound=1, cat='Binary')\nQ = pulp.LpVariable.dicts('Q', range(T), lowBound=0)",
+    )
+    good["lp_stats"]["binary_variables_count"] = 2
+
+    assert variable_domain_correctness_score(bad) < variable_domain_correctness_score(good)
+    selected = select_typeaware_consensus([bad, good], {"problem_type": "fixed_order_cost_big_m"})
+
+    assert selected["candidate_id"] == "binary_trigger_k1"
+    assert "binary_order_domain" in selected["selection_components"]["variable_domain_checks"]
+
+
+def test_solver_feedback_penalizes_timeout_and_parse_error_even_with_high_consensus():
+    bad = _row("timeout_k0", rank=0, consensus=0.99, text="warehouse capacity limits orders")
+    bad["execution"] = {"executable": False, "status": "Timeout", "objective": None, "error": "solver timeout while optimizing"}
+    bad["lp_stats"] = {"lp_exported": False, "objective_present": False, "constraints_count": 0, "variables_count": 0, "error": "LP parse failed"}
+    good = _row("healthy_k1", rank=1, consensus=0.25, text="warehouse capacity limits orders")
+
+    assert solver_execution_feedback_score(bad) < solver_execution_feedback_score(good)
+    selected = select_typeaware_consensus([bad, good], {"problem_type": "multi_item_capacity"})
+
+    assert selected["candidate_id"] == "healthy_k1"
+    assert selected["selection_components"]["solver_execution_feedback_score"] == 1.0
+
+
+def test_formulation_awareness_detects_missing_constraints_element():
+    row = _row(
+        "missing_constraints_k0",
+        missing=["capacity_constraint"],
+        generated_code="Q = pulp.LpVariable.dicts('Q', items, lowBound=0)\nmodel += pulp.lpSum(cost[i] * Q[i] for i in items)",
+        text="Sets are items; parameters are costs; variables and objective are described.",
+    )
+    row["lp_stats"]["constraints_count"] = 0
+
+    assert formulation_awareness_score(row) < 1.0
+    selected = select_typeaware_consensus([row], {"problem_type": "multi_item_capacity"})
+
+    assert selected["selection_components"]["formulation_awareness_score"] < 1.0
+    assert "constraints" in selected["selection_components"]["formulation_elements_missing"]
+
+
+def test_formulation_awareness_does_not_use_problem_prompt_as_candidate_evidence():
+    row = _row(
+        "prompt_only_k0",
+        generated_code="",
+        text="Sets, Parameters, Variables, Objective, and Constraints are all described in the user problem.",
+    )
+    row["generated_text"] = ""
+    row["lp_stats"] = {"lp_exported": False, "objective_present": False, "constraints_count": 0, "variables_count": 0}
+
+    selected = select_typeaware_consensus([row], {"problem_type": "multi_item_capacity"})
+
+    assert selected["selection_components"]["formulation_awareness_score"] == 0.0
+    assert set(selected["selection_components"]["formulation_elements_missing"]) == {"sets", "parameters", "variables", "objective", "constraints"}
+
+
+def test_variable_domain_correctness_requires_positive_nonnegative_evidence():
+    row = _row(
+        "no_bounds_k0",
+        problem_type="multi_item_capacity",
+        required=["inventory_balance", "order_variable", "inventory_variable", "capacity_constraint"],
+        missing=[],
+        generated_code="Q = pulp.LpVariable.dicts('Q', items)",
+    )
+    row["lp_stats"]["bounds_present"] = False
+
+    assert variable_domain_correctness_score(row) < 1.0
+
+
+def test_fixed_order_tac_rank_stability_when_only_formulation_awareness_differs():
+    required = ["inventory_balance", "order_variable", "binary_order_variable", "big_m_constraint", "fixed_order_cost", "nonnegative_bounds"]
+    stable = _row(
+        "stable_k0",
+        problem_type="fixed_order_cost_big_m",
+        rank=0,
+        required=required,
+        missing=[],
+        consensus=0.40,
+        generated_code="Y = pulp.LpVariable.dicts('Y', range(T), lowBound=0, upBound=1, cat='Binary')\nQ = pulp.LpVariable.dicts('Q', range(T), lowBound=0)",
+    )
+    stable["lp_stats"]["binary_variables_count"] = 2
+    richer_description = _row(
+        "richer_formulation_k3",
+        problem_type="fixed_order_cost_big_m",
+        rank=3,
+        required=required,
+        missing=[],
+        consensus=0.40,
+        generated_code="""
+periods = range(T)
+demand = [1, 2]
+Y = pulp.LpVariable.dicts('Y', periods, lowBound=0, upBound=1, cat='Binary')
+Q = pulp.LpVariable.dicts('Q', periods, lowBound=0)
+model += pulp.lpSum(Q[t] + Y[t] for t in periods)
+for t in periods:
+    model += Q[t] <= M * Y[t]
+""",
+    )
+    richer_description["lp_stats"]["binary_variables_count"] = 2
+
+    selected = select_typeaware_consensus([stable, richer_description], {"problem_type": "fixed_order_cost_big_m"})
 
     assert selected["candidate_id"] == "stable_k0"
     assert selected["selection_components"]["tac_recovery_triggered"] is False

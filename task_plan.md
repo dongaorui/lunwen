@@ -542,6 +542,55 @@ Notes:
 - Post-hoc objective correctness is used only in diagnostics, never in ranking.
 - No `run_generation.py` change and no candidate regeneration were performed.
 
+### Phase 18 — TAC LLMOPT three-signal injection
+
+**Status:** complete on 2026-06-26
+
+Goal:
+
+- Inject LLMOPT's three key ideas into `ReplenishVerifier-TypeAware-Consensus` only: five-element formulation awareness, variable-domain correctness, and solver-log/execution feedback as verifier signals.
+- Keep formal selection no-reference and avoid modifying other baselines, generation, benchmark, or candidate files.
+- Preserve V8/V9 TAC thresholds and fixed-order Big-M stability.
+
+Actions:
+
+- Added TDD coverage for TAC-only LLMOPT signals and diagnostics.
+- Added TAC helpers in `replenishverifier/experiments/methods.py`:
+  - `formulation_awareness_details()` / `formulation_awareness_score()`.
+  - `variable_domain_correctness_details()` / `variable_domain_correctness_score()`.
+  - `solver_execution_feedback_details()` / `solver_execution_feedback_score()`.
+  - `_tac_llmopt_signal_details()`.
+- Wired these signals into `ReplenishVerifier-TypeAware-Consensus` components/scoring and the fixed-order TAC profile tie-breaker.
+- Added `compute_tac_llmopt_signal_diagnostics()` and `tac_llmopt_signal_diagnostics.csv/.md` output.
+- Reselected existing V8/V9 candidate evaluations into `runs/tac_llmopt_v8_20260626` and `runs/tac_llmopt_v9_20260626` without re-execution or generation.
+
+Verification:
+
+- RED tests failed first for missing signal helper imports and missing TAC LLMOPT diagnostic function.
+- New signal tests: `5 passed`.
+- Focused TAC/leakage/diagnostic suite: `76 passed`.
+- Full suite: `python -m pytest -q` -> `250 passed, 52 warnings in 6.98s`.
+- V8 and V9 no-leakage audits passed.
+- `git diff --check` reported only LF/CRLF warnings.
+
+Results:
+
+- V8 TAC objective_accuracy: `0.8500`.
+- V9 TAC objective_accuracy: `0.8300`.
+- Fixed-order Big-M TAC: V8 `1.0000`, V9 `1.0000`.
+- Newsvendor TAC: V8 `0.7000`, V9 `0.7000`.
+- Shortage TAC: V8 `0.9500`, V9 `0.9000`.
+- Ordinary multi-period TAC: V8 `1.0000`, V9 `1.0000`.
+- Override summaries: V8 `improved=0, worsened=0`; V9 `improved=1, worsened=0`.
+
+Notes:
+
+- No problem-id special casing was added.
+- No `run_generation.py`, benchmark, candidate file, or non-TAC baseline selector was intentionally changed.
+- `run_full_consensus_safe_experiment.sh` remains a pre-existing working-tree modification.
+- Code-review follow-up fixed prompt-text contamination in formal formulation awareness, positive-evidence requirements for variable domains, generic LLMOPT rank-stability risk in fixed-order TAC, and loss of TAC recovery metadata during final annotation.
+- Final full suite after review fixes: `python -m pytest -q` -> `254 passed, 52 warnings in 5.40s`.
+
 ### Phase 16 — Cross-pool conservative TAC hardening
 
 **Status:** complete on 2026-06-25

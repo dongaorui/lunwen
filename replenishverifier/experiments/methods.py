@@ -549,6 +549,167 @@ def _candidate_quality_score(row):
     )
 
 
+FORMULATION_ELEMENT_PATTERNS = {
+    "sets": re.compile(r"\b(set|sets|periods?|items?|products?|range\s*\(|for\s+\w+\s+in\s+)\b", re.IGNORECASE),
+    "parameters": re.compile(r"\b(parameters?|demand|cost|capacity|holding|shortage|setup|fixed|big[-_ ]?m|initial_inventory|price|probability)\b", re.IGNORECASE),
+    "variables": re.compile(r"\b(variables?|LpVariable|decision variable|order|inventory|shortage|backlog|binary|trigger)\b", re.IGNORECASE),
+    "objective": re.compile(r"\b(objective|minimize|maximize|LpMinimize|LpMaximize|model\s*\+=\s*pulp\.lpSum)\b", re.IGNORECASE),
+    "constraints": re.compile(r"\b(constraints?|balance|capacity|big[-_ ]?m|linking|nonnegative)\b|model\s*\+=.*(<=|>=|==)", re.IGNORECASE | re.DOTALL),
+}
+
+
+def _candidate_text_and_code(row):
+    return "\n".join(
+        str(part)
+        for part in [
+            row.get("generated_text"),
+            row.get("generated_code"),
+            row.get("code"),
+        ]
+        if part
+    )
+
+
+def formulation_awareness_details(row):
+    """LLMOPT-style five-element formulation awareness for TAC only."""
+    lp_stats = row.get("lp_stats") or {}
+    text = _candidate_text_and_code(row)
+    present = set()
+    if FORMULATION_ELEMENT_PATTERNS["sets"].search(text):
+        present.add("sets")
+    if FORMULATION_ELEMENT_PATTERNS["parameters"].search(text):
+        present.add("parameters")
+    if FORMULATION_ELEMENT_PATTERNS["variables"].search(text) or int(lp_stats.get("variables_count") or 0) > 0:
+        present.add("variables")
+    if FORMULATION_ELEMENT_PATTERNS["objective"].search(text) or lp_stats.get("objective_present"):
+        present.add("objective")
+    if FORMULATION_ELEMENT_PATTERNS["constraints"].search(text) or int(lp_stats.get("constraints_count") or 0) > 0:
+        present.add("constraints")
+    required = ["sets", "parameters", "variables", "objective", "constraints"]
+    missing = [name for name in required if name not in present]
+    return {
+        "formulation_awareness_score": float((len(required) - len(missing)) / len(required)),
+        "formulation_elements_present": [name for name in required if name in present],
+        "formulation_elements_missing": missing,
+    }
+
+
+def formulation_awareness_score(row):
+    return formulation_awareness_details(row)["formulation_awareness_score"]
+
+
+def variable_domain_correctness_details(row):
+    """No-reference variable-domain checks scoped to TAC problem profiles."""
+    problem_type = _row_problem_type(row)
+    lp_stats = row.get("lp_stats") or {}
+    code = str(row.get("generated_code") or row.get("code") or "")
+    checks = []
+    failures = []
+
+    def add_check(name, passed):
+        checks.append(name)
+        if not passed:
+            failures.append(name)
+
+    requires_nonnegative = (
+        "nonnegative_bounds" in ((row.get("structure_verification") or {}).get("required_structures") or [])
+        or problem_type in {
+            "single_period_newsvendor",
+            "single_item_multi_period",
+            "single_item_multi_period_shortage",
+            "multi_item_capacity",
+            "fixed_order_cost_big_m",
+        }
+    )
+    if requires_nonnegative:
+        lp_stats = row.get("lp_stats") or {}
+        nonnegative_present = (
+            _rule_score(row, "nonnegative_bounds") > 0.0
+            or bool(re.search(r"lowBound\s*=\s*0|cat\s*=\s*['\"]NonNegative['\"]", code, flags=re.IGNORECASE))
+            or bool(lp_stats.get("bounds_present"))
+        )
+        add_check("nonnegative_core_domain", nonnegative_present)
+
+    if problem_type == "fixed_order_cost_big_m" or _tac_profile_name(problem_type, row=row) == "fixed_order_cost_big_m":
+        binary_present = (
+            int(lp_stats.get("binary_variables_count") or 0) > 0
+            or bool(re.search(r"cat\s*=\s*['\"]Binary['\"]|LpBinary", code, flags=re.IGNORECASE))
+        )
+        add_check("binary_order_domain", binary_present)
+
+    if problem_type == "single_item_multi_period_shortage":
+        lp_stats = row.get("lp_stats") or {}
+        shortage_nonnegative = (
+            _rule_score(row, "nonnegative_bounds") > 0.0
+            or bool(re.search(r"(?:shortage|backlog|B)\w*.*lowBound\s*=\s*0", code, flags=re.IGNORECASE | re.DOTALL))
+            or bool(lp_stats.get("bounds_present"))
+        )
+        add_check("shortage_nonnegative_domain", shortage_nonnegative)
+
+    if not checks:
+        score = 1.0
+    else:
+        score = float((len(checks) - len(failures)) / max(len(checks), 1))
+    return {
+        "variable_domain_correctness_score": score,
+        "variable_domain_checks": checks,
+        "variable_domain_failures": failures,
+    }
+
+
+def variable_domain_correctness_score(row):
+    return variable_domain_correctness_details(row)["variable_domain_correctness_score"]
+
+
+def solver_execution_feedback_details(row):
+    """Summarize solver-log/execution feedback as candidate-observable TAC signals."""
+    execution = row.get("execution") or {}
+    lp_stats = row.get("lp_stats") or {}
+    error_text = " ".join(str(value) for value in [execution.get("error"), lp_stats.get("error")] if value).lower()
+    positive = []
+    negative = []
+
+    def add(name, passed):
+        (positive if passed else negative).append(name)
+
+    add("execution_success", bool(execution.get("executable")))
+    add("solver_status_optimal", str(execution.get("status") or "") == "Optimal")
+    add("finite_objective", _finite_objective_score(row) > 0.0)
+    add("lp_exported", bool(lp_stats.get("lp_exported")))
+    add("lp_objective_present", bool(lp_stats.get("objective_present")))
+    add("lp_constraints_present", int(lp_stats.get("constraints_count") or 0) > 0)
+    add("lp_variables_present", int(lp_stats.get("variables_count") or 0) > 0)
+    if any(term in error_text for term in ["timeout", "error", "traceback", "failed", "parse"]):
+        negative.append("execution_or_lp_error_message")
+    score = float(len(positive) / max(len(positive) + len(negative), 1))
+    return {
+        "solver_execution_feedback_score": score,
+        "solver_feedback_flags": positive,
+        "solver_feedback_failures": negative,
+    }
+
+
+def solver_execution_feedback_score(row):
+    return solver_execution_feedback_details(row)["solver_execution_feedback_score"]
+
+
+def _tac_llmopt_signal_details(row):
+    formulation = formulation_awareness_details(row)
+    domain = variable_domain_correctness_details(row)
+    solver_feedback = solver_execution_feedback_details(row)
+    llmopt_score = float(
+        0.34 * formulation["formulation_awareness_score"]
+        + 0.33 * domain["variable_domain_correctness_score"]
+        + 0.33 * solver_feedback["solver_execution_feedback_score"]
+    )
+    details = {}
+    details.update(formulation)
+    details.update(domain)
+    details.update(solver_feedback)
+    details["llmopt_signal_score"] = llmopt_score
+    return details
+
+
 def _safe_consensus_components(row):
     raw = float(row.get("objective_consensus_score", 0.0) or 0.0)
     quality = max(0.0, min(1.0, _candidate_quality_score(row)))
@@ -579,6 +740,7 @@ def type_aware_consensus_selection_components(row):
     base["critical_structure_pass"] = 1.0 if not critical_missing else 0.0
     base["critical_missing_structures"] = critical_missing
     base.update(_safe_consensus_components(row))
+    base.update(_tac_llmopt_signal_details(row))
     return base
 
 
@@ -598,6 +760,10 @@ def type_aware_consensus_selection_score(row):
         + 180.0 * c["structure_completeness"]
         + 110.0 * c["hard_gate_score"]
         + 80.0 * c["text_triggered_hard_gate_score"]
+        + 160.0 * c["llmopt_signal_score"]
+        + 100.0 * c["variable_domain_correctness_score"]
+        + 80.0 * c["solver_execution_feedback_score"]
+        + 60.0 * c["formulation_awareness_score"]
         + 60.0 * c["type_aware_score"]
         + 20.0 * c["code_validity_score"]
         + 10.0 * c["static_validation_score"]
@@ -852,7 +1018,9 @@ def _tac_profile_key(row, problem_type, allow_feasible_selection=False):
             components["hard_gate_score"],
             components["structure_completeness"],
             components["constraint_coverage"],
+            components["variable_domain_correctness_score"],
             candidate_order,
+            components["llmopt_signal_score"],
             components["safe_consensus_score"],
             -components["wrong_consensus_risk"],
             components["consensus_cluster_support"],
@@ -1608,6 +1776,9 @@ def _annotate_selected_score(best, method_name, allow_feasible_selection=False):
         best["repair_feedback_count"] = best["selection_components"]["repair_feedback_count"]
     if method_name == "ReplenishVerifier-TypeAware-Consensus":
         best["selection_components"] = _with_tac_profile_components(best, _row_problem_type(best))
+        recovery_decision = best.get("tac_recovery_decision") or {}
+        best["selection_components"]["tac_recovery_triggered"] = bool(recovery_decision.get("triggered"))
+        best["selection_components"]["tac_recovery_reason"] = recovery_decision.get("reason")
         best["hard_gate_failures"] = _type_aware_hard_gate_failures(best)
         best["hard_gate_score"] = best["selection_components"]["hard_gate_score"]
         best["constraint_coverage"] = best["selection_components"]["constraint_coverage"]
