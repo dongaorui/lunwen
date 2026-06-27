@@ -614,6 +614,37 @@ def compute_problem_type_pool_limit_diagnostics(main_rows, candidate_rows, pool_
     return rows
 
 
+def _join_list(value):
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple, set)):
+        return ";".join(str(item) for item in value)
+    return str(value)
+
+
+def compute_tac_llmopt_signal_diagnostics(main_rows):
+    rows = []
+    selected = _selected_by_method_problem(main_rows)
+    for pid, row in sorted(selected.get("ReplenishVerifier-TypeAware-Consensus", {}).items()):
+        components = _selection_components(row)
+        rows.append({
+            "problem_id": pid,
+            "problem_type": row.get("problem_type"),
+            "candidate_id": row.get("candidate_id"),
+            "formulation_awareness_score": components.get("formulation_awareness_score"),
+            "formulation_elements_missing": _join_list(components.get("formulation_elements_missing")),
+            "variable_domain_correctness_score": components.get("variable_domain_correctness_score"),
+            "variable_domain_failures": _join_list(components.get("variable_domain_failures")),
+            "solver_execution_feedback_score": components.get("solver_execution_feedback_score"),
+            "solver_feedback_flags": _join_list(components.get("solver_feedback_flags")),
+            "safe_consensus_score": components.get("safe_consensus_score"),
+            "wrong_consensus_risk": components.get("wrong_consensus_risk"),
+            "posthoc_objective_correct": row.get("objective_correct"),
+            "posthoc_only": True,
+        })
+    return rows
+
+
 def compute_tac_comparison_diagnostics(main_rows):
     selected = _selected_by_method_problem(main_rows)
     tac = selected.get("ReplenishVerifier-TypeAware-Consensus", {})
@@ -1261,6 +1292,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     avoidable_error_summary = compute_avoidable_error_summary(main_rows, candidate_rows) if candidate_rows else []
     best_of_k_audit = compute_best_of_k_audit(main_rows)
     tac_comparison_diagnostics = compute_tac_comparison_diagnostics(main_rows)
+    tac_llmopt_signal_diagnostics = compute_tac_llmopt_signal_diagnostics(main_rows)
     tac_alias_explanation = build_tac_alias_explanation(tac_comparison_diagnostics)
     consensus_safe_counterfactual = compute_consensus_safe_counterfactual(main_rows)
     wrong_consensus_risk = compute_wrong_consensus_risk_diagnostics(main_rows)
@@ -1316,6 +1348,8 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
     _write_best_of_k_audit(out_dir / "best_of_k_audit.md", out_dir / "best_of_k_audit.json", best_of_k_audit)
     write_csv(out_dir / "tac_vs_safeselector_diff.csv", tac_comparison_diagnostics)
     _write_posthoc_diagnostic_markdown(out_dir / "tac_vs_safeselector_diff.md", "TAC vs Safe Selector Difference Diagnostics", tac_comparison_diagnostics)
+    write_csv(out_dir / "tac_llmopt_signal_diagnostics.csv", tac_llmopt_signal_diagnostics)
+    _write_posthoc_diagnostic_markdown(out_dir / "tac_llmopt_signal_diagnostics.md", "TAC LLMOPT Signal Diagnostics", tac_llmopt_signal_diagnostics)
     (out_dir / "tac_alias_explanation.md").write_text(tac_alias_explanation, encoding="utf-8")
     write_csv(out_dir / "avoidable_error_summary.csv", avoidable_error_summary)
     _write_avoidable_error_markdown(out_dir / "avoidable_error_summary.md", avoidable_error_summary)
@@ -1382,6 +1416,7 @@ def diagnose_selection_metrics(exp_dir, candidates_path=None, benchmark_path=Non
         "avoidable_error_summary": avoidable_error_summary,
         "best_of_k_audit": best_of_k_audit,
         "tac_comparison_diagnostics": tac_comparison_diagnostics,
+        "tac_llmopt_signal_diagnostics": tac_llmopt_signal_diagnostics,
         "tac_alias_explanation": tac_alias_explanation,
         "consensus_safe_counterfactual": consensus_safe_counterfactual,
         "wrong_consensus_risk": wrong_consensus_risk,

@@ -579,3 +579,32 @@ Validation outcome on selection-only reruns:
 - Override summary satisfies `improved_count >= worsened_count`: V8 `0 >= 0`, V9 `1 >= 0`.
 
 No other baseline selection logic, generation code, candidate files, or candidate execution path was changed.
+
+## 2026-06-26 — TAC LLMOPT three-signal injection findings
+
+`ReplenishVerifier-TypeAware-Consensus` now incorporates LLMOPT-inspired verifier signals in a no-reference way, scoped to TAC only:
+
+- Five-element formulation awareness checks whether candidate text/code/LP artifacts provide evidence for Sets, Parameters, Variables, Objective, and Constraints.
+- Variable-domain correctness checks nonnegative core replenishment variables, fixed-order binary trigger variables, and shortage nonnegative domains where applicable.
+- Solver/execution feedback checks executable status, Optimal solver status, finite objective, LP export, objective/constraint/variable artifact presence, and timeout/error/parse-failure messages.
+
+These fields are exposed in TAC `selection_components` as diagnostics and scoring features, and `diagnose_selection_metrics` writes `tac_llmopt_signal_diagnostics.csv/.md`. Formal TAC selection remains no-reference; forbidden reference/oracle fields are not copied into the new diagnostic rows except `posthoc_objective_correct`, which is explicitly diagnostic-only.
+
+Validation on existing V8/V9 selection-only reruns:
+
+- V8 TAC objective_accuracy remains `0.8500`.
+- V9 TAC objective_accuracy remains `0.8300`.
+- Fixed-order Big-M TAC is `1.0000` on both V8 and V9.
+- V8/V9 no-leakage audits passed.
+- Override summaries satisfy improved >= worsened: V8 `0 >= 0`, V9 `1 >= 0`.
+
+Interpretation: the new LLMOPT signals improve explainability and add no-reference distinguishability for domain/domain-log failures without destabilizing the cross-pool TAC result. The observed V9 shortage ceiling remains not improved by these signals, consistent with earlier findings that remaining shortage misses are not distinguishable by current no-reference features.
+
+Review refinement:
+
+- Formal five-element awareness now uses candidate-produced fields and LP stats only, not problem prompt or natural-language text.
+- Variable-domain correctness now requires positive evidence for nonnegative domains rather than treating absence from `missing` as proof.
+- Fixed-order rank stability is protected from generic formulation-awareness differences; true domain correctness can still distinguish continuous vs binary trigger errors.
+- TAC recovery metadata is preserved through final selected-row annotation.
+
+No other baseline selector, generation code, benchmark, or candidate file was intentionally changed.

@@ -1589,3 +1589,110 @@ The user asked to continue improving `ReplenishVerifier-TypeAware-Consensus` bas
 ### Notes
 
 No candidate generation, repair generation, or `run_generation.py` change was made. Other baseline selection logic was not intentionally changed. Formal TAC selection remains no-reference; objective correctness/oracle/reference fields are evaluation or diagnostics only. No problem-id or candidate-file-specific rule was added.
+
+## 2026-06-26 — TAC LLMOPT three-signal injection
+
+### User request
+
+The user asked to continue improving only `ReplenishVerifier-TypeAware-Consensus` based on LLMOPT's three key ideas: five-element formulation awareness, variable-domain correctness, and solver-log/execution feedback as verifier signals. Constraints: modify only TAC internals/helpers/diagnostics/tests, do not change other baselines, do not touch generation/benchmark/candidate files, keep formal selection no-reference, preserve fixed-order Big-M at 1.0000, keep V8 TAC >= 0.8500 and V9 TAC >= 0.8200, and ensure posthoc worsened overrides do not exceed improved overrides.
+
+### Actions completed
+
+1. Restored planning context by reading `task_plan.md`, `findings.md`, and relevant `progress.md` sections.
+2. Inspected current TAC implementation and diagnostics in:
+   - `replenishverifier/experiments/methods.py`
+   - `replenishverifier/experiments/diagnose_selection_metrics.py`
+   - `tests/test_tac_cross_pool_stability.py`
+   - `tests/test_diagnose_selection_metrics.py`
+3. Added RED tests for TAC-only LLMOPT signals:
+   - TAC selection components expose five-element, variable-domain, and solver/execution feedback scores without forbidden reference/oracle keys.
+   - Fixed-order TAC penalizes continuous order-trigger variables and prefers a binary-trigger candidate.
+   - Solver/execution feedback penalizes timeout/parse-error candidates even when their raw consensus is high.
+   - Formulation-awareness diagnostics detect missing constraints.
+   - `compute_tac_llmopt_signal_diagnostics()` emits selected TAC signal rows without leaking forbidden fields.
+4. Implemented TAC-only helper signals in `methods.py`:
+   - `formulation_awareness_details()` / `formulation_awareness_score()` over Sets, Parameters, Variables, Objective, Constraints.
+   - `variable_domain_correctness_details()` / `variable_domain_correctness_score()` for nonnegative core domains, fixed-order binary trigger domains, and shortage nonnegative domains.
+   - `solver_execution_feedback_details()` / `solver_execution_feedback_score()` over executable status, Optimal status, finite objective, LP export, objective/constraint/variable artifact presence, and error-message flags.
+   - `_tac_llmopt_signal_details()` as a combined TAC signal.
+5. Wired the new signals only into `ReplenishVerifier-TypeAware-Consensus` components and scoring, plus the fixed-order TAC profile tie-breaker. Other methods can still share the module file, but their formal keys do not consume these new LLMOPT fields.
+6. Added diagnostics:
+   - `compute_tac_llmopt_signal_diagnostics()`.
+   - `diagnostics/tac_llmopt_signal_diagnostics.csv` and `.md` output from `diagnose_selection_metrics`.
+7. Reselected existing V8/V9 candidate evaluations without re-execution or regeneration:
+   - V8 output: `runs/tac_llmopt_v8_20260626`.
+   - V9 output: `runs/tac_llmopt_v9_20260626`.
+8. Generated diagnostics, paper metrics, and no-leakage audits for both reruns.
+
+### Verification
+
+- RED before implementation:
+  - New TAC signal tests failed with missing imports such as `formulation_awareness_score`.
+  - New diagnostic test failed with missing `compute_tac_llmopt_signal_diagnostics`.
+- New signal tests after implementation:
+  - `python -m pytest tests/test_tac_cross_pool_stability.py::test_tac_components_include_llmopt_no_reference_signals tests/test_tac_cross_pool_stability.py::test_variable_domain_correctness_penalizes_continuous_trigger_in_fixed_order_tac tests/test_tac_cross_pool_stability.py::test_solver_feedback_penalizes_timeout_and_parse_error_even_with_high_consensus tests/test_tac_cross_pool_stability.py::test_formulation_awareness_detects_missing_constraints_element tests/test_diagnose_selection_metrics.py::test_compute_tac_llmopt_signal_diagnostics_reports_selected_components_without_oracle_keys -q` -> `5 passed`.
+- Focused TAC/leakage/diagnostic suite:
+  - `python -m pytest tests/test_tac_cross_pool_stability.py tests/test_selection_gating.py tests/test_diagnose_selection_metrics.py tests/test_leakage_audit.py -q` -> `76 passed`.
+- Fixed-order stability subset after final weighting adjustment:
+  - `python -m pytest tests/test_tac_cross_pool_stability.py::test_fixed_order_tac_recovers_when_schema_safe_challenger_has_overwhelming_consensus tests/test_tac_cross_pool_stability.py::test_fixed_order_tac_keeps_stable_rank_when_consensus_gain_is_only_moderate tests/test_tac_cross_pool_stability.py::test_variable_domain_correctness_penalizes_continuous_trigger_in_fixed_order_tac -q` -> `3 passed`.
+- Full suite:
+  - `python -m pytest -q` -> `250 passed, 52 warnings in 6.98s`.
+- No-leakage audits:
+  - V8 `runs/tac_llmopt_v8_20260626`: passed.
+  - V9 `runs/tac_llmopt_v9_20260626`: passed.
+- `git diff --check` reported only existing LF/CRLF warnings, no whitespace errors.
+
+### Results
+
+- V8 TAC objective_accuracy: `0.8500`.
+- V9 TAC objective_accuracy: `0.8300`.
+- V8 fixed_order_cost_big_m TAC: `1.0000`.
+- V9 fixed_order_cost_big_m TAC: `1.0000`.
+- V8 single_period_newsvendor TAC: `0.7000`.
+- V9 single_period_newsvendor TAC: `0.7000`.
+- V8 single_item_multi_period_shortage TAC: `0.9500`.
+- V9 single_item_multi_period_shortage TAC: `0.9000`.
+- V8 single_item_multi_period TAC: `1.0000`.
+- V9 single_item_multi_period TAC: `1.0000`.
+- V8 override summary: `improved_count=0`, `worsened_count=0`.
+- V9 override summary: `improved_count=1`, `worsened_count=0`.
+
+### Changed files
+
+- `replenishverifier/experiments/methods.py`
+- `replenishverifier/experiments/diagnose_selection_metrics.py`
+- `tests/test_tac_cross_pool_stability.py`
+- `tests/test_diagnose_selection_metrics.py`
+- `progress.md`
+- `findings.md`
+- `task_plan.md`
+
+### Notes
+
+No `run_generation.py`, benchmark, candidate files, Direct, Best-of-K, Consensus only, Structure only, Full, FullV2, ConsensusSafe, HybridSafe, or TypeAware selector logic was intentionally changed. `run_full_consensus_safe_experiment.sh` remains a pre-existing working-tree modification and was not intentionally edited in this task.
+
+### Review follow-up on 2026-06-26
+
+A code review identified four TAC-related issues to verify:
+
+1. Five-element formulation awareness was using `natural_language` / `problem_text` / `prompt`, which could make the formal TAC score reflect the prompt rather than candidate-produced artifacts.
+2. Variable-domain correctness treated absence from `missing` as positive nonnegative-domain evidence.
+3. Fixed-order TAC placed formulation/domain fields before candidate rank, which could undermine the intended rank-stability behavior.
+4. `_annotate_selected_score()` recomputed TAC `selection_components` and dropped recovery metadata written by `select_typeaware_consensus()`.
+
+Actions taken:
+
+- Added RED regression tests for all four issues.
+- Restricted formal formulation-awareness scoring to candidate-produced fields (`generated_text`, `generated_code`, `code`) plus LP artifact stats.
+- Changed nonnegative-domain checks to require positive evidence from the nonnegative rule score, code-level bounds/category, or LP bounds metadata.
+- Kept `variable_domain_correctness_score` before fixed-order rank only for true domain correctness, but moved general `llmopt_signal_score` after candidate rank so richer formulation prose alone cannot break stable fixed-order rank behavior.
+- Preserved `tac_recovery_triggered` and `tac_recovery_reason` after `_annotate_selected_score()` by re-merging `tac_recovery_decision` into TAC selection components.
+
+Additional verification after review fixes:
+
+- Reviewer regression tests first failed, then passed.
+- Fixed-order regression group: `4 passed`.
+- Focused TAC/leakage/diagnostic suite: `79 passed`.
+- V8/V9 reselect, diagnostics, leakage audits, and paper metrics were refreshed.
+- Final full suite: `python -m pytest -q` -> `254 passed, 52 warnings in 5.40s`.
+- Final V8/V9 TAC objective_accuracy remained `0.8500` / `0.8300`; fixed-order Big-M remained `1.0000` on both.
